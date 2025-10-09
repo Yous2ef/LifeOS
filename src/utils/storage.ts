@@ -2,6 +2,7 @@ import type { AppData } from "../types";
 
 const STORAGE_KEY = "lifeos_data";
 const STORAGE_VERSION = "1.0.0";
+const FIRST_TIME_KEY = "lifeos_first_time";
 
 // Freelancing separate storage keys
 const FREELANCING_PROJECTS_KEY = "lifeos-freelancing-projects";
@@ -48,8 +49,8 @@ const getDefaultData = (): AppData => ({
         quickCaptures: [],
     },
     settings: {
-        theme: "dark",
-        userName: "Youssef",
+        theme: "light",
+        userName: "User",
         email: "",
     },
 });
@@ -305,4 +306,14 @@ export const clearAllData = (): void => {
     localStorage.removeItem(FREELANCING_STANDALONE_TASKS_KEY);
     // Also clear programming extended data
     localStorage.removeItem(PROGRAMMING_DATA_KEY);
+};
+
+// Check if this is the first time the user opens the app
+export const isFirstTime = (): boolean => {
+    return localStorage.getItem(FIRST_TIME_KEY) === null;
+};
+
+// Mark that the user has completed the first-time setup
+export const markFirstTimeComplete = (): void => {
+    localStorage.setItem(FIRST_TIME_KEY, "completed");
 };

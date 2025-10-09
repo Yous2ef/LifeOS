@@ -1,8 +1,10 @@
-import React, { Suspense, lazy } from "react";
+import React, { Suspense, lazy, useState, useEffect } from "react";
 import { HashRouter, Routes, Route } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
-import { AppProvider } from "./context/AppContext";
+import { AppProvider, useApp } from "./context/AppContext";
 import { Layout } from "./components/layout/Layout";
+import { WelcomeModal } from "./components/common/WelcomeModal";
+import { isFirstTime, markFirstTimeComplete } from "./utils/storage";
 
 // Lazy load all page components for code splitting
 const Dashboard = lazy(() =>
@@ -49,9 +51,36 @@ const LoadingFallback = () => (
     </div>
 );
 
-const App: React.FC = () => {
+// Inner component that has access to AppContext
+const AppContent: React.FC = () => {
+    const { data, updateData } = useApp();
+    const [showWelcome, setShowWelcome] = useState(false);
+
+    useEffect(() => {
+        // Check if this is the first time the user opens the app
+        if (isFirstTime()) {
+            setShowWelcome(true);
+        }
+    }, []);
+
+    const handleWelcomeComplete = (name: string) => {
+        // Update the user's name in settings
+        updateData({
+            settings: {
+                ...data.settings,
+                userName: name,
+            },
+        });
+
+        // Mark first-time setup as complete
+        markFirstTimeComplete();
+
+        // Close the welcome modal
+        setShowWelcome(false);
+    };
+
     return (
-        <AppProvider>
+        <>
             <HashRouter>
                 <Layout>
                     <Suspense fallback={<LoadingFallback />}>
@@ -99,6 +128,18 @@ const App: React.FC = () => {
                     },
                 }}
             />
+            <WelcomeModal
+                isOpen={showWelcome}
+                onComplete={handleWelcomeComplete}
+            />
+        </>
+    );
+};
+
+const App: React.FC = () => {
+    return (
+        <AppProvider>
+            <AppContent />
         </AppProvider>
     );
 };
