@@ -1,5 +1,5 @@
 import React, { Suspense, lazy } from "react";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { HashRouter, Routes, Route } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 import { AppProvider } from "./context/AppContext";
 import { Layout } from "./components/layout/Layout";
@@ -52,7 +52,7 @@ const LoadingFallback = () => (
 const App: React.FC = () => {
     return (
         <AppProvider>
-            <BrowserRouter>
+            <HashRouter>
                 <Layout>
                     <Suspense fallback={<LoadingFallback />}>
                         <Routes>
@@ -87,7 +87,7 @@ const App: React.FC = () => {
                         </Routes>
                     </Suspense>
                 </Layout>
-            </BrowserRouter>
+            </HashRouter>
             <Toaster
                 position="bottom-right"
                 toastOptions={{
