@@ -5,6 +5,8 @@ import path from "path";
 
 // https://vite.dev/config/
 export default defineConfig({
+    // Set base path for GitHub Pages deployment
+    base: "/LifeOS/",
     plugins: [react(), tailwindcss()],
     build: {
         outDir: "build",
