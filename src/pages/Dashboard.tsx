@@ -75,16 +75,16 @@ export const Dashboard = () => {
         }
     }, []);
 
-    const freelancingTasks = useMemo(() => {
-        try {
-            const stored = localStorage.getItem(
-                "lifeos-freelancing-standalone-tasks"
-            );
-            return stored ? JSON.parse(stored) : [];
-        } catch {
-            return [];
-        }
-    }, []);
+    // const freelancingTasks = useMemo(() => {
+    //     try {
+    //         const stored = localStorage.getItem(
+    //             "lifeos-freelancing-standalone-tasks"
+    //         );
+    //         return stored ? JSON.parse(stored) : [];
+    //     } catch {
+    //         return [];
+    //     }
+    // }, []);
 
     // Calculate comprehensive stats
     const stats = useMemo(() => {

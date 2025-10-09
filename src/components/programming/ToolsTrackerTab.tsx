@@ -72,11 +72,6 @@ export const ToolsTrackerTab = ({
             .join(" ");
     };
 
-    const getCategoryIcon = (category: Tool["category"]) => {
-        // You can customize icons per category if desired
-        return <Wrench className="h-4 w-4" />;
-    };
-
     return (
         <div className="space-y-4">
             {/* Header */}
@@ -159,7 +154,7 @@ export const ToolsTrackerTab = ({
                                 <div className="flex items-start justify-between">
                                     <div className="flex-1">
                                         <div className="flex items-center gap-2 mb-2">
-                                            {getCategoryIcon(tool.category)}
+                                            <Wrench className="h-4 w-4" />
                                             <CardTitle className="text-base">
                                                 {tool.name}
                                             </CardTitle>

@@ -1,11 +1,8 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
-import { Checkbox } from "@/components/ui/Checkbox";
 import { FormInput } from "@/components/ui/FormInput";
-import { Badge } from "@/components/ui/Badge";
 import {
     Plus,
-    Edit2,
     Trash2,
     Calendar,
     List,
@@ -28,11 +25,7 @@ import type {
     ListCardBadge,
 } from "@/components/common";
 import { format } from "date-fns";
-import {
-    getPriorityColor,
-    formatDateRelative,
-    isDateToday,
-} from "@/utils/helpers";
+import { getPriorityColor, isDateToday } from "@/utils/helpers";
 
 interface StandaloneTasksProps {
     tasks: StandaloneTask[];
@@ -51,7 +44,6 @@ export const StandaloneTasks = ({
     onAddTask,
     onEditTask,
     onDeleteTask,
-    onToggleStatus,
     onUpdateTaskStatus,
 }: StandaloneTasksProps) => {
     const [viewMode, setViewMode] = useState<ViewMode>("list");
@@ -158,8 +150,6 @@ export const StandaloneTasks = ({
 
     // Helper to create List card badges
     const getListBadges = (task: StandaloneTask): ListCardBadge[] => {
-        const taskOverdue = task.dueDate && isOverdue(task.dueDate);
-        const isCompleted = task.status === "completed";
         const badges: ListCardBadge[] = [];
         badges.push({
             label: `Priority ${task.priority}`,

@@ -3,7 +3,7 @@ import React, {
     useContext,
     useState,
     useEffect,
-    ReactNode,
+    type ReactNode,
 } from "react";
 import type { AppData, Toast, DismissedNotification } from "../types";
 import { loadData, saveData } from "../utils/storage";

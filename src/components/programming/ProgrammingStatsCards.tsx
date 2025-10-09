@@ -5,13 +5,9 @@ import {
     TrendingUp,
     Code2,
     Wrench,
-    Clock,
-    Target,
-    CheckCircle2,
-    Zap,
+
 } from "lucide-react";
 import type { ProgrammingStats } from "@/types/programming";
-import { formatMinutesToTime } from "@/utils/helpers";
 
 interface ProgrammingStatsProps {
     stats: ProgrammingStats;

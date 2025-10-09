@@ -18,7 +18,6 @@ import type {
     KanbanCardBadge,
     KanbanCardAction,
     ListCardBadge,
-    ListCardAction,
 } from "@/components/common";
 import type { LearningItem } from "@/types/programming";
 import { LearningItemModal } from "./LearningItemModal";

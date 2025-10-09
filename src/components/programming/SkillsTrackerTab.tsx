@@ -38,19 +38,6 @@ export const SkillsTrackerTab = ({
     const filteredSkills =
         filter === "all" ? skills : skills.filter((s) => s.category === filter);
 
-    const getCategoryColor = (category: Skill["category"]) => {
-        const colors: Record<Skill["category"], string> = {
-            frontend: "from-blue-500 to-cyan-500",
-            backend: "from-green-500 to-emerald-500",
-            database: "from-purple-500 to-pink-500",
-            devops: "from-orange-500 to-red-500",
-            design: "from-pink-500 to-rose-500",
-            "soft-skills": "from-yellow-500 to-amber-500",
-            other: "from-gray-500 to-slate-500",
-        };
-        return colors[category];
-    };
-
     const getProgressStatus = (current: number, target: number) => {
         const percentage = (current / target) * 100;
         if (percentage >= 100)
