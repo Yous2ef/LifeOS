@@ -13,6 +13,7 @@ import {
     Sparkles,
     ChevronLeft,
     ChevronRight,
+    Github,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { exportData } from "../../utils/storage";
@@ -173,7 +174,19 @@ export const Sidebar: React.FC<SidebarProps> = ({ onImport }) => {
                             <Settings size={16} />
                             Settings
                         </NavLink>
-
+                        <Button
+                            onClick={() =>
+                                window.open(
+                                    "https://github.com/Yous2ef/LifeOS",
+                                    "_blank"
+                                )
+                            }
+                            variant="ghost"
+                            size="sm"
+                            className="w-full justify-start text-sidebar-foreground hover:text-sidebar-foreground">
+                            <Github size={16} />
+                            GitHub
+                        </Button>
                         <Separator className="my-2" />
                         <Button
                             onClick={toggleCollapse}
@@ -213,6 +226,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ onImport }) => {
                             }>
                             <Settings size={16} />
                         </NavLink>
+
+                        <button
+                            onClick={() =>
+                                window.open(
+                                    "https://github.com/Yous2ef/LifeOS",
+                                    "_blank"
+                                )
+                            }
+                            title="GitHub"
+                            className="w-full p-2.5 flex items-center justify-center rounded-lg text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors">
+                            <Github size={16} />
+                        </button>
 
                         <Separator className="my-2" />
 
