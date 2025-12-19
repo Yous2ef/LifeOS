@@ -762,11 +762,62 @@ export const SubjectDetails = () => {
                                         </div>
                                     ) : (
                                         subjectExams
-                                            .sort(
-                                                (a, b) =>
-                                                    new Date(a.date).getTime() -
-                                                    new Date(b.date).getTime()
-                                            )
+                                            .sort((a, b) => {
+                                                const now = new Date();
+                                                const today = new Date(
+                                                    now.getFullYear(),
+                                                    now.getMonth(),
+                                                    now.getDate()
+                                                );
+                                                const dateA = new Date(a.date);
+                                                const dateB = new Date(b.date);
+
+                                                // Priority: 1=Overdue, 2=Upcoming, 3=Missing grade, 4=Graded
+                                                const getPriority = (
+                                                    exam: typeof a
+                                                ) => {
+                                                    const examDate = new Date(
+                                                        exam.date
+                                                    );
+                                                    const isPast =
+                                                        examDate < today;
+
+                                                    if (!exam.taken && isPast)
+                                                        return 1;
+                                                    if (!exam.taken && !isPast)
+                                                        return 2;
+                                                    if (
+                                                        exam.taken &&
+                                                        exam.grade === undefined
+                                                    )
+                                                        return 3;
+                                                    return 4;
+                                                };
+
+                                                const priorityA =
+                                                    getPriority(a);
+                                                const priorityB =
+                                                    getPriority(b);
+
+                                                if (priorityA !== priorityB) {
+                                                    return (
+                                                        priorityA - priorityB
+                                                    );
+                                                }
+
+                                                // Upcoming: soonest first, others: most recent first
+                                                if (priorityA === 2) {
+                                                    return (
+                                                        dateA.getTime() -
+                                                        dateB.getTime()
+                                                    );
+                                                } else {
+                                                    return (
+                                                        dateB.getTime() -
+                                                        dateA.getTime()
+                                                    );
+                                                }
+                                            })
                                             .map((exam) => (
                                                 <ExamCard
                                                     key={exam.id}

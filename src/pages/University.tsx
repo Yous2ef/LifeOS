@@ -1317,11 +1317,59 @@ export const University = () => {
                     ) : (
                         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                             {filteredExams
-                                .sort(
-                                    (a, b) =>
-                                        new Date(a.date).getTime() -
-                                        new Date(b.date).getTime()
-                                )
+                                .sort((a, b) => {
+                                    const now = new Date();
+                                    const today = new Date(
+                                        now.getFullYear(),
+                                        now.getMonth(),
+                                        now.getDate()
+                                    );
+                                    const dateA = new Date(a.date);
+                                    const dateB = new Date(b.date);
+
+                                    // Priority calculation:
+                                    // 1 = Overdue (past date, not taken) - HIGHEST priority
+                                    // 2 = Upcoming (future date, not taken)
+                                    // 3 = Missing grade (taken but no grade)
+                                    // 4 = Graded (taken with grade) - LOWEST priority
+                                    const getPriority = (exam: typeof a) => {
+                                        const examDate = new Date(exam.date);
+                                        const isPast = examDate < today;
+
+                                        if (!exam.taken && isPast) return 1; // Overdue
+                                        if (!exam.taken && !isPast) return 2; // Upcoming
+                                        if (
+                                            exam.taken &&
+                                            exam.grade === undefined
+                                        )
+                                            return 3; // Missing grade
+                                        return 4; // Graded
+                                    };
+
+                                    const priorityA = getPriority(a);
+                                    const priorityB = getPriority(b);
+
+                                    // First sort by priority
+                                    if (priorityA !== priorityB) {
+                                        return priorityA - priorityB;
+                                    }
+
+                                    // Within same priority, sort by date
+                                    // For overdue/missing grade: most recent first
+                                    // For upcoming: soonest first
+                                    // For graded: most recent first
+                                    if (priorityA === 2) {
+                                        // Upcoming: soonest first
+                                        return (
+                                            dateA.getTime() - dateB.getTime()
+                                        );
+                                    } else {
+                                        // Others: most recent first
+                                        return (
+                                            dateB.getTime() - dateA.getTime()
+                                        );
+                                    }
+                                })
                                 .map((exam) => {
                                     const subject =
                                         data.university.subjects.find(
