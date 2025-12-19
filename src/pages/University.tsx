@@ -1,4 +1,4 @@
-﻿import { useState, useMemo } from "react";
+﻿import { useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
     Plus,
@@ -44,6 +44,8 @@ import { TaskModal } from "../components/university/TaskModal";
 import { ExamModal } from "../components/university/ExamModal";
 import { Timetable } from "../components/university/Timetable";
 import { TimetableModal } from "../components/university/TimetableModal";
+import { YearTermSelector } from "../components/university/YearTermSelector";
+import { ManageYearsModal } from "../components/university/ManageYearsModal";
 import {
     calculateGrades,
     getGradeColor,
@@ -58,7 +60,13 @@ import {
     getPriorityColor,
 } from "../utils/helpers";
 import { cn } from "@/lib/utils";
-import type { Subject, UniversityTask, Exam as ExamType } from "../types";
+import type {
+    Subject,
+    UniversityTask,
+    Exam as ExamType,
+    AcademicYear,
+    Term,
+} from "../types";
 
 export const University = () => {
     const navigate = useNavigate();
@@ -86,20 +94,144 @@ export const University = () => {
         ExamType | undefined
     >(undefined);
     const [markExamMode, setMarkExamMode] = useState<"mark" | "grade">("mark");
+    const [manageYearsModalOpen, setManageYearsModalOpen] = useState(false);
 
-    // Calculate stats
+    // Year/Term filtering
+    const academicYears = data.university.academicYears || [];
+    const terms = data.university.terms || [];
+    const currentYearId = data.university.currentYearId;
+    const currentTermId = data.university.currentTermId;
+
+    // Filter subjects based on selected year/term
+    const filteredSubjects = useMemo(() => {
+        if (!currentYearId && !currentTermId) {
+            return data.university.subjects;
+        }
+
+        // Handle "unassigned" filter
+        if (currentYearId === "unassigned") {
+            return data.university.subjects.filter(
+                (subject) => !subject.yearId && !subject.termId
+            );
+        }
+
+        return data.university.subjects.filter((subject) => {
+            // If no year/term assigned to subject, don't show when filtering by year/term
+            if (!subject.yearId && !subject.termId) {
+                return false;
+            }
+            if (currentYearId && subject.yearId !== currentYearId) {
+                return false;
+            }
+            if (currentTermId && subject.termId !== currentTermId) {
+                return false;
+            }
+            return true;
+        });
+    }, [data.university.subjects, currentYearId, currentTermId]);
+
+    // Get filtered subject IDs for task/exam filtering
+    const filteredSubjectIds = useMemo(() => {
+        return new Set(filteredSubjects.map((s) => s.id));
+    }, [filteredSubjects]);
+
+    // Filter tasks based on filtered subjects
+    const filteredTasks = useMemo(() => {
+        if (!currentYearId && !currentTermId) {
+            return data.university.tasks;
+        }
+        return data.university.tasks.filter((task) =>
+            filteredSubjectIds.has(task.subjectId)
+        );
+    }, [
+        data.university.tasks,
+        filteredSubjectIds,
+        currentYearId,
+        currentTermId,
+    ]);
+
+    // Filter exams based on filtered subjects
+    const filteredExams = useMemo(() => {
+        if (!currentYearId && !currentTermId) {
+            return data.university.exams;
+        }
+        return data.university.exams.filter((exam) =>
+            filteredSubjectIds.has(exam.subjectId)
+        );
+    }, [
+        data.university.exams,
+        filteredSubjectIds,
+        currentYearId,
+        currentTermId,
+    ]);
+
+    // Year/Term change handlers
+    const handleYearChange = useCallback(
+        (yearId: string | undefined) => {
+            updateData({
+                university: {
+                    ...data.university,
+                    currentYearId: yearId,
+                    // Reset term if it doesn't belong to the new year
+                    currentTermId:
+                        yearId && currentTermId
+                            ? terms.find(
+                                  (t) =>
+                                      t.id === currentTermId &&
+                                      t.yearId === yearId
+                              )
+                                ? currentTermId
+                                : undefined
+                            : undefined,
+                },
+            });
+        },
+        [data.university, currentTermId, terms, updateData]
+    );
+
+    const handleTermChange = useCallback(
+        (termId: string | undefined) => {
+            updateData({
+                university: {
+                    ...data.university,
+                    currentTermId: termId,
+                },
+            });
+        },
+        [data.university, updateData]
+    );
+
+    const handleSaveYearsAndTerms = useCallback(
+        (years: AcademicYear[], newTerms: Term[]) => {
+            updateData({
+                university: {
+                    ...data.university,
+                    academicYears: years,
+                    terms: newTerms,
+                },
+            });
+            showToast("Academic years and terms updated", "success");
+        },
+        [data.university, updateData, showToast]
+    );
+
+    // Calculate stats (using filtered data when filtering is active)
     const stats = useMemo(() => {
-        const totalTasks = data.university.tasks.length;
-        const completedTasks = data.university.tasks.filter(
+        const tasksToCount = filteredTasks;
+        const examsToCount = filteredExams;
+        const subjectsToCount = filteredSubjects;
+
+        const totalTasks = tasksToCount.length;
+        const completedTasks = tasksToCount.filter(
             (t) => t.status === "done"
         ).length;
-        const inProgressTasks = data.university.tasks.filter(
+        const inProgressTasks = tasksToCount.filter(
             (t) => t.status === "in-progress"
         ).length;
-        const todoTasks = data.university.tasks.filter(
+        const todoTasks = tasksToCount.filter(
             (t) => t.status === "todo"
         ).length;
-        const upcomingExams = data.university.exams.filter(
+        const upcomingExams = examsToCount.filter(
             (e) =>
                 !e.taken &&
                 getDaysUntil(e.date) >= 0 &&
@@ -112,8 +244,8 @@ export const University = () => {
         let totalPossible = 0;
         let subjectsWithGrades = 0;
 
-        data.university.subjects.forEach((subject) => {
-            const subjectExams = data.university.exams.filter(
+        subjectsToCount.forEach((subject) => {
+            const subjectExams = examsToCount.filter(
                 (e) => e.subjectId === subject.id
             );
             const subjectEntries = gradeEntries.filter(
@@ -145,9 +277,9 @@ export const University = () => {
             subjectsWithGrades,
         };
     }, [
-        data.university.tasks,
-        data.university.exams,
-        data.university.subjects,
+        filteredTasks,
+        filteredExams,
+        filteredSubjects,
         data.university.gradeEntries,
     ]);
 
@@ -368,33 +500,31 @@ export const University = () => {
         return badges;
     };
 
-    // Kanban columns
+    // Kanban columns (using filtered tasks)
     const kanbanColumns = [
         {
             id: "todo",
             title: "To Do",
-            tasks: data.university.tasks.filter((t) => t.status === "todo"),
+            tasks: filteredTasks.filter((t) => t.status === "todo"),
             color: "from-blue-500 to-cyan-500",
         },
         {
             id: "in-progress",
             title: "In Progress",
-            tasks: data.university.tasks.filter(
-                (t) => t.status === "in-progress"
-            ),
+            tasks: filteredTasks.filter((t) => t.status === "in-progress"),
             color: "from-yellow-500 to-orange-500",
         },
         {
             id: "done",
             title: "Done",
-            tasks: data.university.tasks.filter((t) => t.status === "done"),
+            tasks: filteredTasks.filter((t) => t.status === "done"),
             color: "from-green-500 to-emerald-500",
         },
     ];
 
     return (
         <div className="space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-4">
                 <div>
                     <h1 className="text-4xl font-bold tracking-tight flex items-center gap-3 text-foreground">
                         <GraduationCap className="h-10 w-10" />
@@ -404,6 +534,15 @@ export const University = () => {
                         Manage your courses, tasks, and exams
                     </p>
                 </div>
+                <YearTermSelector
+                    years={academicYears}
+                    terms={terms}
+                    currentYearId={currentYearId}
+                    currentTermId={currentTermId}
+                    onYearChange={handleYearChange}
+                    onTermChange={handleTermChange}
+                    onManageClick={() => setManageYearsModalOpen(true)}
+                />
             </div>
 
             <Separator />
@@ -604,15 +743,19 @@ export const University = () => {
                 </div>
 
                 <TabsContent value="tasks" className="space-y-4">
-                    {data.university.tasks.length === 0 ? (
+                    {filteredTasks.length === 0 ? (
                         <Card>
                             <CardContent className="flex flex-col items-center justify-center py-16">
                                 <Target className="h-16 w-16 text-muted-foreground mb-4 opacity-50" />
                                 <h3 className="text-xl font-semibold mb-2 text-foreground">
-                                    No tasks yet
+                                    {currentYearId || currentTermId
+                                        ? "No tasks in this term"
+                                        : "No tasks yet"}
                                 </h3>
                                 <p className="text-muted-foreground mb-4">
-                                    Create your first task to get started
+                                    {currentYearId || currentTermId
+                                        ? "Add subjects to this term or change your filter"
+                                        : "Create your first task to get started"}
                                 </p>
                                 <Button onClick={() => setTaskModalOpen(true)}>
                                     <Plus className="h-4 w-4 mr-2" />
@@ -661,7 +804,7 @@ export const University = () => {
                         />
                     ) : (
                         <ListView
-                            items={data.university.tasks}
+                            items={filteredTasks}
                             getItemId={(task) => task.id}
                             emptyMessage="No tasks yet. Create your first task to get started."
                             renderItem={(task) => (
@@ -696,15 +839,19 @@ export const University = () => {
 
                 {/* Grades Tab */}
                 <TabsContent value="grades" className="space-y-6">
-                    {data.university.subjects.length === 0 ? (
+                    {filteredSubjects.length === 0 ? (
                         <Card>
                             <CardContent className="flex flex-col items-center justify-center py-16">
                                 <Award className="h-16 w-16 text-muted-foreground mb-4 opacity-50" />
                                 <h3 className="text-xl font-semibold mb-2 text-foreground">
-                                    No subjects yet
+                                    {currentYearId || currentTermId
+                                        ? "No subjects in this term"
+                                        : "No subjects yet"}
                                 </h3>
                                 <p className="text-muted-foreground mb-4 text-center">
-                                    Add subjects to start tracking your grades
+                                    {currentYearId || currentTermId
+                                        ? "Add subjects to this term or change your filter"
+                                        : "Add subjects to start tracking your grades"}
                                 </p>
                                 <Button
                                     onClick={() => setSubjectModalOpen(true)}>
@@ -730,30 +877,27 @@ export const University = () => {
                                         let totalEarned = 0;
                                         let totalPossible = 0;
 
-                                        data.university.subjects.forEach(
-                                            (subject) => {
-                                                const subjectExams =
-                                                    data.university.exams.filter(
-                                                        (e) =>
-                                                            e.subjectId ===
-                                                            subject.id
-                                                    );
-                                                const subjectEntries =
-                                                    gradeEntries.filter(
-                                                        (e) =>
-                                                            e.subjectId ===
-                                                            subject.id
-                                                    );
-                                                const grades = calculateGrades(
-                                                    subjectExams,
-                                                    subjectEntries
+                                        filteredSubjects.forEach((subject) => {
+                                            const subjectExams =
+                                                filteredExams.filter(
+                                                    (e) =>
+                                                        e.subjectId ===
+                                                        subject.id
                                                 );
-                                                totalEarned +=
-                                                    grades.totalEarned;
-                                                totalPossible +=
-                                                    grades.totalPossible;
-                                            }
-                                        );
+                                            const subjectEntries =
+                                                gradeEntries.filter(
+                                                    (e) =>
+                                                        e.subjectId ===
+                                                        subject.id
+                                                );
+                                            const grades = calculateGrades(
+                                                subjectExams,
+                                                subjectEntries
+                                            );
+                                            totalEarned += grades.totalEarned;
+                                            totalPossible +=
+                                                grades.totalPossible;
+                                        });
 
                                         const overallPercentage =
                                             totalPossible > 0
@@ -818,12 +962,12 @@ export const University = () => {
                                                         </span>
                                                         <span className="font-medium">
                                                             {
-                                                                data.university.subjects.filter(
+                                                                filteredSubjects.filter(
                                                                     (
                                                                         subject
                                                                     ) => {
                                                                         const subjectExams =
-                                                                            data.university.exams.filter(
+                                                                            filteredExams.filter(
                                                                                 (
                                                                                     e
                                                                                 ) =>
@@ -857,9 +1001,7 @@ export const University = () => {
                                                             }{" "}
                                                             /{" "}
                                                             {
-                                                                data.university
-                                                                    .subjects
-                                                                    .length
+                                                                filteredSubjects.length
                                                             }
                                                         </span>
                                                     </div>
@@ -872,11 +1014,10 @@ export const University = () => {
 
                             {/* Subject Grades List */}
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {data.university.subjects.map((subject) => {
-                                    const subjectExams =
-                                        data.university.exams.filter(
-                                            (e) => e.subjectId === subject.id
-                                        );
+                                {filteredSubjects.map((subject) => {
+                                    const subjectExams = filteredExams.filter(
+                                        (e) => e.subjectId === subject.id
+                                    );
                                     const subjectEntries = (
                                         data.university.gradeEntries || []
                                     ).filter((e) => e.subjectId === subject.id);
@@ -978,16 +1119,19 @@ export const University = () => {
                 </TabsContent>
 
                 <TabsContent value="subjects" className="space-y-4">
-                    {data.university.subjects.length === 0 ? (
+                    {filteredSubjects.length === 0 ? (
                         <Card>
                             <CardContent className="flex flex-col items-center justify-center py-16">
                                 <BookOpen className="h-16 w-16 text-muted-foreground mb-4 opacity-50" />
                                 <h3 className="text-xl font-semibold mb-2 text-foreground">
-                                    No subjects yet
+                                    {currentYearId || currentTermId
+                                        ? "No subjects in this term"
+                                        : "No subjects yet"}
                                 </h3>
                                 <p className="text-muted-foreground mb-4">
-                                    Add your first subject to organize your
-                                    courses
+                                    {currentYearId || currentTermId
+                                        ? "Add subjects to this term or change your filter"
+                                        : "Add your first subject to organize your courses"}
                                 </p>
                                 <Button
                                     onClick={() => setSubjectModalOpen(true)}>
@@ -998,11 +1142,10 @@ export const University = () => {
                         </Card>
                     ) : (
                         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                            {data.university.subjects.map((subject) => {
-                                const subjectTasks =
-                                    data.university.tasks.filter(
-                                        (t) => t.subjectId === subject.id
-                                    );
+                            {filteredSubjects.map((subject) => {
+                                const subjectTasks = filteredTasks.filter(
+                                    (t) => t.subjectId === subject.id
+                                );
                                 const completedTasks = subjectTasks.filter(
                                     (t) => t.status === "done"
                                 ).length;
@@ -1117,15 +1260,19 @@ export const University = () => {
                 </TabsContent>
 
                 <TabsContent value="exams" className="space-y-4">
-                    {data.university.exams.length === 0 ? (
+                    {filteredExams.length === 0 ? (
                         <Card>
                             <CardContent className="flex flex-col items-center justify-center py-16">
                                 <Calendar className="h-16 w-16 text-muted-foreground mb-4 opacity-50" />
                                 <h3 className="text-xl font-semibold mb-2 text-foreground">
-                                    No exams scheduled
+                                    {currentYearId || currentTermId
+                                        ? "No exams in this term"
+                                        : "No exams scheduled"}
                                 </h3>
                                 <p className="text-muted-foreground mb-4">
-                                    Add your exam dates to stay prepared
+                                    {currentYearId || currentTermId
+                                        ? "Add exams to subjects in this term or change your filter"
+                                        : "Add your exam dates to stay prepared"}
                                 </p>
                                 <Button onClick={() => setExamModalOpen(true)}>
                                     <Plus className="h-4 w-4 mr-2" />
@@ -1135,7 +1282,7 @@ export const University = () => {
                         </Card>
                     ) : (
                         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                            {data.university.exams
+                            {filteredExams
                                 .sort(
                                     (a, b) =>
                                         new Date(a.date).getTime() -
@@ -1173,9 +1320,9 @@ export const University = () => {
                 {/* Timetable Tab */}
                 <TabsContent value="timetable">
                     <Timetable
-                        subjects={data.university.subjects}
+                        subjects={filteredSubjects}
                         onAddSchedule={(subjectId) => {
-                            const subject = data.university.subjects.find(
+                            const subject = filteredSubjects.find(
                                 (s) => s.id === subjectId
                             );
                             if (subject) {
@@ -1184,7 +1331,7 @@ export const University = () => {
                             }
                         }}
                         onEditSchedule={(subjectId) => {
-                            const subject = data.university.subjects.find(
+                            const subject = filteredSubjects.find(
                                 (s) => s.id === subjectId
                             );
                             if (subject) {
@@ -1237,6 +1384,13 @@ export const University = () => {
                     setEditingTimetableSubject(undefined);
                 }}
                 subject={editingTimetableSubject}
+            />
+            <ManageYearsModal
+                isOpen={manageYearsModalOpen}
+                onClose={() => setManageYearsModalOpen(false)}
+                years={academicYears}
+                terms={terms}
+                onSave={handleSaveYearsAndTerms}
             />
         </div>
     );

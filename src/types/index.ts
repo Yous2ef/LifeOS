@@ -1,5 +1,24 @@
 // Core Types for LifeOS
 
+// Academic Year and Term Types
+export interface AcademicYear {
+    id: string;
+    name: string; // User customizable: "Year 1", "2024-2025", etc.
+    order: number; // For sorting
+    isActive?: boolean; // Currently enrolled year
+    createdAt: string;
+}
+
+export interface Term {
+    id: string;
+    yearId: string; // Links to AcademicYear
+    name: string; // User customizable: "Term 1", "Fall", "Semester 1", etc.
+    order: number; // For sorting within year
+    startDate?: string; // Optional date range
+    endDate?: string;
+    createdAt: string;
+}
+
 // University Module Types
 export interface ScheduleEntry {
     day:
@@ -34,6 +53,8 @@ export interface Subject {
     resources?: Resource[]; // Optional: Links and resources for the subject
     gradingScale?: number; // Total grade scale for this subject (default: 100)
     targetGrade?: number; // Target grade percentage to achieve
+    yearId?: string; // Academic year this subject belongs to (undefined = Unassigned)
+    termId?: string; // Term this subject belongs to (undefined = Unassigned)
 }
 
 export interface UniversityTask {
@@ -276,6 +297,10 @@ export interface AppData {
         tasks: UniversityTask[];
         exams: Exam[];
         gradeEntries: GradeEntry[];
+        academicYears: AcademicYear[];
+        terms: Term[];
+        currentYearId?: string; // Selected year filter (undefined = All)
+        currentTermId?: string; // Selected term filter (undefined = All)
     };
     freelancing: {
         profile: FreelanceProfile;

@@ -74,9 +74,22 @@ export const SubjectModal: React.FC<SubjectModalProps> = ({
         color: COLORS[0],
         gradingScale: 100,
         targetGrade: undefined,
+        yearId: undefined,
+        termId: undefined,
     });
     const [lectures, setLectures] = useState<ScheduleEntry[]>([]);
     const [sections, setSections] = useState<ScheduleEntry[]>([]);
+
+    // Get available years and terms
+    const years = data.university.academicYears || [];
+    const terms = data.university.terms || [];
+
+    // Get terms for selected year
+    const termsForYear = formData.yearId
+        ? terms
+              .filter((t) => t.yearId === formData.yearId)
+              .sort((a, b) => a.order - b.order)
+        : [];
 
     // Update form data when subject prop changes
     useEffect(() => {
@@ -88,10 +101,13 @@ export const SubjectModal: React.FC<SubjectModalProps> = ({
                 color: subject.color,
                 gradingScale: subject.gradingScale ?? 100,
                 targetGrade: subject.targetGrade,
+                yearId: subject.yearId,
+                termId: subject.termId,
             });
             setLectures(subject.lectures || []);
             setSections(subject.sections || []);
         } else {
+            // For new subjects, default to current year/term if set
             setFormData({
                 name: "",
                 professor: "",
@@ -99,12 +115,19 @@ export const SubjectModal: React.FC<SubjectModalProps> = ({
                 color: COLORS[0],
                 gradingScale: 100,
                 targetGrade: undefined,
+                yearId: data.university.currentYearId,
+                termId: data.university.currentTermId,
             });
             setLectures([]);
             setSections([]);
         }
         setActiveTab("details");
-    }, [subject, isOpen]);
+    }, [
+        subject,
+        isOpen,
+        data.university.currentYearId,
+        data.university.currentTermId,
+    ]);
 
     const handleChange = (
         e: ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -207,6 +230,8 @@ export const SubjectModal: React.FC<SubjectModalProps> = ({
             sections: sections.length > 0 ? sections : undefined,
             gradingScale: formData.gradingScale || 100,
             targetGrade: formData.targetGrade,
+            yearId: formData.yearId,
+            termId: formData.termId,
         };
 
         if (subject) {
@@ -287,6 +312,63 @@ export const SubjectModal: React.FC<SubjectModalProps> = ({
                             onChange={handleChange}
                             placeholder="e.g., محمد السعيد"
                         />
+
+                        {/* Year and Term Selection */}
+                        <div className="grid grid-cols-2 gap-4">
+                            <FormSelect
+                                label="Academic Year"
+                                name="yearId"
+                                value={formData.yearId || ""}
+                                onChange={(e) => {
+                                    const newYearId =
+                                        e.target.value || undefined;
+                                    setFormData((prev) => ({
+                                        ...prev,
+                                        yearId: newYearId,
+                                        // Reset term if year changes
+                                        termId: newYearId
+                                            ? prev.termId
+                                            : undefined,
+                                    }));
+                                }}
+                                options={[
+                                    { value: "", label: "Unassigned" },
+                                    ...years
+                                        .sort((a, b) => a.order - b.order)
+                                        .map((y) => ({
+                                            value: y.id,
+                                            label:
+                                                y.name +
+                                                (y.isActive ? " (Active)" : ""),
+                                        })),
+                                ]}
+                            />
+
+                            <FormSelect
+                                label="Term / Semester"
+                                name="termId"
+                                value={formData.termId || ""}
+                                onChange={(e) =>
+                                    setFormData((prev) => ({
+                                        ...prev,
+                                        termId: e.target.value || undefined,
+                                    }))
+                                }
+                                options={[
+                                    {
+                                        value: "",
+                                        label: formData.yearId
+                                            ? "All Terms"
+                                            : "Select Year First",
+                                    },
+                                    ...termsForYear.map((t) => ({
+                                        value: t.id,
+                                        label: t.name,
+                                    })),
+                                ]}
+                                disabled={!formData.yearId}
+                            />
+                        </div>
 
                         <div>
                             <label className="block text-sm font-medium text-foreground mb-2">
