@@ -16,6 +16,7 @@ import {
     Grid3x3,
     List,
     ListTodo,
+    Award,
 } from "lucide-react";
 import {
     KanbanBoard,
@@ -26,15 +27,8 @@ import {
     type KanbanCardAction,
     type ListCardBadge,
 } from "@/components/common";
-import {
-    Card,
-    CardHeader,
-    CardTitle,
-    CardDescription,
-    CardContent,
-} from "@/components/ui/Card";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
@@ -50,6 +44,12 @@ import { TaskModal } from "../components/university/TaskModal";
 import { ExamModal } from "../components/university/ExamModal";
 import { Timetable } from "../components/university/Timetable";
 import { TimetableModal } from "../components/university/TimetableModal";
+import {
+    calculateGrades,
+    getGradeColor,
+} from "../components/university/GradeSummaryCard";
+import { ExamCard } from "../components/university/ExamCard";
+import { MarkExamModal } from "../components/university/MarkExamModal";
 import { useApp } from "../context/AppContext";
 import {
     formatDate,
@@ -81,6 +81,11 @@ export const University = () => {
     const [editingTimetableSubject, setEditingTimetableSubject] = useState<
         Subject | undefined
     >(undefined);
+    const [markExamModalOpen, setMarkExamModalOpen] = useState(false);
+    const [selectedExamForGrade, setSelectedExamForGrade] = useState<
+        ExamType | undefined
+    >(undefined);
+    const [markExamMode, setMarkExamMode] = useState<"mark" | "grade">("mark");
 
     // Calculate stats
     const stats = useMemo(() => {
@@ -95,8 +100,36 @@ export const University = () => {
             (t) => t.status === "todo"
         ).length;
         const upcomingExams = data.university.exams.filter(
-            (e) => getDaysUntil(e.date) >= 0 && getDaysUntil(e.date) <= 7
+            (e) =>
+                !e.taken &&
+                getDaysUntil(e.date) >= 0 &&
+                getDaysUntil(e.date) <= 7
         ).length;
+
+        // Calculate overall grade
+        const gradeEntries = data.university.gradeEntries || [];
+        let totalEarned = 0;
+        let totalPossible = 0;
+        let subjectsWithGrades = 0;
+
+        data.university.subjects.forEach((subject) => {
+            const subjectExams = data.university.exams.filter(
+                (e) => e.subjectId === subject.id
+            );
+            const subjectEntries = gradeEntries.filter(
+                (e) => e.subjectId === subject.id
+            );
+            const grades = calculateGrades(subjectExams, subjectEntries);
+
+            if (grades.totalPossible > 0) {
+                totalEarned += grades.totalEarned;
+                totalPossible += grades.totalPossible;
+                subjectsWithGrades++;
+            }
+        });
+
+        const overallGrade =
+            totalPossible > 0 ? (totalEarned / totalPossible) * 100 : 0;
 
         return {
             totalTasks,
@@ -108,8 +141,15 @@ export const University = () => {
                 totalTasks > 0
                     ? Math.round((completedTasks / totalTasks) * 100)
                     : 0,
+            overallGrade: Math.round(overallGrade * 10) / 10,
+            subjectsWithGrades,
         };
-    }, [data.university.tasks, data.university.exams]);
+    }, [
+        data.university.tasks,
+        data.university.exams,
+        data.university.subjects,
+        data.university.gradeEntries,
+    ]);
 
     // Handlers
     const handleDeleteSubject = (subjectId: string) => {
@@ -154,6 +194,45 @@ export const University = () => {
             });
             showToast("Exam deleted successfully", "success");
         }
+    };
+
+    const handleMarkExamAsTaken = (exam: ExamType) => {
+        setSelectedExamForGrade(exam);
+        setMarkExamMode("mark");
+        setMarkExamModalOpen(true);
+    };
+
+    const handleAddExamGrade = (exam: ExamType) => {
+        setSelectedExamForGrade(exam);
+        setMarkExamMode("grade");
+        setMarkExamModalOpen(true);
+    };
+
+    const handleSaveExamGrade = (
+        examId: string,
+        updates: Partial<ExamType>
+    ) => {
+        updateData({
+            university: {
+                ...data.university,
+                exams: data.university.exams.map((e) =>
+                    e.id === examId
+                        ? {
+                              ...e,
+                              ...updates,
+                          }
+                        : e
+                ),
+            },
+        });
+        showToast(
+            updates.grade !== undefined
+                ? "Grade saved successfully"
+                : "Exam marked as taken",
+            "success"
+        );
+        setMarkExamModalOpen(false);
+        setSelectedExamForGrade(undefined);
     };
 
     const handleTaskStatusChange = (
@@ -329,7 +408,7 @@ export const University = () => {
 
             <Separator />
 
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">
@@ -418,14 +497,45 @@ export const University = () => {
                         </p>
                     </CardContent>
                 </Card>
+
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">
+                            Overall Grade
+                        </CardTitle>
+                        <Award className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        <div
+                            className={cn(
+                                "text-2xl font-bold",
+                                getGradeColor(stats.overallGrade)
+                            )}>
+                            {stats.subjectsWithGrades > 0
+                                ? `${stats.overallGrade}%`
+                                : "—"}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                            {stats.subjectsWithGrades > 0
+                                ? `${stats.subjectsWithGrades} subject${
+                                      stats.subjectsWithGrades !== 1 ? "s" : ""
+                                  }`
+                                : "No grades yet"}
+                        </p>
+                    </CardContent>
+                </Card>
             </div>
 
             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v)}>
-                <div className="flex items-center justify-between">
-                    <TabsList>
+                <div className="flex items-center justify-between flex-wrap gap-4">
+                    <TabsList className="flex-wrap h-auto">
                         <TabsTrigger value="tasks">
                             <ListTodo className="h-4 w-4 mr-2" />
                             Tasks
+                        </TabsTrigger>
+                        <TabsTrigger value="grades">
+                            <Award className="h-4 w-4 mr-2" />
+                            Grades
                         </TabsTrigger>
                         <TabsTrigger value="subjects">
                             <BookOpen className="h-4 w-4 mr-2" />
@@ -581,6 +691,289 @@ export const University = () => {
                                 />
                             )}
                         />
+                    )}
+                </TabsContent>
+
+                {/* Grades Tab */}
+                <TabsContent value="grades" className="space-y-6">
+                    {data.university.subjects.length === 0 ? (
+                        <Card>
+                            <CardContent className="flex flex-col items-center justify-center py-16">
+                                <Award className="h-16 w-16 text-muted-foreground mb-4 opacity-50" />
+                                <h3 className="text-xl font-semibold mb-2 text-foreground">
+                                    No subjects yet
+                                </h3>
+                                <p className="text-muted-foreground mb-4 text-center">
+                                    Add subjects to start tracking your grades
+                                </p>
+                                <Button
+                                    onClick={() => setSubjectModalOpen(true)}>
+                                    <Plus className="h-4 w-4 mr-2" />
+                                    Add Subject
+                                </Button>
+                            </CardContent>
+                        </Card>
+                    ) : (
+                        <>
+                            {/* Overall Summary Card */}
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <TrendingUp className="w-5 h-5" />
+                                        Overall Performance
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    {(() => {
+                                        const gradeEntries =
+                                            data.university.gradeEntries || [];
+                                        let totalEarned = 0;
+                                        let totalPossible = 0;
+
+                                        data.university.subjects.forEach(
+                                            (subject) => {
+                                                const subjectExams =
+                                                    data.university.exams.filter(
+                                                        (e) =>
+                                                            e.subjectId ===
+                                                            subject.id
+                                                    );
+                                                const subjectEntries =
+                                                    gradeEntries.filter(
+                                                        (e) =>
+                                                            e.subjectId ===
+                                                            subject.id
+                                                    );
+                                                const grades = calculateGrades(
+                                                    subjectExams,
+                                                    subjectEntries
+                                                );
+                                                totalEarned +=
+                                                    grades.totalEarned;
+                                                totalPossible +=
+                                                    grades.totalPossible;
+                                            }
+                                        );
+
+                                        const overallPercentage =
+                                            totalPossible > 0
+                                                ? (totalEarned /
+                                                      totalPossible) *
+                                                  100
+                                                : 0;
+
+                                        return (
+                                            <div className="flex flex-col md:flex-row items-center gap-6">
+                                                <div className="text-center p-6 bg-muted/30 rounded-xl flex-1">
+                                                    <Award
+                                                        className={cn(
+                                                            "w-12 h-12 mx-auto mb-2",
+                                                            getGradeColor(
+                                                                overallPercentage
+                                                            )
+                                                        )}
+                                                    />
+                                                    <div
+                                                        className={cn(
+                                                            "text-4xl font-bold",
+                                                            getGradeColor(
+                                                                overallPercentage
+                                                            )
+                                                        )}>
+                                                        {overallPercentage.toFixed(
+                                                            1
+                                                        )}
+                                                        %
+                                                    </div>
+                                                    <div className="text-sm text-muted-foreground mt-1">
+                                                        Overall Grade
+                                                    </div>
+                                                </div>
+                                                <div className="flex-1 space-y-2">
+                                                    <div className="flex justify-between text-sm">
+                                                        <span>
+                                                            Total Points Earned
+                                                        </span>
+                                                        <span className="font-medium">
+                                                            {totalEarned.toFixed(
+                                                                1
+                                                            )}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex justify-between text-sm">
+                                                        <span>
+                                                            Total Possible
+                                                            Points
+                                                        </span>
+                                                        <span className="font-medium">
+                                                            {totalPossible.toFixed(
+                                                                1
+                                                            )}
+                                                        </span>
+                                                    </div>
+                                                    <Separator className="my-2" />
+                                                    <div className="flex justify-between text-sm">
+                                                        <span>
+                                                            Subjects with Grades
+                                                        </span>
+                                                        <span className="font-medium">
+                                                            {
+                                                                data.university.subjects.filter(
+                                                                    (
+                                                                        subject
+                                                                    ) => {
+                                                                        const subjectExams =
+                                                                            data.university.exams.filter(
+                                                                                (
+                                                                                    e
+                                                                                ) =>
+                                                                                    e.subjectId ===
+                                                                                        subject.id &&
+                                                                                    e.taken &&
+                                                                                    e.grade !==
+                                                                                        undefined
+                                                                            );
+                                                                        const subjectEntries =
+                                                                            (
+                                                                                data
+                                                                                    .university
+                                                                                    .gradeEntries ||
+                                                                                []
+                                                                            ).filter(
+                                                                                (
+                                                                                    e
+                                                                                ) =>
+                                                                                    e.subjectId ===
+                                                                                    subject.id
+                                                                            );
+                                                                        return (
+                                                                            subjectExams.length >
+                                                                                0 ||
+                                                                            subjectEntries.length >
+                                                                                0
+                                                                        );
+                                                                    }
+                                                                ).length
+                                                            }{" "}
+                                                            /{" "}
+                                                            {
+                                                                data.university
+                                                                    .subjects
+                                                                    .length
+                                                            }
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
+                                </CardContent>
+                            </Card>
+
+                            {/* Subject Grades List */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {data.university.subjects.map((subject) => {
+                                    const subjectExams =
+                                        data.university.exams.filter(
+                                            (e) => e.subjectId === subject.id
+                                        );
+                                    const subjectEntries = (
+                                        data.university.gradeEntries || []
+                                    ).filter((e) => e.subjectId === subject.id);
+                                    const grades = calculateGrades(
+                                        subjectExams,
+                                        subjectEntries
+                                    );
+                                    const gradedExamsCount =
+                                        subjectExams.filter(
+                                            (e) =>
+                                                e.taken && e.grade !== undefined
+                                        ).length;
+
+                                    return (
+                                        <Card
+                                            key={subject.id}
+                                            className="cursor-pointer hover:shadow-md transition-all"
+                                            style={{
+                                                borderLeftWidth: "4px",
+                                                borderLeftColor: subject.color,
+                                            }}
+                                            onClick={() =>
+                                                navigate(
+                                                    `/university/subject/${subject.id}`
+                                                )
+                                            }>
+                                            <CardContent className="pt-6">
+                                                <div className="flex items-start justify-between mb-4">
+                                                    <div>
+                                                        <h3 className="font-semibold text-lg">
+                                                            {subject.name}
+                                                        </h3>
+                                                        <p className="text-sm text-muted-foreground">
+                                                            {gradedExamsCount}{" "}
+                                                            exam
+                                                            {gradedExamsCount !==
+                                                                1 && "s"}{" "}
+                                                            graded
+                                                            {subjectEntries.length >
+                                                                0 &&
+                                                                ` • ${
+                                                                    subjectEntries.length
+                                                                } other grade${
+                                                                    subjectEntries.length !==
+                                                                    1
+                                                                        ? "s"
+                                                                        : ""
+                                                                }`}
+                                                        </p>
+                                                    </div>
+                                                    <div
+                                                        className={cn(
+                                                            "text-2xl font-bold",
+                                                            getGradeColor(
+                                                                grades.percentage
+                                                            )
+                                                        )}>
+                                                        {grades.totalPossible >
+                                                        0
+                                                            ? `${grades.percentage.toFixed(
+                                                                  1
+                                                              )}%`
+                                                            : "—"}
+                                                    </div>
+                                                </div>
+
+                                                {grades.totalPossible > 0 ? (
+                                                    <>
+                                                        <Progress
+                                                            value={Math.min(
+                                                                grades.percentage,
+                                                                100
+                                                            )}
+                                                            className="h-2 mb-2"
+                                                        />
+                                                        <div className="text-xs text-muted-foreground">
+                                                            {grades.totalEarned.toFixed(
+                                                                1
+                                                            )}{" "}
+                                                            /{" "}
+                                                            {grades.totalPossible.toFixed(
+                                                                1
+                                                            )}{" "}
+                                                            points
+                                                        </div>
+                                                    </>
+                                                ) : (
+                                                    <div className="text-sm text-muted-foreground italic">
+                                                        No grades recorded yet
+                                                    </div>
+                                                )}
+                                            </CardContent>
+                                        </Card>
+                                    );
+                                })}
+                            </div>
+                        </>
                     )}
                 </TabsContent>
 
@@ -741,7 +1134,7 @@ export const University = () => {
                             </CardContent>
                         </Card>
                     ) : (
-                        <div className="grid gap-4 md:grid-cols-2">
+                        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                             {data.university.exams
                                 .sort(
                                     (a, b) =>
@@ -753,108 +1146,24 @@ export const University = () => {
                                         data.university.subjects.find(
                                             (s) => s.id === exam.subjectId
                                         );
-                                    const daysUntil = getDaysUntil(exam.date);
-                                    const isToday = isDateToday(exam.date);
-                                    const isPast = daysUntil < 0;
-
                                     return (
-                                        <Card
+                                        <ExamCard
                                             key={exam.id}
-                                            className={cn(
-                                                "hover:shadow-lg transition-shadow",
-                                                isToday &&
-                                                    "border-destructive border-2"
-                                            )}>
-                                            <CardHeader>
-                                                <div className="flex items-start justify-between">
-                                                    <div className="flex-1">
-                                                        <CardTitle>
-                                                            {exam.title}
-                                                        </CardTitle>
-                                                        {subject && (
-                                                            <CardDescription>
-                                                                {subject.name}
-                                                            </CardDescription>
-                                                        )}
-                                                    </div>
-                                                    <DropdownMenu>
-                                                        <DropdownMenuTrigger
-                                                            asChild>
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="icon-sm">
-                                                                <MoreVertical className="h-4 w-4" />
-                                                            </Button>
-                                                        </DropdownMenuTrigger>
-                                                        <DropdownMenuContent align="end">
-                                                            <DropdownMenuItem
-                                                                onClick={() => {
-                                                                    setEditingExam(
-                                                                        exam
-                                                                    );
-                                                                    setExamModalOpen(
-                                                                        true
-                                                                    );
-                                                                }}>
-                                                                <Edit className="h-4 w-4 mr-2" />
-                                                                Edit
-                                                            </DropdownMenuItem>
-                                                            <DropdownMenuSeparator />
-                                                            <DropdownMenuItem
-                                                                onClick={() =>
-                                                                    handleDeleteExam(
-                                                                        exam.id
-                                                                    )
-                                                                }
-                                                                className="text-destructive">
-                                                                <Trash2 className="h-4 w-4 mr-2" />
-                                                                Delete
-                                                            </DropdownMenuItem>
-                                                        </DropdownMenuContent>
-                                                    </DropdownMenu>
-                                                </div>
-                                            </CardHeader>
-                                            <CardContent className="space-y-3">
-                                                <div className="flex items-center gap-2 text-sm">
-                                                    <Calendar className="h-4 w-4 text-muted-foreground" />
-                                                    <span>
-                                                        {formatDate(
-                                                            new Date(exam.date)
-                                                        )}
-                                                    </span>
-                                                </div>
-                                                {exam.location && (
-                                                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                                        <span>
-                                                            📍 {exam.location}
-                                                        </span>
-                                                    </div>
-                                                )}
-                                                <div className="flex items-center gap-2 pt-2">
-                                                    {isToday && (
-                                                        <Badge variant="destructive">
-                                                            TODAY
-                                                        </Badge>
-                                                    )}
-                                                    {!isPast &&
-                                                        !isToday &&
-                                                        daysUntil <= 7 && (
-                                                            <Badge variant="default">
-                                                                In {daysUntil}{" "}
-                                                                day
-                                                                {daysUntil !== 1
-                                                                    ? "s"
-                                                                    : ""}
-                                                            </Badge>
-                                                        )}
-                                                    {isPast && (
-                                                        <Badge variant="secondary">
-                                                            Past
-                                                        </Badge>
-                                                    )}
-                                                </div>
-                                            </CardContent>
-                                        </Card>
+                                            exam={exam}
+                                            subjectName={subject?.name}
+                                            subjectColor={subject?.color}
+                                            onMarkAsTaken={
+                                                handleMarkExamAsTaken
+                                            }
+                                            onAddGrade={handleAddExamGrade}
+                                            onEdit={(e) => {
+                                                setEditingExam(e);
+                                                setExamModalOpen(true);
+                                            }}
+                                            onDelete={(e) =>
+                                                handleDeleteExam(e.id)
+                                            }
+                                        />
                                     );
                                 })}
                         </div>
@@ -910,6 +1219,16 @@ export const University = () => {
                     setEditingExam(undefined);
                 }}
                 exam={editingExam}
+            />
+            <MarkExamModal
+                isOpen={markExamModalOpen}
+                onClose={() => {
+                    setMarkExamModalOpen(false);
+                    setSelectedExamForGrade(undefined);
+                }}
+                exam={selectedExamForGrade || null}
+                mode={markExamMode}
+                onSave={handleSaveExamGrade}
             />
             <TimetableModal
                 isOpen={timetableModalOpen}

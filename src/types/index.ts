@@ -32,6 +32,8 @@ export interface Subject {
     sections?: ScheduleEntry[]; // Optional: Can have multiple section times
     description?: string; // Optional: Notes and description for the subject
     resources?: Resource[]; // Optional: Links and resources for the subject
+    gradingScale?: number; // Total grade scale for this subject (default: 100)
+    targetGrade?: number; // Target grade percentage to achieve
 }
 
 export interface UniversityTask {
@@ -54,7 +56,35 @@ export interface Exam {
     date: string;
     duration: number;
     location: string;
-    grade?: number;
+    maxGrade: number; // Maximum grade for this exam
+    grade?: number; // Grade obtained (optional until entered)
+    taken?: boolean; // Whether the exam has been taken
+    takenAt?: string; // When the exam was marked as taken
+    gradeEnteredAt?: string; // When the grade was entered
+}
+
+// Grade Entry Types for additional grades (assignments, quizzes, etc.)
+export type GradeEntryType =
+    | "exam"
+    | "assignment"
+    | "quiz"
+    | "sheet"
+    | "attendance"
+    | "participation"
+    | "bonus"
+    | "deduction"
+    | "other";
+
+export interface GradeEntry {
+    id: string;
+    subjectId: string;
+    type: GradeEntryType;
+    title: string;
+    description?: string;
+    pointsEarned: number; // Can be negative for deductions
+    maxPoints?: number; // Optional for bonuses/deductions
+    date: string;
+    createdAt: string;
 }
 
 // Notification Settings Types
@@ -245,6 +275,7 @@ export interface AppData {
         subjects: Subject[];
         tasks: UniversityTask[];
         exams: Exam[];
+        gradeEntries: GradeEntry[];
     };
     freelancing: {
         profile: FreelanceProfile;

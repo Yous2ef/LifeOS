@@ -18,6 +18,7 @@ const getDefaultData = (): AppData => ({
         subjects: [],
         tasks: [],
         exams: [],
+        gradeEntries: [],
     },
     freelancing: {
         profile: {
@@ -195,6 +196,8 @@ export const importData = (file: File): Promise<AppData> => {
                         subjects: importedData.university?.subjects || [],
                         tasks: importedData.university?.tasks || [],
                         exams: importedData.university?.exams || [],
+                        gradeEntries:
+                            importedData.university?.gradeEntries || [],
                     },
                     freelancing: {
                         profile: {

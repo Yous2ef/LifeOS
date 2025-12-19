@@ -10,7 +10,7 @@ import { FormSelect } from "../ui/FormSelect";
 import { Button } from "../ui/Button";
 import { Badge } from "../ui/Badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
-import { Plus, Trash2, BookOpen, Calendar } from "lucide-react";
+import { Plus, Trash2, BookOpen, Calendar, GraduationCap } from "lucide-react";
 import { useApp } from "../../context/AppContext";
 import { generateId } from "../../utils/helpers";
 import type { Subject, ScheduleEntry } from "../../types";
@@ -72,6 +72,8 @@ export const SubjectModal: React.FC<SubjectModalProps> = ({
         professor: "",
         schedule: "",
         color: COLORS[0],
+        gradingScale: 100,
+        targetGrade: undefined,
     });
     const [lectures, setLectures] = useState<ScheduleEntry[]>([]);
     const [sections, setSections] = useState<ScheduleEntry[]>([]);
@@ -84,6 +86,8 @@ export const SubjectModal: React.FC<SubjectModalProps> = ({
                 professor: subject.professor || "",
                 schedule: subject.schedule || "",
                 color: subject.color,
+                gradingScale: subject.gradingScale ?? 100,
+                targetGrade: subject.targetGrade,
             });
             setLectures(subject.lectures || []);
             setSections(subject.sections || []);
@@ -93,6 +97,8 @@ export const SubjectModal: React.FC<SubjectModalProps> = ({
                 professor: "",
                 schedule: "",
                 color: COLORS[0],
+                gradingScale: 100,
+                targetGrade: undefined,
             });
             setLectures([]);
             setSections([]);
@@ -199,6 +205,8 @@ export const SubjectModal: React.FC<SubjectModalProps> = ({
             id: subject?.id || generateId(),
             lectures: lectures.length > 0 ? lectures : undefined,
             sections: sections.length > 0 ? sections : undefined,
+            gradingScale: formData.gradingScale || 100,
+            targetGrade: formData.targetGrade,
         };
 
         if (subject) {
@@ -246,10 +254,14 @@ export const SubjectModal: React.FC<SubjectModalProps> = ({
             }>
             <form onSubmit={handleSubmit} className="space-y-4">
                 <Tabs value={activeTab} onValueChange={setActiveTab}>
-                    <TabsList className="grid w-full grid-cols-2">
+                    <TabsList className="grid w-full grid-cols-3">
                         <TabsTrigger value="details">
                             <BookOpen className="w-4 h-4 mr-2" />
                             Details
+                        </TabsTrigger>
+                        <TabsTrigger value="grading">
+                            <GraduationCap className="w-4 h-4 mr-2" />
+                            Grading
                         </TabsTrigger>
                         <TabsTrigger value="schedules">
                             <Calendar className="w-4 h-4 mr-2" />
@@ -275,8 +287,6 @@ export const SubjectModal: React.FC<SubjectModalProps> = ({
                             onChange={handleChange}
                             placeholder="e.g., محمد السعيد"
                         />
-
-                    
 
                         <div>
                             <label className="block text-sm font-medium text-foreground mb-2">
@@ -305,6 +315,79 @@ export const SubjectModal: React.FC<SubjectModalProps> = ({
                                 ))}
                             </div>
                         </div>
+                    </TabsContent>
+
+                    {/* Grading Tab */}
+                    <TabsContent value="grading" className="space-y-4 mt-4">
+                        <div className="p-4 bg-muted/30 rounded-lg border">
+                            <h4 className="font-medium mb-2 flex items-center gap-2">
+                                <GraduationCap className="w-4 h-4" />
+                                Grade Tracking Configuration
+                            </h4>
+                            <p className="text-sm text-muted-foreground">
+                                Configure how grades are calculated for this
+                                subject. The grading scale determines the total
+                                possible points, and the target grade is your
+                                personal goal.
+                            </p>
+                        </div>
+
+                        <FormInput
+                            label="Grading Scale (Total Points)"
+                            name="gradingScale"
+                            type="number"
+                            value={String(formData.gradingScale || 100)}
+                            onChange={(e) =>
+                                setFormData((prev) => ({
+                                    ...prev,
+                                    gradingScale: Number(e.target.value) || 100,
+                                }))
+                            }
+                            placeholder="e.g., 100"
+                        />
+                        <p className="text-xs text-muted-foreground -mt-2">
+                            The maximum possible points for this subject
+                            (default: 100)
+                        </p>
+
+                        <FormInput
+                            label="Target Grade (%)"
+                            name="targetGrade"
+                            type="number"
+                            value={
+                                formData.targetGrade !== undefined
+                                    ? String(formData.targetGrade)
+                                    : ""
+                            }
+                            onChange={(e) =>
+                                setFormData((prev) => ({
+                                    ...prev,
+                                    targetGrade: e.target.value
+                                        ? Number(e.target.value)
+                                        : undefined,
+                                }))
+                            }
+                            placeholder="e.g., 85"
+                        />
+                        <p className="text-xs text-muted-foreground -mt-2">
+                            Your target percentage for this subject (optional)
+                        </p>
+
+                        {formData.targetGrade !== undefined &&
+                            formData.gradingScale && (
+                                <div className="p-3 bg-primary/10 rounded-lg border border-primary/20">
+                                    <p className="text-sm">
+                                        <span className="font-medium">
+                                            Target Points:{" "}
+                                        </span>
+                                        {(
+                                            (formData.targetGrade / 100) *
+                                            formData.gradingScale
+                                        ).toFixed(1)}{" "}
+                                        / {formData.gradingScale}
+                                    </p>
+                                </div>
+                            )}
                     </TabsContent>
 
                     {/* Schedules Tab */}

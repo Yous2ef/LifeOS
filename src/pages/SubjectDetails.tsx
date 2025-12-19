@@ -18,6 +18,8 @@ import {
     User,
     Grid3x3,
     List,
+    Award,
+    GraduationCap,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -27,6 +29,12 @@ import { useApp } from "../context/AppContext";
 import { TaskModal } from "../components/university/TaskModal";
 import { SubjectModal } from "../components/university/SubjectModal";
 import { ResourceModal } from "../components/university/ResourceModal";
+import { ExamModal } from "../components/university/ExamModal";
+import { ExamCard } from "../components/university/ExamCard";
+import { MarkExamModal } from "../components/university/MarkExamModal";
+import { GradeEntryModal } from "../components/university/GradeEntryModal";
+import { GradeSummaryCard } from "../components/university/GradeSummaryCard";
+import { SubjectGradesChart } from "../components/university/SubjectGradesChart";
 import { KanbanBoard } from "../components/common/KanbanBoard";
 import { KanbanCard } from "../components/common/KanbanCard";
 import type {
@@ -35,7 +43,7 @@ import type {
 } from "../components/common/KanbanCard";
 import { cn } from "@/lib/utils";
 import { formatDate, getDaysUntil, getPriorityColor } from "../utils/helpers";
-import type { UniversityTask, Resource } from "../types";
+import type { UniversityTask, Resource, Exam, GradeEntry } from "../types";
 
 export const SubjectDetails = () => {
     const { subjectId } = useParams<{ subjectId: string }>();
@@ -46,11 +54,21 @@ export const SubjectDetails = () => {
     const [taskModalOpen, setTaskModalOpen] = useState(false);
     const [subjectModalOpen, setSubjectModalOpen] = useState(false);
     const [resourceModalOpen, setResourceModalOpen] = useState(false);
+    const [examModalOpen, setExamModalOpen] = useState(false);
+    const [markExamModalOpen, setMarkExamModalOpen] = useState(false);
+    const [gradeEntryModalOpen, setGradeEntryModalOpen] = useState(false);
     const [editingTask, setEditingTask] = useState<UniversityTask | undefined>(
         undefined
     );
     const [editingResource, setEditingResource] = useState<
         Resource | undefined
+    >(undefined);
+    const [editingExam, setEditingExam] = useState<Exam | undefined>(undefined);
+    const [selectedExamForGrade, setSelectedExamForGrade] =
+        useState<Exam | null>(null);
+    const [markExamMode, setMarkExamMode] = useState<"mark" | "grade">("mark");
+    const [editingGradeEntry, setEditingGradeEntry] = useState<
+        GradeEntry | undefined
     >(undefined);
     const [description, setDescription] = useState("");
     const [isEditingDescription, setIsEditingDescription] = useState(false);
@@ -76,6 +94,13 @@ export const SubjectDetails = () => {
     const subjectExams = useMemo(() => {
         return data.university.exams.filter((e) => e.subjectId === subjectId);
     }, [data.university.exams, subjectId]);
+
+    // Get grade entries for this subject
+    const subjectGradeEntries = useMemo(() => {
+        return (data.university.gradeEntries || []).filter(
+            (e) => e.subjectId === subjectId
+        );
+    }, [data.university.gradeEntries, subjectId]);
 
     // Task statistics
     const taskStats = useMemo(() => {
@@ -259,6 +284,99 @@ export const SubjectDetails = () => {
         showToast("Resource deleted successfully!", "success");
     };
 
+    // Exam handlers
+    const handleMarkExamAsTaken = (exam: Exam) => {
+        setSelectedExamForGrade(exam);
+        setMarkExamMode("mark");
+        setMarkExamModalOpen(true);
+    };
+
+    const handleAddExamGrade = (exam: Exam) => {
+        setSelectedExamForGrade(exam);
+        setMarkExamMode("grade");
+        setMarkExamModalOpen(true);
+    };
+
+    const handleEditExam = (exam: Exam) => {
+        setEditingExam(exam);
+        setExamModalOpen(true);
+    };
+
+    const handleDeleteExam = (exam: Exam) => {
+        if (confirm("Are you sure you want to delete this exam?")) {
+            updateData({
+                university: {
+                    ...data.university,
+                    exams: data.university.exams.filter(
+                        (e) => e.id !== exam.id
+                    ),
+                },
+            });
+            showToast("Exam deleted successfully!", "success");
+        }
+    };
+
+    const handleSaveExamGrade = (examId: string, updates: Partial<Exam>) => {
+        updateData({
+            university: {
+                ...data.university,
+                exams: data.university.exams.map((e) =>
+                    e.id === examId ? { ...e, ...updates } : e
+                ),
+            },
+        });
+        showToast(
+            updates.grade !== undefined
+                ? "Grade saved successfully!"
+                : "Exam marked as taken!",
+            "success"
+        );
+    };
+
+    // Grade entry handlers
+    const handleSaveGradeEntry = (entry: GradeEntry) => {
+        const existingEntries = data.university.gradeEntries || [];
+        const existingIndex = existingEntries.findIndex(
+            (e) => e.id === entry.id
+        );
+
+        if (existingIndex >= 0) {
+            // Update existing entry
+            updateData({
+                university: {
+                    ...data.university,
+                    gradeEntries: existingEntries.map((e) =>
+                        e.id === entry.id ? entry : e
+                    ),
+                },
+            });
+            showToast("Grade entry updated!", "success");
+        } else {
+            // Add new entry
+            updateData({
+                university: {
+                    ...data.university,
+                    gradeEntries: [...existingEntries, entry],
+                },
+            });
+            showToast("Grade entry added!", "success");
+        }
+    };
+
+    const handleDeleteGradeEntry = (entryId: string) => {
+        if (confirm("Are you sure you want to delete this grade entry?")) {
+            updateData({
+                university: {
+                    ...data.university,
+                    gradeEntries: (data.university.gradeEntries || []).filter(
+                        (e) => e.id !== entryId
+                    ),
+                },
+            });
+            showToast("Grade entry deleted!", "success");
+        }
+    };
+
     return (
         <div className="container mx-auto p-6 space-y-6">
             {/* Header */}
@@ -370,10 +488,14 @@ export const SubjectDetails = () => {
 
             {/* Tabs */}
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList>
+                <TabsList className="flex-wrap h-auto gap-1">
                     <TabsTrigger value="overview">
                         <BookOpen className="w-4 h-4 mr-2" />
                         Overview
+                    </TabsTrigger>
+                    <TabsTrigger value="exams">
+                        <GraduationCap className="w-4 h-4 mr-2" />
+                        Exams & Grades
                     </TabsTrigger>
                     <TabsTrigger value="tasks">
                         <ListTodo className="w-4 h-4 mr-2" />
@@ -601,6 +723,207 @@ export const SubjectDetails = () => {
                                 </div>
                             </CardContent>
                         </Card>
+                    </div>
+                </TabsContent>
+
+                {/* Exams & Grades Tab */}
+                <TabsContent value="exams" className="space-y-6">
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        {/* Left Column - Exams List */}
+                        <div className="lg:col-span-2 space-y-4">
+                            <Card>
+                                <CardHeader>
+                                    <div className="flex items-center justify-between">
+                                        <CardTitle className="flex items-center gap-2">
+                                            <GraduationCap className="w-5 h-5" />
+                                            Exams ({subjectExams.length})
+                                        </CardTitle>
+                                        <Button
+                                            size="sm"
+                                            onClick={() => {
+                                                setEditingExam(undefined);
+                                                setExamModalOpen(true);
+                                            }}>
+                                            <Plus className="w-4 h-4 mr-2" />
+                                            Add Exam
+                                        </Button>
+                                    </div>
+                                </CardHeader>
+                                <CardContent className="space-y-3">
+                                    {subjectExams.length === 0 ? (
+                                        <div className="text-center py-8 text-muted-foreground">
+                                            <GraduationCap className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                                            <p className="text-lg font-medium">
+                                                No exams yet
+                                            </p>
+                                            <p className="text-sm mt-2">
+                                                Add exams to track your grades
+                                            </p>
+                                        </div>
+                                    ) : (
+                                        subjectExams
+                                            .sort(
+                                                (a, b) =>
+                                                    new Date(a.date).getTime() -
+                                                    new Date(b.date).getTime()
+                                            )
+                                            .map((exam) => (
+                                                <ExamCard
+                                                    key={exam.id}
+                                                    exam={exam}
+                                                    subjectColor={subject.color}
+                                                    onMarkAsTaken={
+                                                        handleMarkExamAsTaken
+                                                    }
+                                                    onAddGrade={
+                                                        handleAddExamGrade
+                                                    }
+                                                    onEdit={handleEditExam}
+                                                    onDelete={handleDeleteExam}
+                                                />
+                                            ))
+                                    )}
+                                </CardContent>
+                            </Card>
+
+                            {/* Other Grade Entries */}
+                            <Card>
+                                <CardHeader>
+                                    <div className="flex items-center justify-between">
+                                        <CardTitle className="flex items-center gap-2">
+                                            <Award className="w-5 h-5" />
+                                            Other Grades (
+                                            {subjectGradeEntries.length})
+                                        </CardTitle>
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => {
+                                                setEditingGradeEntry(undefined);
+                                                setGradeEntryModalOpen(true);
+                                            }}>
+                                            <Plus className="w-4 h-4 mr-2" />
+                                            Add Grade
+                                        </Button>
+                                    </div>
+                                </CardHeader>
+                                <CardContent>
+                                    {subjectGradeEntries.length === 0 ? (
+                                        <div className="text-center py-6 text-muted-foreground">
+                                            <p className="text-sm">
+                                                Add assignments, quizzes,
+                                                attendance, and other grades
+                                            </p>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-2">
+                                            {subjectGradeEntries
+                                                .sort(
+                                                    (a, b) =>
+                                                        new Date(
+                                                            b.date
+                                                        ).getTime() -
+                                                        new Date(
+                                                            a.date
+                                                        ).getTime()
+                                                )
+                                                .map((entry) => (
+                                                    <div
+                                                        key={entry.id}
+                                                        className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+                                                        <div className="flex-1">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="font-medium">
+                                                                    {
+                                                                        entry.title
+                                                                    }
+                                                                </span>
+                                                                <Badge
+                                                                    variant="outline"
+                                                                    className="text-xs capitalize">
+                                                                    {entry.type}
+                                                                </Badge>
+                                                            </div>
+                                                            <div className="text-sm text-muted-foreground">
+                                                                {formatDate(
+                                                                    entry.date
+                                                                )}
+                                                                {entry.description &&
+                                                                    ` • ${entry.description}`}
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex items-center gap-3">
+                                                            <div
+                                                                className={cn(
+                                                                    "font-bold text-lg",
+                                                                    entry.type ===
+                                                                        "bonus" &&
+                                                                        "text-green-600 dark:text-green-400",
+                                                                    entry.type ===
+                                                                        "deduction" &&
+                                                                        "text-red-600 dark:text-red-400"
+                                                                )}>
+                                                                {entry.type ===
+                                                                    "bonus" &&
+                                                                    "+"}
+                                                                {entry.type ===
+                                                                    "deduction" &&
+                                                                    "-"}
+                                                                {
+                                                                    entry.pointsEarned
+                                                                }
+                                                                {entry.maxPoints &&
+                                                                    `/${entry.maxPoints}`}
+                                                            </div>
+                                                            <div className="flex items-center gap-1">
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="sm"
+                                                                    onClick={() => {
+                                                                        setEditingGradeEntry(
+                                                                            entry
+                                                                        );
+                                                                        setGradeEntryModalOpen(
+                                                                            true
+                                                                        );
+                                                                    }}>
+                                                                    <Edit className="w-4 h-4" />
+                                                                </Button>
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="sm"
+                                                                    onClick={() =>
+                                                                        handleDeleteGradeEntry(
+                                                                            entry.id
+                                                                        )
+                                                                    }>
+                                                                    <Trash2 className="w-4 h-4 text-red-500" />
+                                                                </Button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+
+                            {/* Performance Chart */}
+                            <SubjectGradesChart
+                                exams={subjectExams}
+                                gradeEntries={subjectGradeEntries}
+                                subjectColor={subject.color}
+                            />
+                        </div>
+
+                        {/* Right Column - Grade Summary */}
+                        <div className="space-y-4">
+                            <GradeSummaryCard
+                                subject={subject}
+                                exams={subjectExams}
+                                gradeEntries={subjectGradeEntries}
+                            />
+                        </div>
                     </div>
                 </TabsContent>
 
@@ -1266,6 +1589,40 @@ export const SubjectDetails = () => {
                     editingResource ? handleEditResource : handleAddResource
                 }
                 resource={editingResource}
+            />
+
+            {/* Exam Modal */}
+            <ExamModal
+                isOpen={examModalOpen}
+                onClose={() => {
+                    setExamModalOpen(false);
+                    setEditingExam(undefined);
+                }}
+                exam={editingExam}
+            />
+
+            {/* Mark Exam Modal */}
+            <MarkExamModal
+                isOpen={markExamModalOpen}
+                onClose={() => {
+                    setMarkExamModalOpen(false);
+                    setSelectedExamForGrade(null);
+                }}
+                onSave={handleSaveExamGrade}
+                exam={selectedExamForGrade}
+                mode={markExamMode}
+            />
+
+            {/* Grade Entry Modal */}
+            <GradeEntryModal
+                isOpen={gradeEntryModalOpen}
+                onClose={() => {
+                    setGradeEntryModalOpen(false);
+                    setEditingGradeEntry(undefined);
+                }}
+                onSave={handleSaveGradeEntry}
+                subjectId={subjectId || ""}
+                entry={editingGradeEntry}
             />
         </div>
     );

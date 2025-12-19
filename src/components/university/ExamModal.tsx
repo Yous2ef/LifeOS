@@ -30,7 +30,7 @@ export const ExamModal: React.FC<ExamModalProps> = ({
         date: new Date().toISOString().split("T")[0],
         duration: 120,
         location: "",
-        grade: undefined as number | undefined,
+        maxGrade: 100,
     });
 
     // Update form data when exam prop changes
@@ -42,7 +42,7 @@ export const ExamModal: React.FC<ExamModalProps> = ({
                 date: exam.date,
                 duration: exam.duration,
                 location: exam.location || "",
-                grade: exam.grade,
+                maxGrade: exam.maxGrade || 100,
             });
         } else {
             setFormData({
@@ -51,7 +51,7 @@ export const ExamModal: React.FC<ExamModalProps> = ({
                 date: new Date().toISOString().split("T")[0],
                 duration: 120,
                 location: "",
-                grade: undefined,
+                maxGrade: 100,
             });
         }
     }, [exam, isOpen]);
@@ -63,7 +63,9 @@ export const ExamModal: React.FC<ExamModalProps> = ({
         setFormData((prev) => ({
             ...prev,
             [name]:
-                name === "duration" || name === "grade" ? Number(value) : value,
+                name === "duration" || name === "maxGrade"
+                    ? Number(value)
+                    : value,
         }));
     };
 
@@ -76,9 +78,19 @@ export const ExamModal: React.FC<ExamModalProps> = ({
         }
 
         if (exam) {
-            // Update existing exam
+            // Update existing exam - preserve taken/grade fields
             const updatedExams = data.university.exams.map((ex) =>
-                ex.id === exam.id ? { ...exam, ...formData } : ex
+                ex.id === exam.id
+                    ? {
+                          ...ex,
+                          subjectId: formData.subjectId,
+                          title: formData.title,
+                          date: formData.date,
+                          duration: formData.duration,
+                          location: formData.location,
+                          maxGrade: formData.maxGrade,
+                      }
+                    : ex
             );
             updateData({
                 university: {
@@ -90,8 +102,14 @@ export const ExamModal: React.FC<ExamModalProps> = ({
         } else {
             // Create new exam
             const newExam: Exam = {
-                ...formData,
                 id: generateId(),
+                subjectId: formData.subjectId,
+                title: formData.title,
+                date: formData.date,
+                duration: formData.duration,
+                location: formData.location,
+                maxGrade: formData.maxGrade,
+                taken: false,
             };
             updateData({
                 university: {
@@ -166,14 +184,15 @@ export const ExamModal: React.FC<ExamModalProps> = ({
                     />
 
                     <FormInput
-                        label="Grade (optional)"
-                        name="grade"
+                        label="Max Grade *"
+                        name="maxGrade"
                         type="number"
-                        min="0"
-                        max="100"
-                        value={formData.grade || ""}
+                        min="1"
+                        max="1000"
+                        value={formData.maxGrade}
                         onChange={handleChange}
-                        placeholder="e.g., 95"
+                        placeholder="e.g., 100"
+                        required
                     />
                 </div>
 

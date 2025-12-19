@@ -718,16 +718,25 @@ export const Dashboard = () => {
                             date: t.dueDate!,
                             priority: t.priority,
                             color: "from-purple-500 to-violet-600",
+                            status: t.status,
                         })),
-                    ...data.university.exams.map((e) => ({
-                        id: e.id,
-                        title: e.title,
-                        type: "Exam",
-                        module: "University",
-                        date: e.date,
-                        priority: 10,
-                        color: "from-purple-500 to-violet-600",
-                    })),
+                    ...data.university.exams
+                        .filter((e) => !e.taken) // Only show exams that haven't been taken yet
+                        .map((e) => {
+                            const subject = data.university.subjects.find(
+                                (s) => s.id === e.subjectId
+                            );
+                            return {
+                                id: e.id,
+                                title: e.title,
+                                type: "Exam",
+                                module: subject?.name || "University",
+                                date: e.date,
+                                priority: 10,
+                                color: "from-purple-500 to-violet-600",
+                                status: "upcoming",
+                            };
+                        }),
                     ...freelancingProjects
                         .filter(
                             (p: any) =>
@@ -743,6 +752,7 @@ export const Dashboard = () => {
                             date: p.deadline,
                             priority: p.priority || 8,
                             color: "from-blue-500 to-cyan-600",
+                            status: p.status,
                         })),
                     ...data.home.goals
                         .filter((g) => g.targetDate && g.progress < 100)
@@ -754,8 +764,10 @@ export const Dashboard = () => {
                             date: g.targetDate!,
                             priority: 5,
                             color: "from-orange-500 to-red-600",
+                            status: "active",
                         })),
                 ]
+                    .filter((item) => getDaysUntil(item.date) >= -7) // Only show items from up to 7 days ago
                     .sort(
                         (a, b) =>
                             new Date(a.date).getTime() -
