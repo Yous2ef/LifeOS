@@ -13,6 +13,7 @@ import {
     Menu,
     X,
     Sparkles,
+    Github,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { exportData } from "../../utils/storage";
@@ -155,6 +156,21 @@ export const MobileNav: React.FC<MobileNavProps> = ({ onImport }) => {
                                 <Settings size={16} />
                                 Settings
                             </NavLink>
+
+                            <Button
+                                onClick={() => {
+                                    window.open(
+                                        "https://github.com/Yous2ef/LifeOS",
+                                        "_blank"
+                                    );
+                                    closeMenu();
+                                }}
+                                variant="ghost"
+                                size="sm"
+                                className="w-full justify-start text-sidebar-foreground hover:text-sidebar-foreground">
+                                <Github size={16} />
+                                GitHub
+                            </Button>
                         </div>
                     </div>
                 </>

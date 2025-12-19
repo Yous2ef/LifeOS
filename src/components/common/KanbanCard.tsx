@@ -71,23 +71,29 @@ export const KanbanCard = ({
             style={{ transform: transformStyle, transition }}
             className={isDragging ? "opacity-50 scale-95" : ""}>
             <Card
-                className={cn("p-4 hover:shadow-md transition-all", className)}>
-                <div className="space-y-3">
+                className={cn(
+                    "p-3 sm:p-4 hover:shadow-md transition-all",
+                    className
+                )}>
+                <div className="space-y-2 sm:space-y-3">
                     <div className="flex items-start justify-between gap-2">
                         <div
                             className={cn(
-                                "flex-1 cursor-grab active:cursor-grabbing",
+                                "flex-1 cursor-grab active:cursor-grabbing min-w-0",
                                 isDragging && "cursor-grabbing"
                             )}
                             {...attributes}
                             {...listeners}>
-                            <h4 className="font-medium text-foreground">
+                            <h4 className="font-medium text-foreground text-sm sm:text-base break-words">
                                 {title}
                             </h4>
                         </div>
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon-sm">
+                                <Button
+                                    variant="ghost"
+                                    size="icon-sm"
+                                    className="shrink-0">
                                     <MoreVertical className="h-4 w-4" />
                                 </Button>
                             </DropdownMenuTrigger>
@@ -125,23 +131,26 @@ export const KanbanCard = ({
                         {...attributes}
                         {...listeners}>
                         {description && (
-                            <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
+                            <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2 mb-2 sm:mb-3 break-words">
                                 {description}
                             </p>
                         )}
 
                         {badges && badges.length > 0 && (
-                            <div className="flex flex-wrap gap-2">
+                            <div className="flex flex-wrap gap-1.5 sm:gap-2">
                                 {badges.map((badge, index) => (
                                     <Badge
                                         key={index}
-                                        variant={badge.variant || "outline"}>
+                                        variant={badge.variant || "outline"}
+                                        className="text-xs">
                                         {badge.icon && (
                                             <span className="mr-1">
                                                 {badge.icon}
                                             </span>
                                         )}
-                                        {badge.label}
+                                        <span className="truncate max-w-[150px]">
+                                            {badge.label}
+                                        </span>
                                     </Badge>
                                 ))}
                             </div>

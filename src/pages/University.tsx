@@ -666,78 +666,110 @@ export const University = () => {
             </div>
 
             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v)}>
-                <div className="flex items-center justify-between flex-wrap gap-4">
-                    <TabsList className="flex-wrap h-auto">
-                        <TabsTrigger value="tasks">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <TabsList className="flex-wrap h-auto w-full sm:w-auto">
+                        <TabsTrigger
+                            value="tasks"
+                            className="flex-1 sm:flex-none">
                             <ListTodo className="h-4 w-4 mr-2" />
-                            Tasks
+                            <span className="hidden sm:inline">Tasks</span>
+                            <span className="sm:hidden">Tasks</span>
                         </TabsTrigger>
-                        <TabsTrigger value="grades">
+                        <TabsTrigger
+                            value="grades"
+                            className="flex-1 sm:flex-none">
                             <Award className="h-4 w-4 mr-2" />
-                            Grades
+                            <span className="hidden sm:inline">Grades</span>
+                            <span className="sm:hidden">Grades</span>
                         </TabsTrigger>
-                        <TabsTrigger value="subjects">
+                        <TabsTrigger
+                            value="subjects"
+                            className="flex-1 sm:flex-none">
                             <BookOpen className="h-4 w-4 mr-2" />
-                            Subjects
+                            <span className="hidden sm:inline">Subjects</span>
+                            <span className="sm:hidden">Subjects</span>
                         </TabsTrigger>
-                        <TabsTrigger value="exams">
+                        <TabsTrigger
+                            value="exams"
+                            className="flex-1 sm:flex-none">
                             <Calendar className="h-4 w-4 mr-2" />
-                            Exams
+                            <span className="hidden sm:inline">Exams</span>
+                            <span className="sm:hidden">Exams</span>
                         </TabsTrigger>
-                        <TabsTrigger value="timetable">
+                        <TabsTrigger
+                            value="timetable"
+                            className="flex-1 sm:flex-none">
                             <Clock className="h-4 w-4 mr-2" />
-                            Timetable
+                            <span className="hidden sm:inline">Timetable</span>
+                            <span className="sm:hidden">Timetable</span>
                         </TabsTrigger>
                     </TabsList>
 
                     {activeTab === "tasks" && (
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 w-full sm:w-auto">
+                            <div className="flex items-center gap-1">
+                                <Button
+                                    variant={
+                                        viewMode === "kanban"
+                                            ? "secondary"
+                                            : "ghost"
+                                    }
+                                    size="sm"
+                                    onClick={() => setViewMode("kanban")}
+                                    aria-label="Kanban view"
+                                    className={cn(
+                                        "text-primary",
+                                        viewMode === "kanban" &&
+                                            "bg-primary/10 text-primary hover:bg-primary/20"
+                                    )}>
+                                    <Grid3x3 className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                    variant={
+                                        viewMode === "list"
+                                            ? "secondary"
+                                            : "ghost"
+                                    }
+                                    size="sm"
+                                    onClick={() => setViewMode("list")}
+                                    aria-label="List view"
+                                    className={cn(
+                                        "text-primary",
+                                        viewMode === "list" &&
+                                            "bg-primary/10 hover:bg-primary/20"
+                                    )}>
+                                    <List className="h-4 w-4" />
+                                </Button>
+                            </div>
                             <Button
-                                variant={
-                                    viewMode === "kanban"
-                                        ? "secondary"
-                                        : "ghost"
-                                }
-                                size="sm"
-                                onClick={() => setViewMode("kanban")}
-                                aria-label="Kanban view"
-                                className={cn(
-                                    "text-primary",
-                                    viewMode === "kanban" &&
-                                        "bg-primary/10 text-primary hover:bg-primary/20"
-                                )}>
-                                <Grid3x3 className="h-4 w-4" />
-                            </Button>
-                            <Button
-                                variant={
-                                    viewMode === "list" ? "secondary" : "ghost"
-                                }
-                                size="sm"
-                                onClick={() => setViewMode("list")}
-                                aria-label="List view"
-                                className={cn(
-                                    "text-primary",
-                                    viewMode === "list" &&
-                                        "bg-primary/10 hover:bg-primary/20"
-                                )}>
-                                <List className="h-4 w-4" />
-                            </Button>
-                            <Button onClick={() => setTaskModalOpen(true)}>
+                                onClick={() => setTaskModalOpen(true)}
+                                className="flex-1 sm:flex-none">
                                 <Plus className="h-4 w-4 mr-2" />
-                                Add Task
+                                <span className="hidden sm:inline">
+                                    Add Task
+                                </span>
+                                <span className="sm:hidden">Add</span>
                             </Button>
                         </div>
                     )}
                     {activeTab === "subjects" && (
-                        <Button onClick={() => setSubjectModalOpen(true)}>
+                        <Button
+                            onClick={() => setSubjectModalOpen(true)}
+                            className="w-full sm:w-auto">
                             <Plus className="h-4 w-4 mr-2" />
-                            Add Subject
+                            <span className="hidden sm:inline">
+                                Add Subject
+                            </span>
+                            <span className="sm:hidden">Add</span>
                         </Button>
                     )}
                     {activeTab === "exams" && (
-                        <Button onClick={() => setExamModalOpen(true)}>
+                        <Button
+                            onClick={() => setExamModalOpen(true)}
+                            className="w-full sm:w-auto">
                             <Plus className="h-4 w-4 mr-2" />
-                            Add Exam
+                            <span className="hidden sm:inline">Add Exam</span>
+                            <span className="sm:hidden">Add</span>
                         </Button>
                     )}
                 </div>
@@ -764,44 +796,46 @@ export const University = () => {
                             </CardContent>
                         </Card>
                     ) : viewMode === "kanban" ? (
-                        <KanbanBoard
-                            columns={kanbanColumns.map((col) => ({
-                                id: col.id,
-                                title: col.title,
-                                items: col.tasks,
-                                color: col.color,
-                            }))}
-                            getItemId={(task) => task.id}
-                            onDragEnd={(taskId, newStatus) => {
-                                const task = data.university.tasks.find(
-                                    (t) => t.id === taskId
-                                );
-                                if (task) {
-                                    handleTaskStatusChange(
-                                        task,
-                                        newStatus as UniversityTask["status"]
+                        <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+                            <KanbanBoard
+                                columns={kanbanColumns.map((col) => ({
+                                    id: col.id,
+                                    title: col.title,
+                                    items: col.tasks,
+                                    color: col.color,
+                                }))}
+                                getItemId={(task) => task.id}
+                                onDragEnd={(taskId, newStatus) => {
+                                    const task = data.university.tasks.find(
+                                        (t) => t.id === taskId
                                     );
-                                }
-                            }}
-                            renderItem={(task) => (
-                                <KanbanCard
-                                    id={task.id}
-                                    title={task.title}
-                                    description={task.description}
-                                    badges={getTaskBadges(task)}
-                                    actions={getTaskActions(task)}
-                                />
-                            )}
-                            dragOverlay={(task) => (
-                                <KanbanCard
-                                    id={task.id}
-                                    title={task.title}
-                                    description={task.description}
-                                    badges={getTaskBadges(task)}
-                                    actions={[]}
-                                />
-                            )}
-                        />
+                                    if (task) {
+                                        handleTaskStatusChange(
+                                            task,
+                                            newStatus as UniversityTask["status"]
+                                        );
+                                    }
+                                }}
+                                renderItem={(task) => (
+                                    <KanbanCard
+                                        id={task.id}
+                                        title={task.title}
+                                        description={task.description}
+                                        badges={getTaskBadges(task)}
+                                        actions={getTaskActions(task)}
+                                    />
+                                )}
+                                dragOverlay={(task) => (
+                                    <KanbanCard
+                                        id={task.id}
+                                        title={task.title}
+                                        description={task.description}
+                                        badges={getTaskBadges(task)}
+                                        actions={[]}
+                                    />
+                                )}
+                            />
+                        </div>
                     ) : (
                         <ListView
                             items={filteredTasks}

@@ -96,26 +96,28 @@ export function KanbanBoard<T>({
             collisionDetection={closestCenter}
             onDragStart={handleDragStart}
             onDragEnd={handleDragEndInternal}>
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
                 {columns.map((column) => (
                     <Card
                         key={column.id}
-                        className="flex flex-col transition-all">
-                        <CardHeader>
+                        className="flex flex-col transition-all w-full">
+                        <CardHeader className="pb-3">
                             <div
                                 className={cn(
                                     "h-1 -mx-6 -mt-6 mb-4 rounded-t-lg bg-gradient-to-r",
                                     column.color
                                 )}
                             />
-                            <CardTitle className="flex items-center justify-between">
-                                <span>{column.title}</span>
-                                <Badge variant="secondary">
+                            <CardTitle className="flex items-center justify-between text-base sm:text-lg">
+                                <span className="truncate">{column.title}</span>
+                                <Badge
+                                    variant="secondary"
+                                    className="ml-2 shrink-0">
                                     {column.items.length}
                                 </Badge>
                             </CardTitle>
                         </CardHeader>
-                        <CardContent className="flex-1 min-h-[200px]">
+                        <CardContent className="flex-1 min-h-[150px] sm:min-h-[200px]">
                             <DroppableColumn id={column.id}>
                                 {column.items.length === 0 ? (
                                     <div className="text-center py-8 text-muted-foreground text-sm">
