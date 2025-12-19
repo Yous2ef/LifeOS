@@ -1,0 +1,360 @@
+/* Finance Module Animations */
+
+/* Fade In Up - for cards and containers */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-fade-in-up {
+    animation: fadeInUp 0.4s ease-out forwards;
+}
+
+/* Staggered animation delays for lists */
+.animate-stagger-1 {
+    animation-delay: 0.05s;
+}
+.animate-stagger-2 {
+    animation-delay: 0.1s;
+}
+.animate-stagger-3 {
+    animation-delay: 0.15s;
+}
+.animate-stagger-4 {
+    animation-delay: 0.2s;
+}
+.animate-stagger-5 {
+    animation-delay: 0.25s;
+}
+
+/* Fade In - simple fade */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+.animate-fade-in {
+    animation: fadeIn 0.3s ease-out forwards;
+}
+
+/* Scale In - for modals and popups */
+@keyframes scaleIn {
+    from {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.animate-scale-in {
+    animation: scaleIn 0.2s ease-out forwards;
+}
+
+/* Slide In Right - for panels */
+@keyframes slideInRight {
+    from {
+        opacity: 0;
+        transform: translateX(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.animate-slide-in-right {
+    animation: slideInRight 0.3s ease-out forwards;
+}
+
+/* Slide In Left */
+@keyframes slideInLeft {
+    from {
+        opacity: 0;
+        transform: translateX(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.animate-slide-in-left {
+    animation: slideInLeft 0.3s ease-out forwards;
+}
+
+/* Pulse animation for alerts */
+@keyframes softPulse {
+    0%,
+    100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.7;
+    }
+}
+
+.animate-soft-pulse {
+    animation: softPulse 2s ease-in-out infinite;
+}
+
+/* Number count up animation */
+@keyframes countUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-count-up {
+    animation: countUp 0.5s ease-out forwards;
+}
+
+/* Progress bar fill animation */
+@keyframes progressFill {
+    from {
+        width: 0%;
+    }
+}
+
+.animate-progress-fill {
+    animation: progressFill 1s ease-out forwards;
+}
+
+/* Bounce animation for success states */
+@keyframes bounceIn {
+    0% {
+        opacity: 0;
+        transform: scale(0.3);
+    }
+    50% {
+        opacity: 1;
+        transform: scale(1.05);
+    }
+    70% {
+        transform: scale(0.9);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+.animate-bounce-in {
+    animation: bounceIn 0.5s ease-out forwards;
+}
+
+/* Shake animation for errors */
+@keyframes shake {
+    0%,
+    100% {
+        transform: translateX(0);
+    }
+    10%,
+    30%,
+    50%,
+    70%,
+    90% {
+        transform: translateX(-5px);
+    }
+    20%,
+    40%,
+    60%,
+    80% {
+        transform: translateX(5px);
+    }
+}
+
+.animate-shake {
+    animation: shake 0.5s ease-in-out;
+}
+
+/* Glow animation for important elements */
+@keyframes glow {
+    0%,
+    100% {
+        box-shadow: 0 0 5px rgba(34, 197, 94, 0.2);
+    }
+    50% {
+        box-shadow: 0 0 20px rgba(34, 197, 94, 0.4);
+    }
+}
+
+.animate-glow-green {
+    animation: glow 2s ease-in-out infinite;
+}
+
+/* Float animation for quick add button */
+@keyframes float {
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-5px);
+    }
+}
+
+.animate-float {
+    animation: float 3s ease-in-out infinite;
+}
+
+/* Shimmer loading animation */
+@keyframes shimmer {
+    0% {
+        background-position: -200% 0;
+    }
+    100% {
+        background-position: 200% 0;
+    }
+}
+
+.animate-shimmer {
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255, 255, 255, 0.4),
+        transparent
+    );
+    background-size: 200% 100%;
+    animation: shimmer 2s infinite;
+}
+
+/* Chart bar animation */
+@keyframes barGrow {
+    from {
+        transform: scaleY(0);
+        transform-origin: bottom;
+    }
+    to {
+        transform: scaleY(1);
+        transform-origin: bottom;
+    }
+}
+
+.animate-bar-grow {
+    animation: barGrow 0.6s ease-out forwards;
+}
+
+/* Notification slide in */
+@keyframes notificationSlide {
+    from {
+        opacity: 0;
+        transform: translateY(-100%);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-notification-slide {
+    animation: notificationSlide 0.3s ease-out forwards;
+}
+
+/* Tab content transition */
+.finance-tab-content {
+    opacity: 0;
+    animation: fadeInUp 0.3s ease-out forwards;
+}
+
+/* Card hover effects */
+.finance-card-hover {
+    transition: all 0.2s ease-out;
+}
+
+.finance-card-hover:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Amount change animation */
+@keyframes amountChange {
+    0% {
+        color: inherit;
+    }
+    50% {
+        color: #22c55e;
+        transform: scale(1.05);
+    }
+    100% {
+        color: inherit;
+        transform: scale(1);
+    }
+}
+
+.animate-amount-change {
+    animation: amountChange 0.5s ease-out;
+}
+
+/* Celebration sparkle */
+@keyframes sparkle {
+    0%,
+    100% {
+        opacity: 0;
+        transform: scale(0) rotate(0deg);
+    }
+    50% {
+        opacity: 1;
+        transform: scale(1) rotate(180deg);
+    }
+}
+
+.animate-sparkle {
+    animation: sparkle 0.8s ease-in-out;
+}
+
+/* Smooth number transitions */
+.number-transition {
+    transition: all 0.3s ease-out;
+}
+
+/* Button press effect */
+.button-press:active {
+    transform: scale(0.95);
+}
+
+/* Chart line draw animation */
+@keyframes drawLine {
+    from {
+        stroke-dashoffset: 1000;
+    }
+    to {
+        stroke-dashoffset: 0;
+    }
+}
+
+.animate-draw-line {
+    stroke-dasharray: 1000;
+    animation: drawLine 2s ease-out forwards;
+}
+
+/* Success checkmark animation */
+@keyframes checkmark {
+    0% {
+        stroke-dashoffset: 100;
+    }
+    100% {
+        stroke-dashoffset: 0;
+    }
+}
+
+.animate-checkmark {
+    stroke-dasharray: 100;
+    animation: checkmark 0.6s ease-out forwards;
+}

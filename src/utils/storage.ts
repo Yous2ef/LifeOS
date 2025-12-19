@@ -12,6 +12,9 @@ const FREELANCING_STANDALONE_TASKS_KEY = "lifeos-freelancing-standalone-tasks";
 // Programming separate storage key
 const PROGRAMMING_DATA_KEY = "lifeos-programming-data";
 
+// Finance separate storage key
+const FINANCE_DATA_KEY = "lifeos-finance-data";
+
 // Default initial data
 const getDefaultData = (): AppData => ({
     university: {
@@ -126,6 +129,9 @@ export const exportData = (): void => {
         // Load programming data from separate localStorage key
         const programmingData = localStorage.getItem(PROGRAMMING_DATA_KEY);
 
+        // Load finance data from separate localStorage key
+        const financeData = localStorage.getItem(FINANCE_DATA_KEY);
+
         // Add metadata for better import validation
         const exportData = {
             version: STORAGE_VERSION,
@@ -152,6 +158,8 @@ export const exportData = (): void => {
                       tools: [],
                       projects: [],
                   },
+            // Include finance separate storage
+            financeData: financeData ? JSON.parse(financeData) : null,
         };
 
         const dataStr = JSON.stringify(exportData, null, 2);
@@ -293,6 +301,14 @@ export const importData = (file: File): Promise<AppData> => {
                     );
                 }
 
+                // Restore finance data if present (new format)
+                if (parsed.financeData) {
+                    localStorage.setItem(
+                        FINANCE_DATA_KEY,
+                        JSON.stringify(parsed.financeData)
+                    );
+                }
+
                 resolve(mergedData);
             } catch {
                 reject(
@@ -318,6 +334,8 @@ export const clearAllData = (): void => {
     localStorage.removeItem(FREELANCING_STANDALONE_TASKS_KEY);
     // Also clear programming extended data
     localStorage.removeItem(PROGRAMMING_DATA_KEY);
+    // Also clear finance data
+    localStorage.removeItem(FINANCE_DATA_KEY);
 };
 
 // Check if this is the first time the user opens the app

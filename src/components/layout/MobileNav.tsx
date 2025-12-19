@@ -7,6 +7,7 @@ import {
     Code2,
     Home as HomeIcon,
     FolderOpen,
+    Wallet,
     Settings,
     Download,
     Upload,
@@ -31,6 +32,7 @@ const navItems = [
     { to: "/university", icon: GraduationCap, label: "University" },
     { to: "/freelancing", icon: Briefcase, label: "Freelancing" },
     { to: "/programming", icon: Code2, label: "Programming" },
+    { to: "/finance", icon: Wallet, label: "Finance" },
     { to: "/home", icon: HomeIcon, label: "Home & Life" },
     { to: "/misc", icon: FolderOpen, label: "Miscellaneous" },
 ];

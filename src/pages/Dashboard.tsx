@@ -14,6 +14,7 @@ import {
     AlertTriangle,
     BookOpen,
     Target,
+    Wallet,
 } from "lucide-react";
 import {
     Card,
@@ -28,6 +29,7 @@ import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { DismissMenu } from "../components/ui/DismissMenu";
+import { FinanceWidget } from "@/components/finance/FinanceWidget";
 import { useApp } from "../context/AppContext";
 import {
     getGreeting,
@@ -72,6 +74,18 @@ export const Dashboard = () => {
             return stored ? JSON.parse(stored) : [];
         } catch {
             return [];
+        }
+    }, []);
+
+    // Load finance data
+    const financeData = useMemo(() => {
+        try {
+            const stored = localStorage.getItem("lifeos-finance-data");
+            return stored
+                ? JSON.parse(stored)
+                : { incomes: [], expenses: [], installments: [], goals: [] };
+        } catch {
+            return { incomes: [], expenses: [], installments: [], goals: [] };
         }
     }, []);
 
@@ -201,6 +215,48 @@ export const Dashboard = () => {
         };
     }, [data, programmingData, freelancingProjects]);
 
+    // Calculate finance stats
+    const financeStats = useMemo(() => {
+        const now = new Date();
+        const thisMonth = now.getMonth();
+        const thisYear = now.getFullYear();
+
+        const monthlyExpenses =
+            financeData.expenses?.filter((exp: any) => {
+                const date = new Date(exp.date);
+                return (
+                    date.getMonth() === thisMonth &&
+                    date.getFullYear() === thisYear
+                );
+            }) || [];
+
+        const monthlyIncomes =
+            financeData.incomes?.filter((inc: any) => {
+                const date = new Date(
+                    inc.actualDate || inc.expectedDate || inc.createdAt
+                );
+                return (
+                    date.getMonth() === thisMonth &&
+                    date.getFullYear() === thisYear
+                );
+            }) || [];
+
+        const totalExpenses = monthlyExpenses.reduce(
+            (sum: number, exp: any) => sum + exp.amount,
+            0
+        );
+        const totalIncome = monthlyIncomes.reduce(
+            (sum: number, inc: any) => sum + inc.amount,
+            0
+        );
+        const balance = totalIncome - totalExpenses;
+        const activeInstallments =
+            financeData.installments?.filter((i: any) => i.status === "active")
+                .length || 0;
+
+        return { totalExpenses, totalIncome, balance, activeInstallments };
+    }, [financeData]);
+
     const modules = [
         {
             id: "university",
@@ -251,6 +307,20 @@ export const Dashboard = () => {
                     .length,
             },
             path: "/home",
+        },
+        {
+            id: "finance",
+            name: "Finance",
+            icon: Wallet,
+            description: "Track income & expenses",
+            color: "from-emerald-500 to-teal-600",
+            stats: {
+                label: "This Month",
+                value: `${
+                    financeStats.balance >= 0 ? "+" : ""
+                }${financeStats.balance.toLocaleString()}`,
+            },
+            path: "/finance",
         },
     ];
 
@@ -909,6 +979,9 @@ export const Dashboard = () => {
                     ))}
                 </div>
             </div>
+
+            {/* Finance Overview Widget */}
+            <FinanceWidget />
 
             {/* Recent Activity */}
             <Card>

@@ -43,6 +43,9 @@ const Misc = lazy(() =>
 const Settings = lazy(() =>
     import("./pages/Settings").then((m) => ({ default: m.Settings }))
 );
+const Finance = lazy(() =>
+    import("./pages/Finance").then((m) => ({ default: m.Finance }))
+);
 
 // Loading fallback component
 const LoadingFallback = () => (
@@ -111,6 +114,7 @@ const AppContent: React.FC = () => {
                                 element={<ProgrammingProjectDetail />}
                             />
                             <Route path="/home" element={<Home />} />
+                            <Route path="/finance" element={<Finance />} />
                             <Route path="/misc" element={<Misc />} />
                             <Route path="/settings" element={<Settings />} />
                         </Routes>
