@@ -2,9 +2,11 @@ import React, { Suspense, lazy, useState, useEffect } from "react";
 import { HashRouter, Routes, Route } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 import { AppProvider, useApp } from "./context/AppContext";
+import { ThemeProvider } from "./components/theme-provider";
 import { Layout } from "./components/layout/Layout";
-import { WelcomeModal } from "./components/common/WelcomeModal";
+import { WelcomeModal, MigrationModal } from "./components/common";
 import { isFirstTime, markFirstTimeComplete } from "./utils/storage";
+import { useMigration } from "./hooks/useMigration";
 
 // Lazy load all page components for code splitting
 const Dashboard = lazy(() =>
@@ -58,6 +60,16 @@ const LoadingFallback = () => (
 const AppContent: React.FC = () => {
     const { data, updateData } = useApp();
     const [showWelcome, setShowWelcome] = useState(false);
+
+    // Migration hook
+    const {
+        showMigrationModal,
+        migrationStatus,
+        migrationError,
+        performMigration,
+        skipMigration,
+        closeMigrationModal,
+    } = useMigration();
 
     useEffect(() => {
         // Check if this is the first time the user opens the app
@@ -136,6 +148,17 @@ const AppContent: React.FC = () => {
                 isOpen={showWelcome}
                 onComplete={handleWelcomeComplete}
             />
+            <MigrationModal
+                isOpen={showMigrationModal && !showWelcome}
+                onMigrate={performMigration}
+                onSkip={
+                    migrationStatus === "complete"
+                        ? closeMigrationModal
+                        : skipMigration
+                }
+                status={migrationStatus}
+                error={migrationError}
+            />
         </>
     );
 };
@@ -143,7 +166,9 @@ const AppContent: React.FC = () => {
 const App: React.FC = () => {
     return (
         <AppProvider>
-            <AppContent />
+            <ThemeProvider defaultTheme="dark">
+                <AppContent />
+            </ThemeProvider>
         </AppProvider>
     );
 };

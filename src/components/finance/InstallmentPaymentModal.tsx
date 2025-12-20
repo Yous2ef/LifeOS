@@ -21,7 +21,7 @@ import {
     ChevronUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { Installment, InstallmentPayment } from "@/types/finance";
+import type { Installment, InstallmentPayment } from "@/types/modules/finance";
 
 interface InstallmentPaymentModalProps {
     isOpen: boolean;

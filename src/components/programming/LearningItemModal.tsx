@@ -6,7 +6,7 @@ import { FormSelect } from "@/components/ui/FormSelect";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { X } from "lucide-react";
-import type { LearningItem } from "@/types/programming";
+import type { LearningItem } from "@/types/modules/programming";
 
 interface LearningItemModalProps {
     isOpen: boolean;

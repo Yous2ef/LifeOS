@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/Card";
 import { cn } from "@/lib/utils";
-import type { FinancialStats } from "@/types/finance";
+import type { FinancialStats } from "@/types/modules/finance";
 
 interface OverviewCardsProps {
     stats: FinancialStats;

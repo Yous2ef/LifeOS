@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
@@ -8,6 +8,13 @@ export default defineConfig({
     // Set base path for GitHub Pages deployment
     base: "/LifeOS/",
     plugins: [react(), tailwindcss()],
+    // Vitest configuration
+    test: {
+        globals: true,
+        environment: "jsdom",
+        setupFiles: ["./src/test/setup.ts"],
+        include: ["src/**/*.{test,spec}.{js,ts,tsx}"],
+    },
     build: {
         outDir: "build",
         // Optimize chunk splitting

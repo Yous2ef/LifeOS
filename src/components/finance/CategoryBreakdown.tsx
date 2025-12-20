@@ -1,4 +1,4 @@
-import type { CategorySpending } from "@/types/finance";
+import type { CategorySpending } from "@/types/modules/finance";
 
 interface CategoryBreakdownProps {
     categorySpending: CategorySpending[];

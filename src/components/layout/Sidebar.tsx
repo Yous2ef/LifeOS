@@ -15,6 +15,7 @@ import {
     ChevronLeft,
     ChevronRight,
     Github,
+    LogIn,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { exportData } from "../../utils/storage";
@@ -23,6 +24,8 @@ import { ThemeToggle } from "../theme-toggle";
 import { Button } from "@/components/ui/Button";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { UserMenu } from "../auth";
+import { useAuth } from "../../context/AuthContext";
 
 interface SidebarProps {
     onImport: () => void;
@@ -40,6 +43,7 @@ const navItems = [
 
 export const Sidebar: React.FC<SidebarProps> = ({ onImport }) => {
     const [isCollapsed, setIsCollapsed] = useState(false);
+    const { isAuthenticated, user, login, isGoogleLoaded } = useAuth();
 
     // Load collapsed state from localStorage
     useEffect(() => {
@@ -143,6 +147,46 @@ export const Sidebar: React.FC<SidebarProps> = ({ onImport }) => {
             {/* Bottom Actions */}
             <Separator />
             <div className={cn("space-y-1", isCollapsed ? "p-2" : "p-3")}>
+                {/* Auth Section */}
+                {!isAuthenticated && !isCollapsed && (
+                    <>
+                        <Button
+                            onClick={login}
+                            variant="outline"
+                            size="sm"
+                            disabled={!isGoogleLoaded}
+                            className="w-full justify-start gap-2 bg-primary/5 border-primary/20 hover:bg-primary/10">
+                            <LogIn size={16} className="text-primary" />
+                            <span className="text-sm">Sign in with Google</span>
+                        </Button>
+                        <Separator className="my-2" />
+                    </>
+                )}
+                {!isAuthenticated && isCollapsed && (
+                    <>
+                        <button
+                            onClick={login}
+                            disabled={!isGoogleLoaded}
+                            title="Sign in with Google"
+                            className="w-full p-2.5 flex items-center justify-center rounded-lg text-primary hover:bg-primary/10 transition-colors border border-primary/20">
+                            <LogIn size={16} />
+                        </button>
+                        <Separator className="my-2" />
+                    </>
+                )}
+                {/* Logged in user section */}
+                {isAuthenticated && user && !isCollapsed && (
+                    <>
+                        <UserMenu variant="full" className="w-full" />
+                        <Separator className="my-2" />
+                    </>
+                )}
+                {isAuthenticated && user && isCollapsed && (
+                    <>
+                        <UserMenu />
+                        <Separator className="my-2" />
+                    </>
+                )}
                 {!isCollapsed ? (
                     <>
                         <Button

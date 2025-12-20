@@ -19,7 +19,7 @@ import type {
     KanbanCardAction,
     ListCardBadge,
 } from "@/components/common";
-import type { LearningItem } from "@/types/programming";
+import type { LearningItem } from "@/types/modules/programming";
 import { LearningItemModal } from "./LearningItemModal";
 import { getPriorityColor, formatDate } from "@/utils/helpers";
 import { Badge } from "@/components/ui/Badge";

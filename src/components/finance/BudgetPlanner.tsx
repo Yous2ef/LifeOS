@@ -11,7 +11,11 @@ import {
     AlertTriangle,
     TrendingUp,
 } from "lucide-react";
-import type { Budget, CategoryBudget, ExpenseCategory } from "@/types/finance";
+import type {
+    Budget,
+    CategoryBudget,
+    ExpenseCategory,
+} from "@/types/modules/finance";
 
 interface BudgetPlannerProps {
     budget: Budget | null;

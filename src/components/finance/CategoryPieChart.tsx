@@ -8,7 +8,7 @@ import {
     Tooltip,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
-import type { Expense, ExpenseCategory } from "@/types/finance";
+import type { Expense, ExpenseCategory } from "@/types/modules/finance";
 
 interface CategoryPieChartProps {
     expenses: Expense[];

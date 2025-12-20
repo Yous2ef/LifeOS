@@ -3,7 +3,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { FormInput } from "@/components/ui/FormInput";
 import { TextArea } from "@/components/ui/TextArea";
-import type { ProjectTask, StandaloneTask } from "@/types/freelancing";
+import type { ProjectTask, StandaloneTask } from "@/types/modules/freelancing";
 
 interface ProjectTaskModalProps {
     isOpen: boolean;

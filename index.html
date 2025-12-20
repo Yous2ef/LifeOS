@@ -5,6 +5,24 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>LifeOS</title>
+    
+    <!-- Security Headers (Note: X-Frame-Options must be set via HTTP headers, not meta tags) -->
+    <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+    
+    <!-- Content Security Policy -->
+    <meta http-equiv="Content-Security-Policy" content="
+      default-src 'self';
+      script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com https://apis.google.com;
+      style-src 'self' 'unsafe-inline' https://accounts.google.com;
+      img-src 'self' data: https: blob:;
+      font-src 'self' data:;
+      connect-src 'self' https://accounts.google.com https://www.googleapis.com https://oauth2.googleapis.com;
+      frame-src https://accounts.google.com;
+    " />
+    
+    <!-- Google Identity Services -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
   </head>
   <body>
     <div id="root"></div>

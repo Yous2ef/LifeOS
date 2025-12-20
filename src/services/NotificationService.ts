@@ -1,11 +1,11 @@
 import type { AppData } from "@/types";
-import type { Project, StandaloneTask } from "@/types/freelancing";
+import type { Project, StandaloneTask } from "@/types/modules/freelancing";
 import type {
     SmartNotification,
     NotificationType,
     NotificationPriority,
     NotificationConfig,
-} from "@/types/notifications";
+} from "@/types/services/notifications";
 import { generateId, getDaysUntil } from "@/utils/helpers";
 
 /**

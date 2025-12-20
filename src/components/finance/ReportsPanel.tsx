@@ -9,7 +9,7 @@ import {
     Minus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { Income, Expense, ExpenseCategory } from "@/types/finance";
+import type { Income, Expense, ExpenseCategory } from "@/types/modules/finance";
 
 interface ReportsPanelProps {
     incomes: Income[];

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ProjectDetailView } from "@/components/programming/ProjectDetailView";
-import type { CodingProject, ProjectTask } from "@/types/programming";
+import type { CodingProject, ProjectTask } from "@/types/modules/programming";
 import toast from "react-hot-toast";
 
 const PROGRAMMING_DATA_KEY = "lifeos-programming-data";

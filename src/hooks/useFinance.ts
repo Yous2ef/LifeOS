@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
+﻿import { useEffect, useCallback, useMemo } from "react";
+import { useApp } from "../context/AppContext";
 import type {
     FinanceData,
     Income,
@@ -15,10 +16,7 @@ import type {
     CategorySpending,
     DailySpending,
     Transaction,
-} from "@/types/finance";
-
-// Storage Keys
-const FINANCE_DATA_KEY = "lifeos-finance-data";
+} from "@/types/modules/finance";
 
 // ==================== Helper Functions ====================
 
@@ -61,14 +59,12 @@ const isInMonth = (
 const getDefaultFinanceData = (): FinanceData => {
     const now = new Date().toISOString();
 
-    // Generate default categories with IDs
     const categories: ExpenseCategory[] = [
-        // Essential (ضروري)
         {
             id: generateId(),
             name: "Rent/Mortgage",
             nameAr: "إيجار/قسط سكن",
-            icon: "🏠",
+            icon: "",
             color: "#3b82f6",
             isEssential: true,
             isDefault: true,
@@ -79,7 +75,7 @@ const getDefaultFinanceData = (): FinanceData => {
             id: generateId(),
             name: "Utilities",
             nameAr: "فواتير",
-            icon: "⚡",
+            icon: "",
             color: "#eab308",
             isEssential: true,
             isDefault: true,
@@ -90,7 +86,7 @@ const getDefaultFinanceData = (): FinanceData => {
             id: generateId(),
             name: "Transportation",
             nameAr: "مواصلات",
-            icon: "🚗",
+            icon: "",
             color: "#8b5cf6",
             isEssential: true,
             isDefault: true,
@@ -101,7 +97,7 @@ const getDefaultFinanceData = (): FinanceData => {
             id: generateId(),
             name: "Groceries",
             nameAr: "طعام وبقالة",
-            icon: "🛒",
+            icon: "",
             color: "#22c55e",
             isEssential: true,
             isDefault: true,
@@ -112,7 +108,7 @@ const getDefaultFinanceData = (): FinanceData => {
             id: generateId(),
             name: "Healthcare",
             nameAr: "صحة ودواء",
-            icon: "💊",
+            icon: "",
             color: "#ef4444",
             isEssential: true,
             isDefault: true,
@@ -123,20 +119,18 @@ const getDefaultFinanceData = (): FinanceData => {
             id: generateId(),
             name: "Insurance",
             nameAr: "تأمين",
-            icon: "🛡️",
+            icon: "",
             color: "#0ea5e9",
             isEssential: true,
             isDefault: true,
             order: 6,
             createdAt: now,
         },
-
-        // Variable (متغير)
         {
             id: generateId(),
             name: "Dining Out",
             nameAr: "أكل بره",
-            icon: "🍔",
+            icon: "",
             color: "#f97316",
             isEssential: false,
             isDefault: true,
@@ -147,7 +141,7 @@ const getDefaultFinanceData = (): FinanceData => {
             id: generateId(),
             name: "Entertainment",
             nameAr: "ترفيه",
-            icon: "🎮",
+            icon: "",
             color: "#ec4899",
             isEssential: false,
             isDefault: true,
@@ -158,7 +152,7 @@ const getDefaultFinanceData = (): FinanceData => {
             id: generateId(),
             name: "Shopping",
             nameAr: "تسوق",
-            icon: "🛍️",
+            icon: "",
             color: "#a855f7",
             isEssential: false,
             isDefault: true,
@@ -169,7 +163,7 @@ const getDefaultFinanceData = (): FinanceData => {
             id: generateId(),
             name: "Clothing",
             nameAr: "ملابس",
-            icon: "👔",
+            icon: "",
             color: "#06b6d4",
             isEssential: false,
             isDefault: true,
@@ -180,7 +174,7 @@ const getDefaultFinanceData = (): FinanceData => {
             id: generateId(),
             name: "Education",
             nameAr: "تعليم",
-            icon: "📚",
+            icon: "",
             color: "#14b8a6",
             isEssential: false,
             isDefault: true,
@@ -191,7 +185,7 @@ const getDefaultFinanceData = (): FinanceData => {
             id: generateId(),
             name: "Gifts",
             nameAr: "هدايا",
-            icon: "🎁",
+            icon: "",
             color: "#f43f5e",
             isEssential: false,
             isDefault: true,
@@ -202,7 +196,7 @@ const getDefaultFinanceData = (): FinanceData => {
             id: generateId(),
             name: "Sports",
             nameAr: "رياضة",
-            icon: "⚽",
+            icon: "",
             color: "#10b981",
             isEssential: false,
             isDefault: true,
@@ -213,7 +207,7 @@ const getDefaultFinanceData = (): FinanceData => {
             id: generateId(),
             name: "Travel",
             nameAr: "سفر",
-            icon: "✈️",
+            icon: "",
             color: "#6366f1",
             isEssential: false,
             isDefault: true,
@@ -224,7 +218,7 @@ const getDefaultFinanceData = (): FinanceData => {
             id: generateId(),
             name: "Subscriptions",
             nameAr: "اشتراكات",
-            icon: "📱",
+            icon: "",
             color: "#8b5cf6",
             isEssential: false,
             isDefault: true,
@@ -235,33 +229,29 @@ const getDefaultFinanceData = (): FinanceData => {
             id: generateId(),
             name: "Personal Care",
             nameAr: "عناية شخصية",
-            icon: "💇",
+            icon: "",
             color: "#d946ef",
             isEssential: false,
             isDefault: true,
             order: 16,
             createdAt: now,
         },
-
-        // Emergency
         {
             id: generateId(),
             name: "Emergency",
             nameAr: "طوارئ",
-            icon: "🚨",
+            icon: "",
             color: "#dc2626",
             isEssential: true,
             isDefault: true,
             order: 17,
             createdAt: now,
         },
-
-        // Other
         {
             id: generateId(),
             name: "Other",
             nameAr: "أخرى",
-            icon: "📦",
+            icon: "",
             color: "#64748b",
             isEssential: false,
             isDefault: true,
@@ -296,40 +286,35 @@ const getDefaultFinanceData = (): FinanceData => {
 // ==================== Main Hook ====================
 
 export const useFinance = () => {
-    const [data, setData] = useState<FinanceData>(() => {
-        try {
-            const stored = localStorage.getItem(FINANCE_DATA_KEY);
-            if (stored) {
-                const parsed = JSON.parse(stored);
-                // Merge with defaults to handle new fields
-                return {
-                    ...getDefaultFinanceData(),
-                    ...parsed,
-                    settings: {
-                        ...getDefaultFinanceData().settings,
-                        ...parsed.settings,
-                    },
-                };
-            }
-            return getDefaultFinanceData();
-        } catch {
-            console.error("Failed to load finance data");
-            return getDefaultFinanceData();
-        }
-    });
+    const { data: appData, updateData } = useApp();
 
-    // Persist to localStorage
-    useEffect(() => {
-        try {
-            localStorage.setItem(FINANCE_DATA_KEY, JSON.stringify(data));
-        } catch (error) {
-            console.error("Failed to save finance data:", error);
-        }
-    }, [data]);
+    // Get finance data from unified AppData, with defaults
+    const data: FinanceData = useMemo(
+        () => ({
+            ...getDefaultFinanceData(),
+            ...appData.finance,
+            settings: {
+                ...getDefaultFinanceData().settings,
+                ...(appData.finance?.settings || {}),
+            },
+        }),
+        [appData.finance]
+    );
+
+    // Helper to update finance data in AppContext
+    const setData = useCallback(
+        (updater: FinanceData | ((prev: FinanceData) => FinanceData)) => {
+            if (typeof updater === "function") {
+                updateData({ finance: updater(data) });
+            } else {
+                updateData({ finance: updater });
+            }
+        },
+        [data, updateData]
+    );
 
     // ==================== Recurring & Automation Logic ====================
 
-    // Helper: Calculate next occurrence date based on frequency
     const calculateNextOccurrence = useCallback(
         (currentDate: string, frequency: string): string => {
             const date = new Date(currentDate);
@@ -378,14 +363,12 @@ export const useFinance = () => {
             const updatedIncomes: { id: string; nextOccurrence: string }[] = [];
 
             recurringIncomes.forEach((income) => {
-                // Determine the next occurrence date
                 let nextDate = income.nextOccurrence
                     ? new Date(income.nextOccurrence)
                     : income.actualDate
                     ? new Date(income.actualDate)
                     : new Date(income.createdAt);
 
-                // If no nextOccurrence set, calculate from last date
                 if (!income.nextOccurrence) {
                     const baseDate = income.actualDate || income.createdAt;
                     nextDate = new Date(
@@ -393,11 +376,8 @@ export const useFinance = () => {
                     );
                 }
 
-                // Generate entries for all missed occurrences up to today
                 while (nextDate <= today) {
                     const nextDateStr = nextDate.toISOString().split("T")[0];
-
-                    // Check if we already have an entry for this date
                     const existingEntry = data.incomes.find(
                         (inc) =>
                             inc.title === income.title &&
@@ -413,7 +393,7 @@ export const useFinance = () => {
                             status: "received",
                             actualDate: nextDateStr,
                             expectedDate: undefined,
-                            isRecurring: false, // The generated entry is not recurring
+                            isRecurring: false,
                             nextOccurrence: undefined,
                             createdAt: now,
                             updatedAt: now,
@@ -422,8 +402,6 @@ export const useFinance = () => {
                             }Auto-generated from recurring income`,
                         });
                     }
-
-                    // Calculate next occurrence
                     const newNextDate = calculateNextOccurrence(
                         nextDateStr,
                         income.frequency
@@ -431,7 +409,6 @@ export const useFinance = () => {
                     nextDate = new Date(newNextDate);
                 }
 
-                // Update the parent recurring income with the next occurrence
                 if (nextDate > today) {
                     const nextOccurrenceStr = nextDate
                         .toISOString()
@@ -445,7 +422,6 @@ export const useFinance = () => {
                 }
             });
 
-            // Apply updates if any
             if (newIncomes.length > 0 || updatedIncomes.length > 0) {
                 setData((prev) => ({
                     ...prev,
@@ -469,12 +445,11 @@ export const useFinance = () => {
             }
         };
 
-        // Run once on mount
         const timer = setTimeout(processRecurringIncomes, 500);
         return () => clearTimeout(timer);
-    }, []); // Empty dependency - run only once on mount
+    }, []);
 
-    // Process recurring expenses - runs on app load
+    // Process recurring expenses
     useEffect(() => {
         const processRecurringExpenses = () => {
             const today = new Date();
@@ -493,12 +468,10 @@ export const useFinance = () => {
                 [];
 
             recurringExpenses.forEach((expense) => {
-                // Determine the next occurrence date
                 let nextDate = expense.nextOccurrence
                     ? new Date(expense.nextOccurrence)
                     : new Date(expense.date);
 
-                // If no nextOccurrence set, calculate from the expense date
                 if (!expense.nextOccurrence) {
                     nextDate = new Date(
                         calculateNextOccurrence(
@@ -508,11 +481,8 @@ export const useFinance = () => {
                     );
                 }
 
-                // Generate entries for all missed occurrences up to today
                 while (nextDate <= today) {
                     const nextDateStr = nextDate.toISOString().split("T")[0];
-
-                    // Check if we already have an entry for this date
                     const existingEntry = data.expenses.find(
                         (exp) =>
                             exp.title === expense.title &&
@@ -527,7 +497,7 @@ export const useFinance = () => {
                             ...expense,
                             id: generateId(),
                             date: nextDateStr,
-                            isRecurring: false, // The generated entry is not recurring
+                            isRecurring: false,
                             recurringFrequency: undefined,
                             nextOccurrence: undefined,
                             createdAt: now,
@@ -537,8 +507,6 @@ export const useFinance = () => {
                             }Auto-generated from recurring expense`,
                         });
                     }
-
-                    // Calculate next occurrence
                     const newNextDate = calculateNextOccurrence(
                         nextDateStr,
                         expense.recurringFrequency || "monthly"
@@ -546,7 +514,6 @@ export const useFinance = () => {
                     nextDate = new Date(newNextDate);
                 }
 
-                // Update the parent recurring expense with the next occurrence
                 if (nextDate > today) {
                     const nextOccurrenceStr = nextDate
                         .toISOString()
@@ -560,7 +527,6 @@ export const useFinance = () => {
                 }
             });
 
-            // Apply updates if any
             if (newExpenses.length > 0 || updatedExpenses.length > 0) {
                 setData((prev) => ({
                     ...prev,
@@ -584,106 +550,9 @@ export const useFinance = () => {
             }
         };
 
-        // Run once on mount
         const timer = setTimeout(processRecurringExpenses, 700);
         return () => clearTimeout(timer);
-    }, []); // Empty dependency - run only once on mount
-
-    // Process auto-allocate goals - runs on new income
-    useEffect(() => {
-        const processAutoAllocateGoals = () => {
-            const activeGoals = data.goals.filter(
-                (goal) => goal.autoAllocate && goal.status === "active"
-            );
-
-            if (activeGoals.length === 0) return;
-
-            // Check for new incomes received today that haven't been processed
-            const today = new Date();
-            const todayStr = today.toISOString().split("T")[0];
-            const startOfMonth = new Date(
-                today.getFullYear(),
-                today.getMonth(),
-                data.settings.monthStartDay
-            );
-            const startOfMonthStr = startOfMonth.toISOString().split("T")[0];
-
-            // Get incomes received this month
-            const monthlyIncomes = data.incomes.filter(
-                (inc) =>
-                    inc.status === "received" &&
-                    inc.actualDate &&
-                    inc.actualDate >= startOfMonthStr
-            );
-
-            // For each auto-allocate goal, check if we need to make a contribution this month
-            activeGoals.forEach((goal) => {
-                // Check if we already contributed this month
-                const monthlyContributions = goal.contributions.filter(
-                    (contrib) => contrib.date >= startOfMonthStr
-                );
-
-                const totalContributedThisMonth = monthlyContributions.reduce(
-                    (sum, c) => sum + c.amount,
-                    0
-                );
-
-                // If we haven't met the monthly contribution target and have income
-                if (
-                    totalContributedThisMonth < goal.monthlyContribution &&
-                    monthlyIncomes.length > 0
-                ) {
-                    const remaining =
-                        goal.monthlyContribution - totalContributedThisMonth;
-                    const amountToContribute = Math.min(
-                        remaining,
-                        goal.targetAmount - goal.currentAmount
-                    );
-
-                    if (amountToContribute > 0) {
-                        const now = new Date().toISOString();
-                        const newContribution = {
-                            id: generateId(),
-                            goalId: goal.id,
-                            amount: amountToContribute,
-                            date: todayStr,
-                            notes: "Auto-allocated from monthly income",
-                            createdAt: now,
-                        };
-
-                        setData((prev) => ({
-                            ...prev,
-                            goals: prev.goals.map((g) =>
-                                g.id === goal.id
-                                    ? {
-                                          ...g,
-                                          currentAmount:
-                                              g.currentAmount +
-                                              amountToContribute,
-                                          contributions: [
-                                              ...g.contributions,
-                                              newContribution,
-                                          ],
-                                          status:
-                                              g.currentAmount +
-                                                  amountToContribute >=
-                                              g.targetAmount
-                                                  ? "completed"
-                                                  : g.status,
-                                          updatedAt: now,
-                                      }
-                                    : g
-                            ),
-                        }));
-                    }
-                }
-            });
-        };
-
-        // Run with a delay to ensure income processing is done first
-        const timer = setTimeout(processAutoAllocateGoals, 1000);
-        return () => clearTimeout(timer);
-    }, [data.incomes.length, data.goals.length, data.settings.monthStartDay]);
+    }, []);
 
     // ==================== Income Operations ====================
 
@@ -702,35 +571,39 @@ export const useFinance = () => {
             }));
             return newIncome;
         },
-        []
+        [setData]
     );
 
-    const updateIncome = useCallback((id: string, updates: Partial<Income>) => {
-        setData((prev) => ({
-            ...prev,
-            incomes: prev.incomes.map((income) =>
-                income.id === id
-                    ? {
-                          ...income,
-                          ...updates,
-                          updatedAt: new Date().toISOString(),
-                      }
-                    : income
-            ),
-        }));
-    }, []);
+    const updateIncome = useCallback(
+        (id: string, updates: Partial<Income>) => {
+            setData((prev) => ({
+                ...prev,
+                incomes: prev.incomes.map((income) =>
+                    income.id === id
+                        ? {
+                              ...income,
+                              ...updates,
+                              updatedAt: new Date().toISOString(),
+                          }
+                        : income
+                ),
+            }));
+        },
+        [setData]
+    );
 
-    const deleteIncome = useCallback((id: string) => {
-        setData((prev) => ({
-            ...prev,
-            incomes: prev.incomes.filter((income) => income.id !== id),
-        }));
-    }, []);
+    const deleteIncome = useCallback(
+        (id: string) => {
+            setData((prev) => ({
+                ...prev,
+                incomes: prev.incomes.filter((income) => income.id !== id),
+            }));
+        },
+        [setData]
+    );
 
     const getIncomeById = useCallback(
-        (id: string) => {
-            return data.incomes.find((income) => income.id === id);
-        },
+        (id: string) => data.incomes.find((income) => income.id === id),
         [data.incomes]
     );
 
@@ -751,7 +624,7 @@ export const useFinance = () => {
             }));
             return newExpense;
         },
-        []
+        [setData]
     );
 
     const updateExpense = useCallback(
@@ -769,20 +642,21 @@ export const useFinance = () => {
                 ),
             }));
         },
-        []
+        [setData]
     );
 
-    const deleteExpense = useCallback((id: string) => {
-        setData((prev) => ({
-            ...prev,
-            expenses: prev.expenses.filter((expense) => expense.id !== id),
-        }));
-    }, []);
+    const deleteExpense = useCallback(
+        (id: string) => {
+            setData((prev) => ({
+                ...prev,
+                expenses: prev.expenses.filter((expense) => expense.id !== id),
+            }));
+        },
+        [setData]
+    );
 
     const getExpenseById = useCallback(
-        (id: string) => {
-            return data.expenses.find((expense) => expense.id === id);
-        },
+        (id: string) => data.expenses.find((expense) => expense.id === id),
         [data.expenses]
     );
 
@@ -801,7 +675,7 @@ export const useFinance = () => {
             }));
             return newCategory;
         },
-        []
+        [setData]
     );
 
     const updateCategory = useCallback(
@@ -813,28 +687,24 @@ export const useFinance = () => {
                 ),
             }));
         },
-        []
+        [setData]
     );
 
     const deleteCategory = useCallback(
         (id: string) => {
-            // Don't delete default categories
             const category = data.categories.find((c) => c.id === id);
             if (category?.isDefault) return false;
-
             setData((prev) => ({
                 ...prev,
                 categories: prev.categories.filter((cat) => cat.id !== id),
             }));
             return true;
         },
-        [data.categories]
+        [data.categories, setData]
     );
 
     const getCategoryById = useCallback(
-        (id: string) => {
-            return data.categories.find((cat) => cat.id === id);
-        },
+        (id: string) => data.categories.find((cat) => cat.id === id),
         [data.categories]
     );
 
@@ -868,7 +738,7 @@ export const useFinance = () => {
             }));
             return newInstallment;
         },
-        []
+        [setData]
     );
 
     const updateInstallment = useCallback(
@@ -886,15 +756,20 @@ export const useFinance = () => {
                 ),
             }));
         },
-        []
+        [setData]
     );
 
-    const deleteInstallment = useCallback((id: string) => {
-        setData((prev) => ({
-            ...prev,
-            installments: prev.installments.filter((inst) => inst.id !== id),
-        }));
-    }, []);
+    const deleteInstallment = useCallback(
+        (id: string) => {
+            setData((prev) => ({
+                ...prev,
+                installments: prev.installments.filter(
+                    (inst) => inst.id !== id
+                ),
+            }));
+        },
+        [setData]
+    );
 
     const addInstallmentPayment = useCallback(
         (
@@ -926,10 +801,8 @@ export const useFinance = () => {
                     (p) => p.status === "paid" || p.status === "late"
                 ).length;
 
-                // Calculate next payment date
                 let nextPaymentDate = installment.nextPaymentDate;
                 const currentDate = new Date(installment.nextPaymentDate);
-
                 switch (installment.frequency) {
                     case "weekly":
                         currentDate.setDate(currentDate.getDate() + 7);
@@ -948,8 +821,6 @@ export const useFinance = () => {
                         break;
                 }
                 nextPaymentDate = currentDate.toISOString().split("T")[0];
-
-                // Check if completed
                 const isCompleted =
                     paidInstallments >= installment.totalInstallments;
 
@@ -977,7 +848,7 @@ export const useFinance = () => {
 
             return newPayment;
         },
-        []
+        [setData]
     );
 
     // ==================== Goal Operations ====================
@@ -991,14 +862,14 @@ export const useFinance = () => {
         ) => {
             const now = new Date().toISOString();
             const initialAmount = goalData.currentAmount || 0;
+            const goalId = generateId();
 
-            // Create initial contribution if there's an initial amount
             const initialContributions: GoalContribution[] =
                 initialAmount > 0
                     ? [
                           {
                               id: generateId(),
-                              goalId: "", // Will be set below
+                              goalId,
                               amount: initialAmount,
                               date: now.split("T")[0],
                               notes: "المبلغ الابتدائي",
@@ -1006,13 +877,6 @@ export const useFinance = () => {
                           },
                       ]
                     : [];
-
-            const goalId = generateId();
-
-            // Update the contribution with the actual goal ID
-            if (initialContributions.length > 0) {
-                initialContributions[0].goalId = goalId;
-            }
 
             const newGoal: FinancialGoal = {
                 ...goalData,
@@ -1022,13 +886,10 @@ export const useFinance = () => {
                 createdAt: now,
                 updatedAt: now,
             };
-            setData((prev) => ({
-                ...prev,
-                goals: [...prev.goals, newGoal],
-            }));
+            setData((prev) => ({ ...prev, goals: [...prev.goals, newGoal] }));
             return newGoal;
         },
-        []
+        [setData]
     );
 
     const updateGoal = useCallback(
@@ -1046,15 +907,18 @@ export const useFinance = () => {
                 ),
             }));
         },
-        []
+        [setData]
     );
 
-    const deleteGoal = useCallback((id: string) => {
-        setData((prev) => ({
-            ...prev,
-            goals: prev.goals.filter((goal) => goal.id !== id),
-        }));
-    }, []);
+    const deleteGoal = useCallback(
+        (id: string) => {
+            setData((prev) => ({
+                ...prev,
+                goals: prev.goals.filter((goal) => goal.id !== id),
+            }));
+        },
+        [setData]
+    );
 
     const addGoalContribution = useCallback(
         (goalId: string, amount: number, notes?: string) => {
@@ -1080,11 +944,8 @@ export const useFinance = () => {
                     (sum, c) => sum + c.amount,
                     0
                 );
-
-                // Check if goal reached
                 const isCompleted = currentAmount >= goal.targetAmount;
 
-                // Update milestones
                 const updatedMilestones = goal.milestones.map((m) => {
                     if (!m.reached && currentAmount >= m.targetAmount) {
                         return { ...m, reached: true, reachedAt: now };
@@ -1111,7 +972,7 @@ export const useFinance = () => {
 
             return newContribution;
         },
-        []
+        [setData]
     );
 
     // ==================== Budget Operations ====================
@@ -1119,13 +980,9 @@ export const useFinance = () => {
     const getOrCreateBudget = useCallback(
         (month: string = getCurrentMonth()) => {
             const startDay = data.settings.monthStartDay;
-
-            // Calculate actual spent amounts from expenses for this month
             const monthExpenses = data.expenses.filter((e) =>
                 isInMonth(e.date, month, startDay)
             );
-
-            // Calculate actual income for this month
             const monthIncomes = data.incomes.filter((inc) => {
                 const date = inc.actualDate || inc.expectedDate;
                 return (
@@ -1143,7 +1000,6 @@ export const useFinance = () => {
                 0
             );
 
-            // Build categoryBudgets with actual spent values
             const categoryBudgets = data.categories.map((cat) => {
                 const categoryExpenses = monthExpenses.filter(
                     (e) => e.categoryId === cat.id
@@ -1152,30 +1008,22 @@ export const useFinance = () => {
                     (sum, e) => sum + e.amount,
                     0
                 );
-
-                // Get planned from existing budget or category default
                 const existing = data.budgets.find((b) => b.month === month);
                 const existingCatBudget = existing?.categoryBudgets.find(
                     (cb) => cb.categoryId === cat.id
                 );
                 const planned =
                     existingCatBudget?.planned ?? (cat.monthlyBudget || 0);
-
-                return {
-                    categoryId: cat.id,
-                    planned,
-                    spent,
-                };
+                return { categoryId: cat.id, planned, spent };
             });
 
             const totalPlanned = categoryBudgets.reduce(
                 (sum, cb) => sum + cb.planned,
                 0
             );
-
             const existing = data.budgets.find((b) => b.month === month);
+
             if (existing) {
-                // Return existing budget with updated spent values
                 return {
                     ...existing,
                     categoryBudgets,
@@ -1204,7 +1052,6 @@ export const useFinance = () => {
                 ...prev,
                 budgets: [...prev.budgets, newBudget],
             }));
-
             return newBudget;
         },
         [
@@ -1213,23 +1060,27 @@ export const useFinance = () => {
             data.expenses,
             data.incomes,
             data.settings.monthStartDay,
+            setData,
         ]
     );
 
-    const updateBudget = useCallback((id: string, updates: Partial<Budget>) => {
-        setData((prev) => ({
-            ...prev,
-            budgets: prev.budgets.map((budget) =>
-                budget.id === id
-                    ? {
-                          ...budget,
-                          ...updates,
-                          updatedAt: new Date().toISOString(),
-                      }
-                    : budget
-            ),
-        }));
-    }, []);
+    const updateBudget = useCallback(
+        (id: string, updates: Partial<Budget>) => {
+            setData((prev) => ({
+                ...prev,
+                budgets: prev.budgets.map((budget) =>
+                    budget.id === id
+                        ? {
+                              ...budget,
+                              ...updates,
+                              updatedAt: new Date().toISOString(),
+                          }
+                        : budget
+                ),
+            }));
+        },
+        [setData]
+    );
 
     // ==================== Alert Operations ====================
 
@@ -1247,53 +1098,56 @@ export const useFinance = () => {
             }));
             return newAlert;
         },
-        []
+        [setData]
     );
 
-    const dismissAlert = useCallback((id: string) => {
-        setData((prev) => ({
-            ...prev,
-            alerts: prev.alerts.map((alert) =>
-                alert.id === id
-                    ? {
-                          ...alert,
-                          dismissed: true,
-                          dismissedAt: new Date().toISOString(),
-                      }
-                    : alert
-            ),
-        }));
-    }, []);
+    const dismissAlert = useCallback(
+        (id: string) => {
+            setData((prev) => ({
+                ...prev,
+                alerts: prev.alerts.map((alert) =>
+                    alert.id === id
+                        ? {
+                              ...alert,
+                              dismissed: true,
+                              dismissedAt: new Date().toISOString(),
+                          }
+                        : alert
+                ),
+            }));
+        },
+        [setData]
+    );
 
     const clearExpiredAlerts = useCallback(() => {
         const now = new Date();
         setData((prev) => ({
             ...prev,
             alerts: prev.alerts.filter((alert) => {
-                if (alert.expiresAt && new Date(alert.expiresAt) < now) {
+                if (alert.expiresAt && new Date(alert.expiresAt) < now)
                     return false;
-                }
                 return true;
             }),
         }));
-    }, []);
+    }, [setData]);
 
     // ==================== Settings Operations ====================
 
-    const updateSettings = useCallback((updates: Partial<FinanceSettings>) => {
-        setData((prev) => ({
-            ...prev,
-            settings: { ...prev.settings, ...updates },
-        }));
-    }, []);
+    const updateSettings = useCallback(
+        (updates: Partial<FinanceSettings>) => {
+            setData((prev) => ({
+                ...prev,
+                settings: { ...prev.settings, ...updates },
+            }));
+        },
+        [setData]
+    );
 
     // ==================== Statistics & Analytics ====================
 
     const getMonthlyStats = useCallback(
         (month: string = getCurrentMonth()): FinancialStats => {
             const startDay = data.settings.monthStartDay;
-
-            // Current month income
             const monthIncomes = data.incomes.filter(
                 (i) =>
                     i.status === "received" &&
@@ -1305,7 +1159,6 @@ export const useFinance = () => {
                 0
             );
 
-            // Current month expenses
             const monthExpenses = data.expenses.filter((e) =>
                 isInMonth(e.date, month, startDay)
             );
@@ -1314,7 +1167,6 @@ export const useFinance = () => {
                 0
             );
 
-            // Last month calculations
             const [year, monthNum] = month.split("-").map(Number);
             const lastMonth =
                 monthNum === 1
@@ -1340,14 +1192,12 @@ export const useFinance = () => {
                 0
             );
 
-            // Comparisons
             const incomeVsLastMonth =
                 lastMonthIncome > 0
                     ? ((totalIncomeThisMonth - lastMonthIncome) /
                           lastMonthIncome) *
                       100
                     : 0;
-
             const expensesVsLastMonth =
                 lastMonthExpense > 0
                     ? ((totalExpensesThisMonth - lastMonthExpense) /
@@ -1355,7 +1205,6 @@ export const useFinance = () => {
                       100
                     : 0;
 
-            // Installments
             const activeInstallments = data.installments.filter(
                 (i) => i.status === "active"
             );
@@ -1364,7 +1213,6 @@ export const useFinance = () => {
                 0
             );
 
-            // Goals
             const activeGoals = data.goals.filter((g) => g.status === "active");
             const totalGoalsProgress =
                 activeGoals.length > 0
@@ -1375,7 +1223,6 @@ export const useFinance = () => {
                       ) / activeGoals.length
                     : 0;
 
-            // Top spending category
             const categorySpending: Record<string, number> = {};
             monthExpenses.forEach((e) => {
                 categorySpending[e.categoryId] =
@@ -1394,14 +1241,11 @@ export const useFinance = () => {
             const topCategory = data.categories.find(
                 (c) => c.id === topCategoryId
             );
-
-            // Alerts
             const activeAlerts = data.alerts.filter((a) => !a.dismissed);
             const criticalAlerts = activeAlerts.filter(
                 (a) => a.severity === "critical"
             );
 
-            // Savings rate
             const netBalance = totalIncomeThisMonth - totalExpensesThisMonth;
             const savingsRate =
                 totalIncomeThisMonth > 0
@@ -1493,7 +1337,6 @@ export const useFinance = () => {
         (limit: number = 10): Transaction[] => {
             const transactions: Transaction[] = [];
 
-            // Add incomes
             data.incomes
                 .filter((i) => i.status === "received" && i.actualDate)
                 .forEach((income) => {
@@ -1506,7 +1349,6 @@ export const useFinance = () => {
                     });
                 });
 
-            // Add expenses
             data.expenses.forEach((expense) => {
                 const category = data.categories.find(
                     (c) => c.id === expense.categoryId
@@ -1523,7 +1365,6 @@ export const useFinance = () => {
                 });
             });
 
-            // Sort by date descending and limit
             return transactions
                 .sort(
                     (a, b) =>
@@ -1569,7 +1410,6 @@ export const useFinance = () => {
                 minimumFractionDigits: data.settings.showCents ? 2 : 0,
                 maximumFractionDigits: data.settings.showCents ? 2 : 0,
             }).format(amount);
-
             return `${formatted} ${curr}`;
         },
         [data.settings.defaultCurrency, data.settings.showCents]
@@ -1587,7 +1427,6 @@ export const useFinance = () => {
 
     const importData = useCallback(
         (importedData: FinanceData) => {
-            // Validate basic structure
             if (
                 !importedData.incomes ||
                 !importedData.expenses ||
@@ -1595,8 +1434,6 @@ export const useFinance = () => {
             ) {
                 throw new Error("Invalid data structure");
             }
-
-            // Merge or replace data
             setData({
                 incomes: importedData.incomes || [],
                 expenses: importedData.expenses || [],
@@ -1610,14 +1447,13 @@ export const useFinance = () => {
                 version: importedData.version || "1.0.0",
             });
         },
-        [data.categories, data.settings]
+        [data.categories, data.settings, setData]
     );
 
     const resetData = useCallback(() => {
         const defaultData = getDefaultFinanceData();
         setData(defaultData);
-        localStorage.removeItem(FINANCE_DATA_KEY);
-    }, []);
+    }, [setData]);
 
     // Return all operations and data
     return {

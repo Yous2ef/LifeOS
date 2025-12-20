@@ -40,7 +40,7 @@ import type {
     Currency,
     ExpenseCategory,
     FinanceSettings,
-} from "@/types/finance";
+} from "@/types/modules/finance";
 
 interface FinanceSettingsPanelProps {
     settings: FinanceSettings;

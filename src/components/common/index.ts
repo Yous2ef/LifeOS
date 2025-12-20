@@ -6,3 +6,5 @@ export { ListView } from "./ListView";
 export { ListCard } from "./ListCard";
 export type { ListCardBadge, ListCardAction } from "./ListCard";
 export { WelcomeModal } from "./WelcomeModal";
+export { MigrationModal } from "./MigrationModal";
+export type { MigrationStatus } from "./MigrationModal";

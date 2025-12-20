@@ -1,6 +1,6 @@
 // Migration utility to fix projects with invalid status values
 
-import type { Project } from "@/types/freelancing";
+import type { Project } from "@/types/modules/freelancing";
 
 const PROJECTS_KEY = "lifeos-freelancing-projects";
 

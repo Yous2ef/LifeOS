@@ -5,7 +5,7 @@ import {
     type KanbanCardAction,
 } from "@/components/common";
 import { Calendar, Edit, Trash2, CheckSquare, Square } from "lucide-react";
-import type { ProjectTask, TaskStatus } from "@/types/freelancing";
+import type { ProjectTask, TaskStatus } from "@/types/modules/freelancing";
 import { getPriorityLabel, isOverdue } from "@/hooks/useFreelancing";
 import { getPriorityColor } from "@/utils/helpers";
 

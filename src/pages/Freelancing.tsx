@@ -29,7 +29,7 @@ import {
     useStandaloneTasks,
     calculateFinancialStats,
 } from "@/hooks/useFreelancing";
-import type { TaskStatus } from "@/types/freelancing";
+import type { TaskStatus } from "@/types/modules/freelancing";
 import { cn } from "@/lib/utils";
 import toast from "react-hot-toast";
 

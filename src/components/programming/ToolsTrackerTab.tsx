@@ -10,7 +10,7 @@ import {
     ExternalLink,
     BookOpen,
 } from "lucide-react";
-import type { Tool } from "@/types/programming";
+import type { Tool } from "@/types/modules/programming";
 import { ToolModal } from "./ToolModal";
 import { getPriorityColor } from "@/utils/helpers";
 

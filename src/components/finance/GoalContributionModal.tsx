@@ -22,7 +22,7 @@ import {
     CheckCircle2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { FinancialGoal } from "@/types/finance";
+import type { FinancialGoal } from "@/types/modules/finance";
 
 interface GoalContributionModalProps {
     isOpen: boolean;

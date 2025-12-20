@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/Badge";
 import { Plus, TrendingUp, Edit, Trash2, Target } from "lucide-react";
-import type { Skill } from "@/types/programming";
+import type { Skill } from "@/types/modules/programming";
 import { SkillModal } from "./SkillModal";
 import { getPriorityColor } from "@/utils/helpers";
 

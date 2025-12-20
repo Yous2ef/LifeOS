@@ -11,7 +11,7 @@ import {
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { TrendingUp, TrendingDown } from "lucide-react";
-import type { Income, Expense } from "@/types/finance";
+import type { Income, Expense } from "@/types/modules/finance";
 
 interface SpendingChartProps {
     incomes: Income[];

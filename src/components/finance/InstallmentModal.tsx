@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { TextArea } from "@/components/ui/TextArea";
-import type { RecurringFrequency } from "@/types/finance";
+import type { RecurringFrequency } from "@/types/modules/finance";
 import {
     Select,
     SelectContent,
@@ -18,7 +18,7 @@ import {
     SelectValue,
 } from "@/components/ui/Select";
 import { Calendar, CreditCard, Bell, CheckCircle } from "lucide-react";
-import type { Installment } from "@/types/finance";
+import type { Installment } from "@/types/modules/finance";
 
 interface InstallmentModalProps {
     isOpen: boolean;

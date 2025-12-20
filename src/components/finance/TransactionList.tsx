@@ -9,7 +9,7 @@ import {
     DialogDescription,
 } from "@/components/ui/Dialog";
 import { cn } from "@/lib/utils";
-import type { Transaction } from "@/types/finance";
+import type { Transaction } from "@/types/modules/finance";
 
 interface TransactionListProps {
     transactions: Transaction[];

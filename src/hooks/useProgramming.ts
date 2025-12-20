@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
+import { useCallback, useMemo } from "react";
+import { useApp } from "../context/AppContext";
 import { generateId } from "@/utils/helpers";
 import type {
     ProgrammingData,
@@ -8,38 +9,33 @@ import type {
     CodingProject,
     ProjectTask,
     ProgrammingStats,
-} from "@/types/programming";
+} from "@/types/modules/programming";
 
-const STORAGE_KEY = "lifeos-programming-data";
-
-const getInitialData = (): ProgrammingData => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-        try {
-            return JSON.parse(stored);
-        } catch (e) {
-            console.error("Failed to parse programming data:", e);
-        }
-    }
-    return {
-        learningItems: [],
-        skills: [],
-        tools: [],
-        projects: [],
-    };
-};
-
-const saveData = (data: ProgrammingData) => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-};
+const getDefaultData = (): ProgrammingData => ({
+    learningItems: [],
+    skills: [],
+    tools: [],
+    projects: [],
+});
 
 export const useProgramming = () => {
-    const [data, setData] = useState<ProgrammingData>(getInitialData);
+    const { data: appData, updateData } = useApp();
 
-    // Save to localStorage whenever data changes
-    useEffect(() => {
-        saveData(data);
-    }, [data]);
+    // Get programming data from unified AppData, with defaults
+    const data: ProgrammingData = useMemo(() => ({
+        ...getDefaultData(),
+        ...appData.programming,
+    }), [appData.programming]);
+
+    // Helper to update programming data in AppContext
+    const setProgrammingData = useCallback(
+        (updater: (prev: ProgrammingData) => ProgrammingData) => {
+            updateData({
+                programming: updater(data),
+            });
+        },
+        [data, updateData]
+    );
 
     // Learning Items CRUD
     const addLearningItem = useCallback(
@@ -50,18 +46,18 @@ export const useProgramming = () => {
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString(),
             };
-            setData((prev) => ({
+            setProgrammingData((prev) => ({
                 ...prev,
                 learningItems: [...prev.learningItems, newItem],
             }));
             return newItem;
         },
-        []
+        [setProgrammingData]
     );
 
     const updateLearningItem = useCallback(
         (id: string, updates: Partial<LearningItem>) => {
-            setData((prev) => ({
+            setProgrammingData((prev) => ({
                 ...prev,
                 learningItems: prev.learningItems.map((item) =>
                     item.id === id
@@ -74,15 +70,20 @@ export const useProgramming = () => {
                 ),
             }));
         },
-        []
+        [setProgrammingData]
     );
 
-    const deleteLearningItem = useCallback((id: string) => {
-        setData((prev) => ({
-            ...prev,
-            learningItems: prev.learningItems.filter((item) => item.id !== id),
-        }));
-    }, []);
+    const deleteLearningItem = useCallback(
+        (id: string) => {
+            setProgrammingData((prev) => ({
+                ...prev,
+                learningItems: prev.learningItems.filter(
+                    (item) => item.id !== id
+                ),
+            }));
+        },
+        [setProgrammingData]
+    );
 
     // Skills CRUD
     const addSkill = useCallback(
@@ -93,36 +94,42 @@ export const useProgramming = () => {
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString(),
             };
-            setData((prev) => ({
+            setProgrammingData((prev) => ({
                 ...prev,
                 skills: [...prev.skills, newSkill],
             }));
             return newSkill;
         },
-        []
+        [setProgrammingData]
     );
 
-    const updateSkill = useCallback((id: string, updates: Partial<Skill>) => {
-        setData((prev) => ({
-            ...prev,
-            skills: prev.skills.map((skill) =>
-                skill.id === id
-                    ? {
-                          ...skill,
-                          ...updates,
-                          updatedAt: new Date().toISOString(),
-                      }
-                    : skill
-            ),
-        }));
-    }, []);
+    const updateSkill = useCallback(
+        (id: string, updates: Partial<Skill>) => {
+            setProgrammingData((prev) => ({
+                ...prev,
+                skills: prev.skills.map((skill) =>
+                    skill.id === id
+                        ? {
+                              ...skill,
+                              ...updates,
+                              updatedAt: new Date().toISOString(),
+                          }
+                        : skill
+                ),
+            }));
+        },
+        [setProgrammingData]
+    );
 
-    const deleteSkill = useCallback((id: string) => {
-        setData((prev) => ({
-            ...prev,
-            skills: prev.skills.filter((skill) => skill.id !== id),
-        }));
-    }, []);
+    const deleteSkill = useCallback(
+        (id: string) => {
+            setProgrammingData((prev) => ({
+                ...prev,
+                skills: prev.skills.filter((skill) => skill.id !== id),
+            }));
+        },
+        [setProgrammingData]
+    );
 
     // Tools CRUD
     const addTool = useCallback(
@@ -133,36 +140,42 @@ export const useProgramming = () => {
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString(),
             };
-            setData((prev) => ({
+            setProgrammingData((prev) => ({
                 ...prev,
                 tools: [...prev.tools, newTool],
             }));
             return newTool;
         },
-        []
+        [setProgrammingData]
     );
 
-    const updateTool = useCallback((id: string, updates: Partial<Tool>) => {
-        setData((prev) => ({
-            ...prev,
-            tools: prev.tools.map((tool) =>
-                tool.id === id
-                    ? {
-                          ...tool,
-                          ...updates,
-                          updatedAt: new Date().toISOString(),
-                      }
-                    : tool
-            ),
-        }));
-    }, []);
+    const updateTool = useCallback(
+        (id: string, updates: Partial<Tool>) => {
+            setProgrammingData((prev) => ({
+                ...prev,
+                tools: prev.tools.map((tool) =>
+                    tool.id === id
+                        ? {
+                              ...tool,
+                              ...updates,
+                              updatedAt: new Date().toISOString(),
+                          }
+                        : tool
+                ),
+            }));
+        },
+        [setProgrammingData]
+    );
 
-    const deleteTool = useCallback((id: string) => {
-        setData((prev) => ({
-            ...prev,
-            tools: prev.tools.filter((tool) => tool.id !== id),
-        }));
-    }, []);
+    const deleteTool = useCallback(
+        (id: string) => {
+            setProgrammingData((prev) => ({
+                ...prev,
+                tools: prev.tools.filter((tool) => tool.id !== id),
+            }));
+        },
+        [setProgrammingData]
+    );
 
     // Projects CRUD
     const addProject = useCallback(
@@ -173,18 +186,18 @@ export const useProgramming = () => {
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString(),
             };
-            setData((prev) => ({
+            setProgrammingData((prev) => ({
                 ...prev,
                 projects: [...prev.projects, newProject],
             }));
             return newProject;
         },
-        []
+        [setProgrammingData]
     );
 
     const updateProject = useCallback(
         (id: string, updates: Partial<CodingProject>) => {
-            setData((prev) => ({
+            setProgrammingData((prev) => ({
                 ...prev,
                 projects: prev.projects.map((project) =>
                     project.id === id
@@ -197,15 +210,18 @@ export const useProgramming = () => {
                 ),
             }));
         },
-        []
+        [setProgrammingData]
     );
 
-    const deleteProject = useCallback((id: string) => {
-        setData((prev) => ({
-            ...prev,
-            projects: prev.projects.filter((project) => project.id !== id),
-        }));
-    }, []);
+    const deleteProject = useCallback(
+        (id: string) => {
+            setProgrammingData((prev) => ({
+                ...prev,
+                projects: prev.projects.filter((project) => project.id !== id),
+            }));
+        },
+        [setProgrammingData]
+    );
 
     // Project Tasks CRUD
     const addProjectTask = useCallback(
@@ -215,7 +231,7 @@ export const useProgramming = () => {
                 id: generateId(),
                 createdAt: new Date().toISOString(),
             };
-            setData((prev) => ({
+            setProgrammingData((prev) => ({
                 ...prev,
                 projects: prev.projects.map((project) =>
                     project.id === projectId
@@ -229,12 +245,12 @@ export const useProgramming = () => {
             }));
             return newTask;
         },
-        []
+        [setProgrammingData]
     );
 
     const updateProjectTask = useCallback(
         (projectId: string, taskId: string, updates: Partial<ProjectTask>) => {
-            setData((prev) => ({
+            setProgrammingData((prev) => ({
                 ...prev,
                 projects: prev.projects.map((project) =>
                     project.id === projectId
@@ -259,12 +275,12 @@ export const useProgramming = () => {
                 ),
             }));
         },
-        []
+        [setProgrammingData]
     );
 
     const deleteProjectTask = useCallback(
         (projectId: string, taskId: string) => {
-            setData((prev) => ({
+            setProgrammingData((prev) => ({
                 ...prev,
                 projects: prev.projects.map((project) =>
                     project.id === projectId
@@ -279,65 +295,57 @@ export const useProgramming = () => {
                 ),
             }));
         },
-        []
+        [setProgrammingData]
     );
 
-    // Calculate stats
+    // Stats calculation
     const getStats = useCallback((): ProgrammingStats => {
-        const totalLearningItems = data.learningItems.length;
-        const completedLearningItems = data.learningItems.filter(
+        const completedLearning = data.learningItems.filter(
             (item) => item.status === "completed"
-        ).length;
-        const inProgressLearningItems = data.learningItems.filter(
+        );
+        const inProgressLearning = data.learningItems.filter(
             (item) => item.status === "in-progress"
-        ).length;
-
-        const totalSkills = data.skills.length;
-        const averageSkillLevel =
-            totalSkills > 0
-                ? data.skills.reduce(
-                      (sum, skill) => sum + skill.currentLevel,
-                      0
-                  ) / totalSkills
-                : 0;
-
-        const totalTools = data.tools.length;
+        );
         const masteredTools = data.tools.filter(
             (tool) => tool.status === "mastered"
-        ).length;
-
-        const totalProjects = data.projects.length;
+        );
         const completedProjects = data.projects.filter(
-            (project) => project.status === "completed"
-        ).length;
-
-        const totalTimeSpent = data.learningItems.reduce(
-            (sum, item) => sum + item.timeSpent,
-            0
+            (p) => p.status === "completed"
         );
 
+        const totalTimeSpent =
+            data.learningItems.reduce((sum, item) => sum + item.timeSpent, 0) +
+            data.projects.reduce((sum, p) => sum + p.actualHours * 60, 0);
+
+        const avgSkillLevel =
+            data.skills.length > 0
+                ? data.skills.reduce((sum, s) => sum + s.currentLevel, 0) /
+                  data.skills.length
+                : 0;
+
         const completionRate =
-            totalLearningItems > 0
-                ? (completedLearningItems / totalLearningItems) * 100
+            data.projects.length > 0
+                ? (completedProjects.length / data.projects.length) * 100
                 : 0;
 
         return {
-            totalLearningItems,
-            completedLearningItems,
-            inProgressLearningItems,
-            totalSkills,
-            averageSkillLevel,
-            totalTools,
-            masteredTools,
-            totalProjects,
-            completedProjects,
+            totalLearningItems: data.learningItems.length,
+            completedLearningItems: completedLearning.length,
+            inProgressLearningItems: inProgressLearning.length,
+            totalSkills: data.skills.length,
+            averageSkillLevel: Math.round(avgSkillLevel),
+            totalTools: data.tools.length,
+            masteredTools: masteredTools.length,
+            totalProjects: data.projects.length,
+            completedProjects: completedProjects.length,
             totalTimeSpent,
-            completionRate,
+            completionRate: Math.round(completionRate),
         };
     }, [data]);
 
     return {
         // Data
+        data,
         learningItems: data.learningItems,
         skills: data.skills,
         tools: data.tools,

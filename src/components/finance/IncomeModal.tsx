@@ -9,7 +9,7 @@ import type {
     IncomeType,
     IncomeStatus,
     IncomeFrequency,
-} from "@/types/finance";
+} from "@/types/modules/finance";
 
 interface IncomeModalProps {
     isOpen: boolean;

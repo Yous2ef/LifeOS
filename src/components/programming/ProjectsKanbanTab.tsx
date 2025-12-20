@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/Button";
 import { Plus, Code2, ExternalLink, Github, Eye } from "lucide-react";
 import { KanbanBoard, KanbanCard } from "@/components/common";
 import type { KanbanCardBadge, KanbanCardAction } from "@/components/common";
-import type { CodingProject } from "@/types/programming";
+import type { CodingProject } from "@/types/modules/programming";
 import { ProjectModal } from "./ProjectModal";
 import { getPriorityColor, formatDate } from "@/utils/helpers";
 import Confetti from "react-confetti";

@@ -6,7 +6,7 @@ import {
     ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { FinancialAlert } from "@/types/finance";
+import type { FinancialAlert } from "@/types/modules/finance";
 
 interface SmartAlertsProps {
     alerts: FinancialAlert[];

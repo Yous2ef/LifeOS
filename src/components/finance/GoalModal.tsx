@@ -27,7 +27,7 @@ import {
     ChevronDown,
     ChevronUp,
 } from "lucide-react";
-import type { FinancialGoal, GoalMilestone } from "@/types/finance";
+import type { FinancialGoal, GoalMilestone } from "@/types/modules/finance";
 
 interface GoalModalProps {
     isOpen: boolean;

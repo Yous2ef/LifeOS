@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useApp } from "@/context/AppContext";
 import { notificationService } from "@/services/NotificationService";
-import type { SmartNotification } from "@/types/notifications";
+import type { SmartNotification } from "@/types/services/notifications";
 
 /**
  * Hook to use the notification service

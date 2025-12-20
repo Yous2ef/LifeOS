@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { X, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { ExpenseCategory } from "@/types/finance";
+import type { ExpenseCategory } from "@/types/modules/finance";
 
 interface QuickAddExpenseProps {
     isOpen: boolean;

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ProjectDetail } from "@/components/freelancing/ProjectDetail";
-import type { Project } from "@/types/freelancing";
+import type { Project } from "@/types/modules/freelancing";
 import toast from "react-hot-toast";
 
 const PROJECTS_KEY = "lifeos-freelancing-projects";

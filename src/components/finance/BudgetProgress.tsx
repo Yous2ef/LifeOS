@@ -1,6 +1,6 @@
 import { AlertCircle, CheckCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { CategorySpending } from "@/types/finance";
+import type { CategorySpending } from "@/types/modules/finance";
 
 interface BudgetProgressProps {
     categorySpending: CategorySpending[];

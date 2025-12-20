@@ -17,7 +17,7 @@ import {
     CheckCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { Income, Expense } from "@/types/finance";
+import type { Income, Expense } from "@/types/modules/finance";
 
 interface CashFlowForecastProps {
     incomes: Income[];

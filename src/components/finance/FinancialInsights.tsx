@@ -19,7 +19,7 @@ import type {
     ExpenseCategory,
     FinancialGoal,
     Budget,
-} from "@/types/finance";
+} from "@/types/modules/finance";
 
 interface FinancialInsightsProps {
     incomes: Income[];

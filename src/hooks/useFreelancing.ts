@@ -1,103 +1,111 @@
-import { useState, useEffect } from "react";
+import { useCallback, useMemo } from "react";
+import { useApp } from "../context/AppContext";
 import type {
     Project,
     ProjectTask,
     StandaloneTask,
     TaskStatus,
-    ProjectStatus,
     Currency,
     FinancialStats,
-} from "@/types/freelancing";
+    FreelancingData,
+} from "@/types/modules/freelancing";
 
-const PROJECTS_KEY = "lifeos-freelancing-projects";
-const PROJECT_TASKS_KEY = "lifeos-freelancing-project-tasks";
-const STANDALONE_TASKS_KEY = "lifeos-freelancing-standalone-tasks";
+const getDefaultData = (): FreelancingData => ({
+    profile: {
+        name: "",
+        title: "",
+        email: "",
+        phone: "",
+        portfolioUrl: "",
+        cvVersions: [],
+        platforms: [],
+    },
+    applications: [],
+    projects: [],
+    projectTasks: [],
+    standaloneTasks: [],
+});
 
 // ==================== Projects Hook ====================
 export const useFreelancingProjects = () => {
-    const [projects, setProjects] = useState<Project[]>([]);
+    const { data: appData, updateData } = useApp();
 
-    useEffect(() => {
-        const stored = localStorage.getItem(PROJECTS_KEY);
-        if (stored) {
-            try {
-                const parsedProjects: Project[] = JSON.parse(stored);
+    // Get freelancing data from unified AppData, with defaults
+    const freelancingData: FreelancingData = useMemo(
+        () => ({
+            ...getDefaultData(),
+            ...appData.freelancing,
+        }),
+        [appData.freelancing]
+    );
 
-                // Migration: Fix any projects with invalid status values
-                const fixedProjects = parsedProjects.map((project) => {
-                    if (
-                        !["todo", "inProgress", "done"].includes(project.status)
-                    ) {
-                        console.warn(
-                            `Fixing project "${project.name}" - invalid status: ${project.status}`
-                        );
-                        return {
-                            ...project,
-                            status: "todo" as ProjectStatus,
-                        };
-                    }
-                    return project;
-                });
+    const projects = freelancingData.projects;
 
-                // Save back to localStorage if any fixes were made
-                const needsMigration = fixedProjects.some(
-                    (p, i) => p.status !== parsedProjects[i].status
-                );
-                if (needsMigration) {
-                    localStorage.setItem(
-                        PROJECTS_KEY,
-                        JSON.stringify(fixedProjects)
-                    );
-                    console.log(
-                        "✅ Projects status values migrated successfully!"
-                    );
-                }
+    // Helper to update freelancing data in AppContext
+    const setFreelancingData = useCallback(
+        (updater: (prev: FreelancingData) => FreelancingData) => {
+            updateData({
+                freelancing: updater(freelancingData),
+            });
+        },
+        [freelancingData, updateData]
+    );
 
-                setProjects(fixedProjects);
-            } catch {
-                console.error("Failed to load projects");
-            }
-        }
-    }, []);
+    const addProject = useCallback(
+        (projectData: Omit<Project, "id" | "createdAt" | "updatedAt">) => {
+            const newProject: Project = {
+                ...projectData,
+                id: crypto.randomUUID(),
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+            };
+            setFreelancingData((prev) => ({
+                ...prev,
+                projects: [...prev.projects, newProject],
+            }));
+            return newProject;
+        },
+        [setFreelancingData]
+    );
 
-    const saveProjects = (newProjects: Project[]) => {
-        setProjects(newProjects);
-        localStorage.setItem(PROJECTS_KEY, JSON.stringify(newProjects));
-    };
+    const updateProject = useCallback(
+        (id: string, updates: Partial<Project>) => {
+            setFreelancingData((prev) => ({
+                ...prev,
+                projects: prev.projects.map((p) =>
+                    p.id === id
+                        ? {
+                              ...p,
+                              ...updates,
+                              updatedAt: new Date().toISOString(),
+                          }
+                        : p
+                ),
+            }));
+        },
+        [setFreelancingData]
+    );
 
-    const addProject = (
-        projectData: Omit<Project, "id" | "createdAt" | "updatedAt">
-    ) => {
-        const newProject: Project = {
-            ...projectData,
-            id: crypto.randomUUID(),
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-        };
-        saveProjects([...projects, newProject]);
-        return newProject;
-    };
+    const deleteProject = useCallback(
+        (id: string) => {
+            setFreelancingData((prev) => ({
+                ...prev,
+                projects: prev.projects.filter((p) => p.id !== id),
+                // Also clean up project tasks
+                projectTasks: prev.projectTasks.filter(
+                    (t) => t.projectId !== id
+                ),
+            }));
+        },
+        [setFreelancingData]
+    );
 
-    const updateProject = (id: string, updates: Partial<Project>) => {
-        const updated = projects.map((p) =>
-            p.id === id
-                ? { ...p, ...updates, updatedAt: new Date().toISOString() }
-                : p
-        );
-        saveProjects(updated);
-    };
-
-    const deleteProject = (id: string) => {
-        saveProjects(projects.filter((p) => p.id !== id));
-        // Also delete all tasks for this project
-        const tasks = getProjectTasks();
-        const filteredTasks = tasks.filter((t) => t.projectId !== id);
-        localStorage.setItem(PROJECT_TASKS_KEY, JSON.stringify(filteredTasks));
-    };
-
-    const getProjectById = (id: string) => {
-        return projects.find((p) => p.id === id);
-    };
+    const getProjectById = useCallback(
+        (id: string) => {
+            return projects.find((p) => p.id === id);
+        },
+        [projects]
+    );
 
     return {
         projects,
@@ -110,106 +118,115 @@ export const useFreelancingProjects = () => {
 
 // ==================== Project Tasks Hook ====================
 export const useProjectTasks = (projectId?: string) => {
-    const [tasks, setTasks] = useState<ProjectTask[]>([]);
+    const { data: appData, updateData } = useApp();
 
-    useEffect(() => {
-        const stored = localStorage.getItem(PROJECT_TASKS_KEY);
-        if (stored) {
-            try {
-                const allTasks: ProjectTask[] = JSON.parse(stored);
-                if (projectId) {
-                    setTasks(allTasks.filter((t) => t.projectId === projectId));
-                } else {
-                    setTasks(allTasks);
-                }
-            } catch {
-                console.error("Failed to load tasks");
-            }
-        }
-    }, [projectId]);
+    // Get freelancing data from unified AppData, with defaults
+    const freelancingData: FreelancingData = useMemo(
+        () => ({
+            ...getDefaultData(),
+            ...appData.freelancing,
+        }),
+        [appData.freelancing]
+    );
 
-    const loadTasks = () => {
-        const stored = localStorage.getItem(PROJECT_TASKS_KEY);
-        if (stored) {
-            try {
-                const allTasks: ProjectTask[] = JSON.parse(stored);
-                if (projectId) {
-                    setTasks(allTasks.filter((t) => t.projectId === projectId));
-                } else {
-                    setTasks(allTasks);
-                }
-            } catch {
-                console.error("Failed to load tasks");
-            }
-        }
-    };
+    const allTasks = freelancingData.projectTasks;
 
-    const addTask = (
-        taskData: Omit<ProjectTask, "id" | "createdAt" | "completed">
-    ) => {
-        const newTask: ProjectTask = {
-            ...taskData,
-            id: crypto.randomUUID(),
-            completed: false,
-            createdAt: new Date().toISOString(),
-        };
+    const tasks = projectId
+        ? allTasks.filter((t) => t.projectId === projectId)
+        : allTasks;
 
-        const stored = localStorage.getItem(PROJECT_TASKS_KEY);
-        const allTasks: ProjectTask[] = stored ? JSON.parse(stored) : [];
-        const updatedTasks = [...allTasks, newTask];
-        localStorage.setItem(PROJECT_TASKS_KEY, JSON.stringify(updatedTasks));
-
-        if (!projectId || taskData.projectId === projectId) {
-            setTasks([...tasks, newTask]);
-        }
-        return newTask;
-    };
-
-    const updateTask = (id: string, updates: Partial<ProjectTask>) => {
-        const stored = localStorage.getItem(PROJECT_TASKS_KEY);
-        const allTasks: ProjectTask[] = stored ? JSON.parse(stored) : [];
-
-        const updatedTasks = allTasks.map((t) =>
-            t.id === id ? { ...t, ...updates } : t
-        );
-
-        localStorage.setItem(PROJECT_TASKS_KEY, JSON.stringify(updatedTasks));
-
-        if (projectId) {
-            setTasks(updatedTasks.filter((t) => t.projectId === projectId));
-        } else {
-            setTasks(updatedTasks);
-        }
-    };
-
-    const deleteTask = (id: string) => {
-        const stored = localStorage.getItem(PROJECT_TASKS_KEY);
-        const allTasks: ProjectTask[] = stored ? JSON.parse(stored) : [];
-        const filteredTasks = allTasks.filter((t) => t.id !== id);
-
-        localStorage.setItem(PROJECT_TASKS_KEY, JSON.stringify(filteredTasks));
-        setTasks(
-            filteredTasks.filter((t) => !projectId || t.projectId === projectId)
-        );
-    };
-
-    const toggleTaskComplete = (id: string) => {
-        const task = tasks.find((t) => t.id === id);
-        if (task) {
-            updateTask(id, {
-                completed: !task.completed,
-                completedAt: !task.completed
-                    ? new Date().toISOString()
-                    : undefined,
+    // Helper to update freelancing data in AppContext
+    const setFreelancingData = useCallback(
+        (updater: (prev: FreelancingData) => FreelancingData) => {
+            updateData({
+                freelancing: updater(freelancingData),
             });
-        }
-    };
+        },
+        [freelancingData, updateData]
+    );
+
+    const loadTasks = useCallback(() => {
+        // No-op now since data comes from AppContext
+    }, []);
+
+    const addTask = useCallback(
+        (taskData: Omit<ProjectTask, "id" | "createdAt" | "completed">) => {
+            const newTask: ProjectTask = {
+                ...taskData,
+                id: crypto.randomUUID(),
+                completed: false,
+                createdAt: new Date().toISOString(),
+            };
+            setFreelancingData((prev) => ({
+                ...prev,
+                projectTasks: [...prev.projectTasks, newTask],
+            }));
+            return newTask;
+        },
+        [setFreelancingData]
+    );
+
+    const updateTask = useCallback(
+        (id: string, updates: Partial<ProjectTask>) => {
+            setFreelancingData((prev) => ({
+                ...prev,
+                projectTasks: prev.projectTasks.map((t) =>
+                    t.id === id ? { ...t, ...updates } : t
+                ),
+            }));
+        },
+        [setFreelancingData]
+    );
+
+    const deleteTask = useCallback(
+        (id: string) => {
+            setFreelancingData((prev) => ({
+                ...prev,
+                projectTasks: prev.projectTasks.filter((t) => t.id !== id),
+            }));
+        },
+        [setFreelancingData]
+    );
+
+    const deleteTasksForProject = useCallback(
+        (projectIdToDelete: string) => {
+            setFreelancingData((prev) => ({
+                ...prev,
+                projectTasks: prev.projectTasks.filter(
+                    (t) => t.projectId !== projectIdToDelete
+                ),
+            }));
+        },
+        [setFreelancingData]
+    );
+
+    const toggleTaskComplete = useCallback(
+        (id: string) => {
+            setFreelancingData((prev) => ({
+                ...prev,
+                projectTasks: prev.projectTasks.map((t) =>
+                    t.id === id
+                        ? {
+                              ...t,
+                              completed: !t.completed,
+                              completedAt: !t.completed
+                                  ? new Date().toISOString()
+                                  : undefined,
+                          }
+                        : t
+                ),
+            }));
+        },
+        [setFreelancingData]
+    );
 
     return {
         tasks,
+        allTasks,
         addTask,
         updateTask,
         deleteTask,
+        deleteTasksForProject,
         toggleTaskComplete,
         reloadTasks: loadTasks,
     };
@@ -217,54 +234,89 @@ export const useProjectTasks = (projectId?: string) => {
 
 // ==================== Standalone Tasks Hook ====================
 export const useStandaloneTasks = () => {
-    const [tasks, setTasks] = useState<StandaloneTask[]>([]);
+    const { data: appData, updateData } = useApp();
 
-    useEffect(() => {
-        const stored = localStorage.getItem(STANDALONE_TASKS_KEY);
-        if (stored) {
-            try {
-                setTasks(JSON.parse(stored));
-            } catch {
-                console.error("Failed to load standalone tasks");
-            }
-        }
-    }, []);
+    // Get freelancing data from unified AppData, with defaults
+    const freelancingData: FreelancingData = useMemo(
+        () => ({
+            ...getDefaultData(),
+            ...appData.freelancing,
+        }),
+        [appData.freelancing]
+    );
 
-    const saveTasks = (newTasks: StandaloneTask[]) => {
-        setTasks(newTasks);
-        localStorage.setItem(STANDALONE_TASKS_KEY, JSON.stringify(newTasks));
-    };
+    const tasks = freelancingData.standaloneTasks;
 
-    const addTask = (taskData: Omit<StandaloneTask, "id" | "createdAt">) => {
-        const newTask: StandaloneTask = {
-            ...taskData,
-            id: crypto.randomUUID(),
-            createdAt: new Date().toISOString(),
-        };
-        saveTasks([...tasks, newTask]);
-        return newTask;
-    };
+    // Helper to update freelancing data in AppContext
+    const setFreelancingData = useCallback(
+        (updater: (prev: FreelancingData) => FreelancingData) => {
+            updateData({
+                freelancing: updater(freelancingData),
+            });
+        },
+        [freelancingData, updateData]
+    );
 
-    const updateTask = (id: string, updates: Partial<StandaloneTask>) => {
-        const updated = tasks.map((t) =>
-            t.id === id ? { ...t, ...updates } : t
-        );
-        saveTasks(updated);
-    };
+    const addTask = useCallback(
+        (taskData: Omit<StandaloneTask, "id" | "createdAt">) => {
+            const newTask: StandaloneTask = {
+                ...taskData,
+                id: crypto.randomUUID(),
+                createdAt: new Date().toISOString(),
+            };
+            setFreelancingData((prev) => ({
+                ...prev,
+                standaloneTasks: [...prev.standaloneTasks, newTask],
+            }));
+            return newTask;
+        },
+        [setFreelancingData]
+    );
 
-    const deleteTask = (id: string) => {
-        saveTasks(tasks.filter((t) => t.id !== id));
-    };
+    const updateTask = useCallback(
+        (id: string, updates: Partial<StandaloneTask>) => {
+            setFreelancingData((prev) => ({
+                ...prev,
+                standaloneTasks: prev.standaloneTasks.map((t) =>
+                    t.id === id ? { ...t, ...updates } : t
+                ),
+            }));
+        },
+        [setFreelancingData]
+    );
 
-    const toggleTaskStatus = (id: string, newStatus: TaskStatus) => {
-        updateTask(id, {
-            status: newStatus,
-            completedAt:
-                newStatus === "completed"
-                    ? new Date().toISOString()
-                    : undefined,
-        });
-    };
+    const deleteTask = useCallback(
+        (id: string) => {
+            setFreelancingData((prev) => ({
+                ...prev,
+                standaloneTasks: prev.standaloneTasks.filter(
+                    (t) => t.id !== id
+                ),
+            }));
+        },
+        [setFreelancingData]
+    );
+
+    const toggleTaskStatus = useCallback(
+        (id: string, newStatus: TaskStatus) => {
+            setFreelancingData((prev) => ({
+                ...prev,
+                standaloneTasks: prev.standaloneTasks.map((t) =>
+                    t.id === id
+                        ? {
+                              ...t,
+                              status: newStatus,
+                              completedAt:
+                                  newStatus === "completed"
+                                      ? new Date().toISOString()
+                                      : undefined,
+                          }
+                        : t
+                ),
+            }));
+        },
+        [setFreelancingData]
+    );
 
     return {
         tasks,
@@ -277,9 +329,21 @@ export const useStandaloneTasks = () => {
 
 // ==================== Helper Functions ====================
 
+// Legacy function for backward compatibility - uses unified storage now
+export const getProjectTasksFromStorage = (
+    _loadData: <T>(key: string) => T | null
+): ProjectTask[] => {
+    // Deprecated - data should come from AppContext
+    console.warn(
+        "getProjectTasksFromStorage is deprecated. Use useProjectTasks hook."
+    );
+    return [];
+};
+
+// Legacy function for backward compatibility - returns empty since data is in AppContext
 export const getProjectTasks = (): ProjectTask[] => {
-    const stored = localStorage.getItem(PROJECT_TASKS_KEY);
-    return stored ? JSON.parse(stored) : [];
+    console.warn("getProjectTasks is deprecated. Use useProjectTasks hook.");
+    return [];
 };
 
 export const calculateFinancialStats = (
@@ -317,13 +381,22 @@ export const calculateFinancialStats = (
     };
 };
 
-export const getTasksForProject = (projectId: string): ProjectTask[] => {
-    const allTasks = getProjectTasks();
-    return allTasks.filter((t) => t.projectId === projectId);
+export const getTasksForProject = (_projectId: string): ProjectTask[] => {
+    console.warn("getTasksForProject is deprecated. Use useProjectTasks hook.");
+    return [];
 };
 
-export const calculateProjectProgress = (projectId: string): number => {
-    const tasks = getTasksForProject(projectId);
+export const calculateProjectProgress = (_projectId: string): number => {
+    console.warn(
+        "calculateProjectProgress is deprecated. Use calculateProjectProgressFromTasks."
+    );
+    return 0;
+};
+
+// Calculate progress from provided tasks array (preferred method)
+export const calculateProjectProgressFromTasks = (
+    tasks: ProjectTask[]
+): number => {
     if (tasks.length === 0) return 0;
     const completedTasks = tasks.filter((t) => t.completed).length;
     return Math.round((completedTasks / tasks.length) * 100);
@@ -357,12 +430,12 @@ export const getDaysRemaining = (deadline: string): number => {
 export const formatCurrency = (amount: number, currency: Currency): string => {
     const symbols: Record<Currency, string> = {
         USD: "$",
-        EUR: "€",
-        GBP: "£",
+        EUR: "",
+        GBP: "",
         CAD: "C$",
         AUD: "A$",
-        JPY: "¥",
-        CNY: "¥",
+        JPY: "",
+        CNY: "",
     };
     return `${symbols[currency]}${amount.toLocaleString()}`;
 };

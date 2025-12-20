@@ -3,7 +3,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { FormInput } from "@/components/ui/FormInput";
 import { TextArea } from "@/components/ui/TextArea";
-import type { ProjectTask } from "@/types/programming";
+import type { ProjectTask } from "@/types/modules/programming";
 import toast from "react-hot-toast";
 
 interface ProjectTaskModalProps {

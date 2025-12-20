@@ -1,13 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Progress } from "@/components/ui/progress";
-import {
-    BookOpen,
-    TrendingUp,
-    Code2,
-    Wrench,
-
-} from "lucide-react";
-import type { ProgrammingStats } from "@/types/programming";
+import { BookOpen, TrendingUp, Code2, Wrench } from "lucide-react";
+import type { ProgrammingStats } from "@/types/modules/programming";
 
 interface ProgrammingStatsProps {
     stats: ProgrammingStats;

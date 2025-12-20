@@ -12,7 +12,7 @@ import {
     Target,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { Expense, Budget, FinancialGoal } from "@/types/finance";
+import type { Expense, Budget, FinancialGoal } from "@/types/modules/finance";
 
 interface SpendingBehaviorProps {
     expenses: Expense[];

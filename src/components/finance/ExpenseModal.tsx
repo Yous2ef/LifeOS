@@ -10,7 +10,7 @@ import type {
     ExpenseType,
     PaymentMethod,
     RecurringFrequency,
-} from "@/types/finance";
+} from "@/types/modules/finance";
 
 interface ExpenseModalProps {
     isOpen: boolean;

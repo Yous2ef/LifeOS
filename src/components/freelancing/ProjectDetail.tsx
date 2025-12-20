@@ -18,7 +18,7 @@ import { ProjectTaskList } from "@/components/freelancing/ProjectTaskList";
 import { ProjectTaskKanban } from "@/components/freelancing/ProjectTaskKanban";
 import { ProjectTaskModal } from "@/components/freelancing/TaskModals";
 import { ProjectModal } from "@/components/freelancing/ProjectModal";
-import type { Project, TaskStatus } from "@/types/freelancing";
+import type { Project, TaskStatus } from "@/types/modules/freelancing";
 import {
     formatCurrency,
     getPriorityLabel,

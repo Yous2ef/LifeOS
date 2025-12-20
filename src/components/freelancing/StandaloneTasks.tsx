@@ -10,7 +10,7 @@ import {
     Clock,
     Edit,
 } from "lucide-react";
-import type { StandaloneTask, TaskStatus } from "@/types/freelancing";
+import type { StandaloneTask, TaskStatus } from "@/types/modules/freelancing";
 import { isOverdue } from "@/hooks/useFreelancing";
 import {
     KanbanBoard,

@@ -2,7 +2,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Edit, Trash2, Clock, Play } from "lucide-react";
-import type { ProjectTask } from "@/types/programming";
+import type { ProjectTask } from "@/types/modules/programming";
 import { getPriorityColor } from "@/utils/helpers";
 import { cn } from "@/lib/utils";
 import {

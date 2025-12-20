@@ -1,6 +1,6 @@
 import { Progress } from "@/components/ui/progress";
 import { DollarSign, Edit, CheckCircle2 } from "lucide-react";
-import type { Project, ProjectStatus } from "@/types/freelancing";
+import type { Project, ProjectStatus } from "@/types/modules/freelancing";
 import {
     calculateProjectProgress,
     getTasksForProject,

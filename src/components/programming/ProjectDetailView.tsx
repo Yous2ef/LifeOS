@@ -25,7 +25,7 @@ import type {
     CodingProject,
     ProjectTask,
     TimeEntry,
-} from "@/types/programming";
+} from "@/types/modules/programming";
 import { formatDate, getPriorityColor } from "@/utils/helpers";
 import { cn } from "@/lib/utils";
 import toast from "react-hot-toast";

@@ -18,7 +18,7 @@ import {
     DialogDescription,
 } from "@/components/ui/Dialog";
 import { cn } from "@/lib/utils";
-import type { Installment } from "@/types/finance";
+import type { Installment } from "@/types/modules/finance";
 
 interface InstallmentsListProps {
     installments: Installment[];

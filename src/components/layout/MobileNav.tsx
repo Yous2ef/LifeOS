@@ -15,6 +15,8 @@ import {
     X,
     Sparkles,
     Github,
+    LogIn,
+    User,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { exportData } from "../../utils/storage";
@@ -22,6 +24,8 @@ import { NotificationCenter } from "../ui/NotificationCenter";
 import { ThemeToggle } from "../theme-toggle";
 import { Button } from "@/components/ui/Button";
 import { Separator } from "@/components/ui/separator";
+import { useAuth } from "../../context/AuthContext";
+import { UserMenu } from "../auth";
 
 interface MobileNavProps {
     onImport: () => void;
@@ -39,6 +43,7 @@ const navItems = [
 
 export const MobileNav: React.FC<MobileNavProps> = ({ onImport }) => {
     const [isOpen, setIsOpen] = useState(false);
+    const { isAuthenticated, user, login, isGoogleLoaded } = useAuth();
 
     const closeMenu = () => setIsOpen(false);
 
@@ -63,6 +68,8 @@ export const MobileNav: React.FC<MobileNavProps> = ({ onImport }) => {
                     <div className="flex items-center gap-2">
                         <NotificationCenter />
                         <ThemeToggle />
+                        {/* User Menu in header for quick access */}
+                        {isAuthenticated && user && <UserMenu />}
                         <button
                             onClick={() => setIsOpen(!isOpen)}
                             className="p-2 rounded-lg hover:bg-sidebar-accent transition-colors text-sidebar-foreground"
@@ -120,6 +127,62 @@ export const MobileNav: React.FC<MobileNavProps> = ({ onImport }) => {
                         {/* Bottom Actions */}
                         <Separator />
                         <div className="p-3 space-y-1">
+                            {/* Auth Section */}
+                            {!isAuthenticated ? (
+                                <>
+                                    <Button
+                                        onClick={() => {
+                                            login();
+                                            closeMenu();
+                                        }}
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={!isGoogleLoaded}
+                                        className="w-full justify-start gap-2 bg-primary/5 border-primary/20 hover:bg-primary/10">
+                                        <LogIn
+                                            size={16}
+                                            className="text-primary"
+                                        />
+                                        <span className="text-sm">
+                                            Sign in with Google
+                                        </span>
+                                    </Button>
+                                    <Separator className="my-2" />
+                                </>
+                            ) : (
+                                user && (
+                                    <>
+                                        <div className="flex items-center gap-3 p-2 rounded-lg bg-primary/5 border border-primary/20">
+                                            {user.picture ? (
+                                                <img
+                                                    src={user.picture}
+                                                    alt={user.name}
+                                                    className="h-8 w-8 rounded-full object-cover ring-2 ring-primary/20"
+                                                    referrerPolicy="no-referrer"
+                                                />
+                                            ) : (
+                                                <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                                                    <User
+                                                        size={16}
+                                                        className="text-primary"
+                                                    />
+                                                </div>
+                                            )}
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-medium truncate text-sidebar-foreground">
+                                                    {user.givenName ||
+                                                        user.name}
+                                                </p>
+                                                <p className="text-xs text-muted-foreground truncate">
+                                                    {user.email}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <Separator className="my-2" />
+                                    </>
+                                )
+                            )}
+
                             <Button
                                 onClick={() => {
                                     exportData();

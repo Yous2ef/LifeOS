@@ -18,7 +18,7 @@ import {
     DialogDescription,
 } from "@/components/ui/Dialog";
 import { cn } from "@/lib/utils";
-import type { FinancialGoal } from "@/types/finance";
+import type { FinancialGoal } from "@/types/modules/finance";
 
 interface GoalsOverviewProps {
     goals: FinancialGoal[];

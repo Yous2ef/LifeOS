@@ -1,7 +1,7 @@
 import { ListView, ListCard, type ListCardBadge } from "@/components/common";
 import { Progress } from "@/components/ui/progress";
 import { Calendar, DollarSign, AlertCircle } from "lucide-react";
-import type { Project } from "@/types/freelancing";
+import type { Project } from "@/types/modules/freelancing";
 import {
     formatCurrency,
     getPriorityLabel,

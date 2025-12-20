@@ -6,7 +6,7 @@ import { FormSelect } from "@/components/ui/FormSelect";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { X } from "lucide-react";
-import type { CodingProject } from "@/types/programming";
+import type { CodingProject } from "@/types/modules/programming";
 
 interface ProjectModalProps {
     isOpen: boolean;

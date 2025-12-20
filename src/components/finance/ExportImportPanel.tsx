@@ -24,7 +24,7 @@ import {
     DialogTitle,
     DialogFooter,
 } from "@/components/ui/Dialog";
-import type { FinanceData } from "@/types/finance";
+import type { FinanceData } from "@/types/modules/finance";
 
 interface ExportImportPanelProps {
     onImport: (data: FinanceData) => void;

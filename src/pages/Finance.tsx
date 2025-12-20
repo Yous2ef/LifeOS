@@ -57,7 +57,7 @@ import type {
     Installment,
     FinancialGoal,
     CategoryBudget,
-} from "@/types/finance";
+} from "@/types/modules/finance";
 
 export const Finance = () => {
     const {

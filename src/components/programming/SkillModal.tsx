@@ -5,7 +5,7 @@ import { TextArea } from "@/components/ui/TextArea";
 import { FormSelect } from "@/components/ui/FormSelect";
 import { Button } from "@/components/ui/Button";
 import { Progress } from "@/components/ui/progress";
-import type { Skill } from "@/types/programming";
+import type { Skill } from "@/types/modules/programming";
 
 interface SkillModalProps {
     isOpen: boolean;

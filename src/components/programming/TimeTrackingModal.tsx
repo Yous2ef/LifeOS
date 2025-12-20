@@ -5,7 +5,7 @@ import { FormInput } from "@/components/ui/FormInput";
 import { TextArea } from "@/components/ui/TextArea";
 import toast from "react-hot-toast";
 import { Clock, Trash2 } from "lucide-react";
-import type { TimeEntry } from "@/types/programming";
+import type { TimeEntry } from "@/types/modules/programming";
 
 interface TimeTrackingModalProps {
     isOpen: boolean;

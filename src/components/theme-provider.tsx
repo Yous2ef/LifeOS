@@ -1,17 +1,10 @@
-import {
-    createContext,
-    useContext,
-    useEffect,
-    useState,
-    type ReactNode,
-} from "react";
-
-type Theme = "dark" | "light" | "system";
+import { createContext, useContext, useEffect, type ReactNode } from "react";
+import { useApp } from "../context/AppContext";
+import type { Theme } from "../types/core/settings";
 
 type ThemeProviderProps = {
     children: ReactNode;
     defaultTheme?: Theme;
-    storageKey?: string;
 };
 
 type ThemeProviderState = {
@@ -29,12 +22,12 @@ const ThemeProviderContext = createContext<ThemeProviderState>(initialState);
 export function ThemeProvider({
     children,
     defaultTheme = "system",
-    storageKey = "lifeos-ui-theme",
     ...props
 }: ThemeProviderProps) {
-    const [theme, setTheme] = useState<Theme>(
-        () => (localStorage.getItem(storageKey) as Theme) || defaultTheme
-    );
+    const { data, updateData } = useApp();
+
+    // Get theme from unified storage, fallback to default
+    const theme: Theme = data.settings?.theme || defaultTheme;
 
     useEffect(() => {
         const root = window.document.documentElement;
@@ -57,9 +50,13 @@ export function ThemeProvider({
 
     const value = {
         theme,
-        setTheme: (theme: Theme) => {
-            localStorage.setItem(storageKey, theme);
-            setTheme(theme);
+        setTheme: (newTheme: Theme) => {
+            updateData({
+                settings: {
+                    ...data.settings,
+                    theme: newTheme,
+                },
+            });
         },
     };
 

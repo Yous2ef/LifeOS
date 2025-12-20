@@ -132,10 +132,69 @@ export interface ProgrammingStats {
     completionRate: number; // percentage
 }
 
-// Storage structure for localStorage
+// Learning resource tracking
+export interface LearningResource {
+    id: string;
+    title: string;
+    type: "video" | "article" | "documentation" | "challenge";
+    url: string;
+    platform: string;
+    status: "not-started" | "in-progress" | "completed";
+    progress: number;
+    priority: "low" | "medium" | "high";
+    notes: string;
+    createdAt: string;
+}
+
+// Technology/framework tracking
+export interface Technology {
+    id: string;
+    name: string;
+    category: string;
+    proficiency: number;
+    learningGoal: string;
+    resources: string[];
+    lastPracticed: string;
+    createdAt: string;
+}
+
+// Simple project for AppData (detailed version is CodingProject)
+export interface SimpleProject {
+    id: string;
+    name: string;
+    description: string;
+    status: "planning" | "in-progress" | "completed" | "on-hold";
+    technologies: string[];
+    githubUrl?: string;
+    deployUrl?: string;
+    nextSteps: string[];
+    progress: number;
+    createdAt: string;
+    updatedAt: string;
+}
+
+// Simple skill for AppData (detailed version is Skill)
+export interface SimpleSkill {
+    id: string;
+    name: string;
+    category: string;
+    level: number;
+    targetLevel: number;
+    practiceGoal: string;
+}
+
+// Storage structure for localStorage (legacy format)
 export interface ProgrammingData {
     learningItems: LearningItem[];
     skills: Skill[];
     tools: Tool[];
     projects: CodingProject[];
+}
+
+// Main programming data structure for AppData
+export interface ProgrammingModuleData {
+    learningResources: LearningResource[];
+    technologies: Technology[];
+    projects: SimpleProject[];
+    skills: SimpleSkill[];
 }

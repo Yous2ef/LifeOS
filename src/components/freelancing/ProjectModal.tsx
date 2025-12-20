@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/Button";
 import { FormInput } from "@/components/ui/FormInput";
 import { FormSelect } from "@/components/ui/FormSelect";
 import { TextArea } from "@/components/ui/TextArea";
-import type { Project, Currency } from "@/types/freelancing";
+import type { Project, Currency } from "@/types/modules/freelancing";
 
 interface ProjectModalProps {
     isOpen: boolean;

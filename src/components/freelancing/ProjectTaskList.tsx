@@ -7,7 +7,7 @@ import {
 } from "@/components/common";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { Edit, Trash2, Calendar, CheckSquare, Square } from "lucide-react";
-import type { ProjectTask } from "@/types/freelancing";
+import type { ProjectTask } from "@/types/modules/freelancing";
 import { getPriorityLabel, isOverdue } from "@/hooks/useFreelancing";
 import { getPriorityColor } from "@/utils/helpers";
 
