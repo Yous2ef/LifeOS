@@ -1,110 +1,36 @@
-import { useState, useEffect } from "react";
+import { useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ProjectDetailView } from "@/components/programming/ProjectDetailView";
+import { useProgramming } from "@/hooks/useProgramming";
 import type { CodingProject, ProjectTask } from "@/types/modules/programming";
 import toast from "react-hot-toast";
-
-const PROGRAMMING_DATA_KEY = "lifeos-programming-data";
 
 export const ProgrammingProjectDetail = () => {
     const { projectId } = useParams<{ projectId: string }>();
     const navigate = useNavigate();
-    const [project, setProject] = useState<CodingProject | null>(null);
-    const [tasks, setTasks] = useState<ProjectTask[]>([]);
-    const [loading, setLoading] = useState(true);
+    const {
+        projects,
+        updateProject: updateProjectInStore,
+        deleteProject: deleteProjectFromStore,
+    } = useProgramming();
 
-    // Load project and tasks from localStorage
-    useEffect(() => {
-        if (!projectId) {
-            setLoading(false);
-            return;
-        }
+    // Find the project from the unified data store
+    const project = useMemo(() => {
+        if (!projectId) return null;
+        return projects.find((p) => p.id === projectId) || null;
+    }, [projects, projectId]);
 
-        const stored = localStorage.getItem(PROGRAMMING_DATA_KEY);
-        if (stored) {
-            try {
-                const data = JSON.parse(stored);
-                const foundProject = data.projects?.find(
-                    (p: CodingProject) => p.id === projectId
-                );
+    // Get tasks from the project
+    const tasks = useMemo(() => project?.tasks || [], [project]);
 
-                if (foundProject) {
-                    setProject(foundProject);
-                    setTasks(foundProject.tasks || []);
-                } else {
-                    setProject(null);
-                    setTasks([]);
-                }
-            } catch (error) {
-                console.error("Failed to load project:", error);
-                setProject(null);
-                setTasks([]);
-            }
-        }
-        setLoading(false);
-    }, [projectId]);
-
-    const updateProject = (updates: Partial<CodingProject>) => {
+    const handleUpdateProject = (updates: Partial<CodingProject>) => {
         if (!project) return;
-
-        const stored = localStorage.getItem(PROGRAMMING_DATA_KEY);
-        if (stored) {
-            try {
-                const data = JSON.parse(stored);
-                const updatedProjects = data.projects.map((p: CodingProject) =>
-                    p.id === project.id
-                        ? {
-                              ...p,
-                              ...updates,
-                              updatedAt: new Date().toISOString(),
-                          }
-                        : p
-                );
-
-                const updatedData = { ...data, projects: updatedProjects };
-                localStorage.setItem(
-                    PROGRAMMING_DATA_KEY,
-                    JSON.stringify(updatedData)
-                );
-
-                const updatedProject = {
-                    ...project,
-                    ...updates,
-                    updatedAt: new Date().toISOString(),
-                };
-                setProject(updatedProject);
-
-                // Update tasks if they're part of the update
-                if (updates.tasks) {
-                    setTasks(updates.tasks);
-                }
-            } catch (error) {
-                console.error("Failed to update project:", error);
-                toast.error("Failed to update project");
-            }
-        }
+        updateProjectInStore(project.id, updates);
     };
 
-    const deleteProject = () => {
+    const handleDeleteProject = () => {
         if (!project) return;
-
-        const stored = localStorage.getItem(PROGRAMMING_DATA_KEY);
-        if (stored) {
-            try {
-                const data = JSON.parse(stored);
-                const filteredProjects = data.projects.filter(
-                    (p: CodingProject) => p.id !== project.id
-                );
-                const updatedData = { ...data, projects: filteredProjects };
-                localStorage.setItem(
-                    PROGRAMMING_DATA_KEY,
-                    JSON.stringify(updatedData)
-                );
-            } catch (error) {
-                console.error("Failed to delete project:", error);
-                toast.error("Failed to delete project");
-            }
-        }
+        deleteProjectFromStore(project.id);
     };
 
     const addTask = (task: Omit<ProjectTask, "id" | "createdAt">) => {
@@ -117,8 +43,7 @@ export const ProgrammingProjectDetail = () => {
         };
 
         const updatedTasks = [...tasks, newTask];
-        setTasks(updatedTasks);
-        updateProject({ tasks: updatedTasks });
+        handleUpdateProject({ tasks: updatedTasks });
         toast.success("Task added successfully");
     };
 
@@ -126,15 +51,13 @@ export const ProgrammingProjectDetail = () => {
         const updatedTasks = tasks.map((t) =>
             t.id === taskId ? { ...t, ...updates } : t
         );
-        setTasks(updatedTasks);
-        updateProject({ tasks: updatedTasks });
+        handleUpdateProject({ tasks: updatedTasks });
         toast.success("Task updated successfully");
     };
 
     const deleteTask = (taskId: string) => {
         const updatedTasks = tasks.filter((t) => t.id !== taskId);
-        setTasks(updatedTasks);
-        updateProject({ tasks: updatedTasks });
+        handleUpdateProject({ tasks: updatedTasks });
         toast.success("Task deleted successfully");
     };
 
@@ -150,17 +73,8 @@ export const ProgrammingProjectDetail = () => {
                   }
                 : t
         );
-        setTasks(updatedTasks);
-        updateProject({ tasks: updatedTasks });
+        handleUpdateProject({ tasks: updatedTasks });
     };
-
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center py-20">
-                <p className="text-muted-foreground">Loading project...</p>
-            </div>
-        );
-    }
 
     if (!project) {
         return (
@@ -186,11 +100,11 @@ export const ProgrammingProjectDetail = () => {
             tasks={tasks}
             onBack={() => navigate("/programming")}
             onUpdate={(updates) => {
-                updateProject(updates);
+                handleUpdateProject(updates);
                 toast.success("Project updated successfully");
             }}
             onDelete={() => {
-                deleteProject();
+                handleDeleteProject();
                 toast.success("Project deleted");
                 navigate("/programming");
             }}

@@ -57,38 +57,33 @@ export const Dashboard = () => {
         minute: "2-digit",
     });
 
-    // Load data from separate storage keys
+    // Get data from unified AppContext
     const programmingData = useMemo(() => {
-        try {
-            const stored = localStorage.getItem("lifeos-programming-data");
-            return stored
-                ? JSON.parse(stored)
-                : { learningItems: [], skills: [], tools: [], projects: [] };
-        } catch {
-            return { learningItems: [], skills: [], tools: [], projects: [] };
-        }
-    }, []);
+        return (
+            data.programming || {
+                learningItems: [],
+                skills: [],
+                tools: [],
+                projects: [],
+            }
+        );
+    }, [data.programming]);
 
     const freelancingProjects = useMemo(() => {
-        try {
-            const stored = localStorage.getItem("lifeos-freelancing-projects");
-            return stored ? JSON.parse(stored) : [];
-        } catch {
-            return [];
-        }
-    }, []);
+        return data.freelancing?.projects || [];
+    }, [data.freelancing]);
 
-    // Load finance data
+    // Get finance data from unified AppContext
     const financeData = useMemo(() => {
-        try {
-            const stored = localStorage.getItem("lifeos-finance-data");
-            return stored
-                ? JSON.parse(stored)
-                : { incomes: [], expenses: [], installments: [], goals: [] };
-        } catch {
-            return { incomes: [], expenses: [], installments: [], goals: [] };
-        }
-    }, []);
+        return (
+            data.finance || {
+                incomes: [],
+                expenses: [],
+                installments: [],
+                goals: [],
+            }
+        );
+    }, [data.finance]);
 
     // const freelancingTasks = useMemo(() => {
     //     try {

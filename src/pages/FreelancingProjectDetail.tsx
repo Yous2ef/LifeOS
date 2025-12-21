@@ -1,96 +1,34 @@
-import { useState, useEffect } from "react";
+import { useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ProjectDetail } from "@/components/freelancing/ProjectDetail";
+import { useFreelancingProjects } from "@/hooks/useFreelancing";
 import type { Project } from "@/types/modules/freelancing";
 import toast from "react-hot-toast";
-
-const PROJECTS_KEY = "lifeos-freelancing-projects";
 
 export const FreelancingProjectDetail = () => {
     const { projectId } = useParams<{ projectId: string }>();
     const navigate = useNavigate();
-    const [project, setProject] = useState<Project | null>(null);
-    const [loading, setLoading] = useState(true);
+    const {
+        projects,
+        updateProject: updateProjectInStore,
+        deleteProject: deleteProjectFromStore,
+    } = useFreelancingProjects();
 
-    // Load project directly from localStorage
-    useEffect(() => {
-        if (!projectId) {
-            setLoading(false);
-            return;
-        }
+    // Find the project from the unified data store
+    const project = useMemo(() => {
+        if (!projectId) return null;
+        return projects.find((p) => p.id === projectId) || null;
+    }, [projects, projectId]);
 
-        const stored = localStorage.getItem(PROJECTS_KEY);
-        if (stored) {
-            try {
-                const projects: Project[] = JSON.parse(stored);
-                const foundProject = projects.find((p) => p.id === projectId);
-                setProject(foundProject || null);
-            } catch (error) {
-                console.error("Failed to load project:", error);
-                setProject(null);
-            }
-        }
-        setLoading(false);
-    }, [projectId]);
-
-    const updateProject = (updates: Partial<Project>) => {
+    const handleUpdateProject = (updates: Partial<Project>) => {
         if (!project) return;
-
-        const stored = localStorage.getItem(PROJECTS_KEY);
-        if (stored) {
-            try {
-                const projects: Project[] = JSON.parse(stored);
-                const updatedProjects = projects.map((p) =>
-                    p.id === project.id
-                        ? {
-                              ...p,
-                              ...updates,
-                              updatedAt: new Date().toISOString(),
-                          }
-                        : p
-                );
-                localStorage.setItem(
-                    PROJECTS_KEY,
-                    JSON.stringify(updatedProjects)
-                );
-                setProject({
-                    ...project,
-                    ...updates,
-                    updatedAt: new Date().toISOString(),
-                });
-            } catch (error) {
-                console.error("Failed to update project:", error);
-            }
-        }
+        updateProjectInStore(project.id, updates);
     };
 
-    const deleteProject = () => {
+    const handleDeleteProject = () => {
         if (!project) return;
-
-        const stored = localStorage.getItem(PROJECTS_KEY);
-        if (stored) {
-            try {
-                const projects: Project[] = JSON.parse(stored);
-                const filteredProjects = projects.filter(
-                    (p) => p.id !== project.id
-                );
-                localStorage.setItem(
-                    PROJECTS_KEY,
-                    JSON.stringify(filteredProjects)
-                );
-            } catch (error) {
-                console.error("Failed to delete project:", error);
-            }
-        }
+        deleteProjectFromStore(project.id);
     };
-
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center py-20">
-                <p className="text-muted-foreground">Loading project...</p>
-            </div>
-        );
-    }
 
     if (!project) {
         return (
@@ -115,11 +53,11 @@ export const FreelancingProjectDetail = () => {
             project={project}
             onBack={() => navigate("/freelancing")}
             onUpdate={(updates) => {
-                updateProject(updates);
+                handleUpdateProject(updates);
                 toast.success("Project updated successfully");
             }}
             onDelete={() => {
-                deleteProject();
+                handleDeleteProject();
                 toast.success("Project deleted");
                 navigate("/freelancing");
             }}
