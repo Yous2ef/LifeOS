@@ -2,18 +2,37 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/LifeOS/vite.svg" />
+    <link rel="icon" type="image/svg+xml" href="/LifeOS/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>LifeOS</title>
-    <script type="module" crossorigin src="/LifeOS/assets/index-DOOjm7Ao.js"></script>
+    
+    <!-- Security Headers (Note: X-Frame-Options must be set via HTTP headers, not meta tags) -->
+    <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+    
+    <!-- Content Security Policy -->
+    <meta http-equiv="Content-Security-Policy" content="
+      default-src 'self';
+      script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com https://apis.google.com;
+      style-src 'self' 'unsafe-inline' https://accounts.google.com;
+      img-src 'self' data: https: blob:;
+      font-src 'self' data:;
+      connect-src 'self' https://accounts.google.com https://www.googleapis.com https://oauth2.googleapis.com;
+      frame-src https://accounts.google.com;
+    " />
+    
+    <!-- Google Identity Services -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script type="module" crossorigin src="/LifeOS/assets/index-OeeYqBZp.js"></script>
     <link rel="modulepreload" crossorigin href="/LifeOS/assets/react-vendor-pR2cKLDH.js">
-    <link rel="modulepreload" crossorigin href="/LifeOS/assets/router-CLckEVPx.js">
-    <link rel="modulepreload" crossorigin href="/LifeOS/assets/radix-ui-U22BTGbQ.js">
-    <link rel="modulepreload" crossorigin href="/LifeOS/assets/utils-DdC2hUi5.js">
-    <link rel="modulepreload" crossorigin href="/LifeOS/assets/charts-z5w_wLt1.js">
-    <link rel="stylesheet" crossorigin href="/LifeOS/assets/index-C-EqBwzt.css">
+    <link rel="modulepreload" crossorigin href="/LifeOS/assets/router-BQf8R6iK.js">
+    <link rel="modulepreload" crossorigin href="/LifeOS/assets/radix-ui-C3V2uSY1.js">
+    <link rel="modulepreload" crossorigin href="/LifeOS/assets/utils-MsfPC-Eo.js">
+    <link rel="modulepreload" crossorigin href="/LifeOS/assets/charts-5ZM4_dsB.js">
+    <link rel="modulepreload" crossorigin href="/LifeOS/assets/dnd-kit-VvYmaRfD.js">
+    <link rel="stylesheet" crossorigin href="/LifeOS/assets/index-qMQHlaWf.css">
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root"></div>
   </body>
 </html>
