@@ -13,7 +13,6 @@ import {
     Upload,
     Menu,
     X,
-    Sparkles,
     Github,
     LogIn,
     User,
@@ -53,16 +52,20 @@ export const MobileNav: React.FC<MobileNavProps> = ({ onImport }) => {
             <header className="lg:hidden sticky top-0 z-40 bg-accent border-b border-sidebar-border shadow-sm">
                 <div className="flex items-center justify-between p-4">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary/80 rounded-lg flex items-center justify-center shadow-lg">
-                            <Sparkles
-                                className="text-primary-foreground"
-                                size={20}
+                        <div className="w-16 h-16 rounded-xl overflow-hidden flex items-center justify-center bg-white/10">
+                            <img
+                                src="./Logo.png"
+                                alt="LifeOS Logo"
+                                className="w-16 h-16 object-contain"
                             />
                         </div>
                         <div>
                             <h1 className="text-lg font-bold text-sidebar-foreground">
                                 LifeOS
                             </h1>
+                            <p className="text-xs text-muted-foreground">
+                                Your Life, Organized
+                            </p>
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
