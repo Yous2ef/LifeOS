@@ -840,6 +840,7 @@ class StorageServiceClass {
 
     /**
      * Restore from a cloud backup
+     * Sets the lastModified to the current time (restore time) to mark this as the latest version
      */
     async restoreCloudBackup(
         backupFileName: string
@@ -856,10 +857,19 @@ class StorageServiceClass {
                 return { success: false, error: "Backup not found" };
             }
 
+            // Set lastModified to current time (when the restore happened)
+            // This ensures this restored version is treated as the latest
+            const restoreTime = new Date().toISOString();
+            backupData.lastModified = restoreTime;
+            console.log(
+                "📅 Setting lastModified to restore time:",
+                restoreTime
+            );
+
             // Save to local storage
             this.saveToLocal(STORAGE_KEYS.MAIN_DATA, backupData);
 
-            // Save to cloud (overwrites current data)
+            // Save to cloud (overwrites current data with new timestamp)
             await this.saveToCloud(backupData);
 
             console.log("✅ Restored from backup:", backupFileName);

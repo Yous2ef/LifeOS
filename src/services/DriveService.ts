@@ -2,18 +2,14 @@
  * Google Drive Service (V2 - Unified Storage)
  *
  * Handles all Google Drive API operations for LifeOS data storage.
- * Uses the user's own Google Drive to store app data in a dedicated folder.
+ * Uses the hidden appDataFolder in user's Google Drive (invisible to users).
  *
  * V2 Architecture:
  * - Single file: "lifeos.json" containing all app data
  * - Legacy V1 files are kept for migration reference only
  */
 
-import {
-    DRIVE_FOLDER_NAME,
-    DRIVE_FILE,
-    DRIVE_FILES_V1,
-} from "../config/google";
+import { DRIVE_FILE, DRIVE_FILES_V1 } from "../config/google";
 
 // Google Drive API endpoints
 const DRIVE_API_BASE = "https://www.googleapis.com/drive/v3";
@@ -157,47 +153,15 @@ class DriveServiceClass {
     }
 
     /**
-     * Find the LifeOS app folder in Google Drive
-     * Creates it if it doesn't exist
+     * Get the hidden app data folder in Google Drive
+     * Uses the special 'appDataFolder' which is invisible to users
+     * but accessible only by this app
      */
     async getOrCreateAppFolder(): Promise<string> {
-        if (this.appFolderId) {
-            return this.appFolderId;
-        }
-
-        // Search for existing folder
-        const query = `name='${DRIVE_FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
-        const searchUrl = `${DRIVE_API_BASE}/files?q=${encodeURIComponent(
-            query
-        )}&fields=files(id,name)`;
-
-        const result = await this.request<DriveFileList>(searchUrl);
-
-        if (result.files && result.files.length > 0) {
-            this.appFolderId = result.files[0].id;
-            console.log("Found existing LifeOS folder:", this.appFolderId);
-            return this.appFolderId;
-        }
-
-        // Create new folder
-        const folderMetadata = {
-            name: DRIVE_FOLDER_NAME,
-            mimeType: "application/vnd.google-apps.folder",
-        };
-
-        const createResponse = await this.request<DriveFile>(
-            `${DRIVE_API_BASE}/files`,
-            {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify(folderMetadata),
-            }
-        );
-
-        this.appFolderId = createResponse.id;
-        console.log("Created new LifeOS folder:", this.appFolderId);
+        // The appDataFolder is a special folder ID that Google Drive provides
+        // It's hidden from users and only accessible by this app
+        // We don't need to create it - it always exists
+        this.appFolderId = "appDataFolder";
         return this.appFolderId;
     }
 
@@ -236,11 +200,11 @@ class DriveServiceClass {
         const appFolderId = await this.getOrCreateAppFolder();
         const backupsFolderName = "Backups";
 
-        // Search for existing Backups folder inside app folder
+        // Search for existing Backups folder inside app data folder
         const query = `name='${backupsFolderName}' and '${appFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`;
         const searchUrl = `${DRIVE_API_BASE}/files?q=${encodeURIComponent(
             query
-        )}&fields=files(id,name)`;
+        )}&spaces=appDataFolder&fields=files(id,name)`;
 
         const result = await this.request<DriveFileList>(searchUrl);
 
@@ -250,7 +214,7 @@ class DriveServiceClass {
             return this.backupsFolderId;
         }
 
-        // Create new Backups folder
+        // Create new Backups folder in app data folder
         const folderMetadata = {
             name: backupsFolderName,
             mimeType: "application/vnd.google-apps.folder",
@@ -274,7 +238,7 @@ class DriveServiceClass {
     }
 
     /**
-     * Find a file by name in the app folder
+     * Find a file by name in the app data folder
      */
     private async findFile(fileName: string): Promise<DriveFile | null> {
         const folderId = await this.getOrCreateAppFolder();
@@ -282,7 +246,7 @@ class DriveServiceClass {
         const query = `name='${fileName}' and '${folderId}' in parents and trashed=false`;
         const searchUrl = `${DRIVE_API_BASE}/files?q=${encodeURIComponent(
             query
-        )}&fields=files(id,name,modifiedTime,createdTime,size)`;
+        )}&spaces=appDataFolder&fields=files(id,name,modifiedTime,createdTime,size)`;
 
         const result = await this.request<DriveFileList>(searchUrl);
 
@@ -439,11 +403,11 @@ class DriveServiceClass {
         try {
             const backupsFolderId = await this.getOrCreateBackupsFolder();
 
-            // List all backup files in the Backups folder
+            // List all backup files in the Backups folder (in hidden app data)
             const query = `'${backupsFolderId}' in parents and trashed=false and name contains 'backup_'`;
             const url = `${DRIVE_API_BASE}/files?q=${encodeURIComponent(
                 query
-            )}&fields=files(id,name,modifiedTime,createdTime,size)&orderBy=modifiedTime desc`;
+            )}&spaces=appDataFolder&fields=files(id,name,modifiedTime,createdTime,size)&orderBy=modifiedTime desc`;
 
             const result = await this.request<DriveFileList>(url);
 
@@ -466,7 +430,7 @@ class DriveServiceClass {
     }
 
     /**
-     * Find a file in the Backups folder
+     * Find a file in the Backups folder (in hidden app data)
      */
     private async findBackupFile(fileName: string): Promise<DriveFile | null> {
         const backupsFolderId = await this.getOrCreateBackupsFolder();
@@ -474,7 +438,7 @@ class DriveServiceClass {
         const query = `name='${fileName}' and '${backupsFolderId}' in parents and trashed=false`;
         const searchUrl = `${DRIVE_API_BASE}/files?q=${encodeURIComponent(
             query
-        )}&fields=files(id,name,modifiedTime,createdTime,size)`;
+        )}&spaces=appDataFolder&fields=files(id,name,modifiedTime,createdTime,size)`;
 
         const result = await this.request<DriveFileList>(searchUrl);
 
