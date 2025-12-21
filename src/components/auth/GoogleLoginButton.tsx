@@ -1,76 +1,60 @@
-import React, { useEffect, useRef } from "react";
+import React from "react";
 import { useAuth } from "../../context/AuthContext";
 import { Button } from "../ui/Button";
 import { Loader2 } from "lucide-react";
 
 interface GoogleLoginButtonProps {
-    variant?: "google" | "custom";
     className?: string;
 }
 
 export const GoogleLoginButton: React.FC<GoogleLoginButtonProps> = ({
-    variant = "google",
     className = "",
 }) => {
     const { login, isLoading, isGoogleLoaded, error } = useAuth();
-    const buttonRef = useRef<HTMLDivElement>(null);
 
-    // Render Google's official button
-    useEffect(() => {
-        if (variant === "google" && isGoogleLoaded && buttonRef.current && window.google) {
-            // Clear any existing button
-            buttonRef.current.innerHTML = "";
-            
-            window.google.accounts.id.renderButton(buttonRef.current, {
-                type: "standard",
-                theme: "outline",
-                size: "large",
-                text: "signin_with",
-                shape: "rectangular",
-                logo_alignment: "left",
-                width: 250,
-            });
-        }
-    }, [variant, isGoogleLoaded]);
-
-    // Google's official button
-    if (variant === "google") {
+    // If Google is not loaded and not loading, show unavailable state
+    if (!isGoogleLoaded && !isLoading) {
         return (
             <div className={className}>
-                {!isGoogleLoaded ? (
-                    <Button disabled variant="outline" className="w-[250px] h-[40px]">
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Loading...
-                    </Button>
-                ) : (
-                    <div ref={buttonRef} />
-                )}
-                {error && (
-                    <p className="text-sm text-destructive mt-2">{error}</p>
-                )}
+                <Button
+                    disabled
+                    variant="outline"
+                    className="gap-2 w-[250px] h-[40px] justify-center border-border opacity-50"
+                    title="Google Sign-In is not available in this browser. Please open in Chrome, Firefox, or Edge.">
+                    <GoogleIcon className="h-5 w-5 opacity-50" />
+                    Sign in unavailable
+                </Button>
+                <p className="text-xs text-muted-foreground mt-1 text-center">
+                    Open in a regular browser
+                </p>
             </div>
         );
     }
 
-    // Custom styled button
     return (
-        <Button
-            onClick={login}
-            disabled={isLoading || !isGoogleLoaded}
-            variant="outline"
-            className={`gap-2 ${className}`}>
-            {isLoading ? (
-                <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Signing in...
-                </>
-            ) : (
-                <>
-                    <GoogleIcon className="h-4 w-4" />
-                    Sign in with Google
-                </>
+        <div className={className}>
+            <Button
+                onClick={login}
+                disabled={isLoading || !isGoogleLoaded}
+                variant="outline"
+                className="gap-2 w-[250px] h-[40px] justify-center border-border hover:bg-accent"
+                data-google-login>
+                {isLoading ? (
+                    <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Signing in...
+                    </>
+                ) : (
+                    <>
+                        <GoogleIcon className="h-5 w-5" />
+                        Sign in with Google
+                    </>
+                )}
+            </Button>
+            {error && (
+                <p className="text-sm text-destructive mt-2">{error}</p>
             )}
-        </Button>
+        </div>
     );
 };
 

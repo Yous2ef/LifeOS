@@ -780,6 +780,106 @@ export const Settings: React.FC = () => {
                 </div>
             </Card>
 
+            {/* Account Section - Show for guest users */}
+            {!isAuthenticated && (
+                <Card className="p-6">
+                    <div className="flex items-center gap-2 mb-4">
+                        <Cloud className="text-primary" size={24} />
+                        <h2 className="text-2xl font-bold text-foreground">
+                            Account & Cloud Sync
+                        </h2>
+                    </div>
+
+                    <div className="space-y-6">
+                        {/* Guest Mode Notice */}
+                        <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4">
+                            <div className="flex items-start gap-3">
+                                <CloudOff
+                                    className="text-amber-500 shrink-0 mt-0.5"
+                                    size={20}
+                                />
+                                <div>
+                                    <h3 className="font-semibold text-foreground">
+                                        You're using Guest Mode
+                                    </h3>
+                                    <p className="text-sm text-muted-foreground mt-1">
+                                        Your data is only stored locally on this
+                                        device. Sign in with Google to enable
+                                        cloud sync and keep your data safe
+                                        across all your devices.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Benefits */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="bg-primary/10 rounded-lg p-4 border border-primary/20">
+                                <Cloud
+                                    className="text-primary mb-2"
+                                    size={24}
+                                />
+                                <h4 className="font-medium text-foreground">
+                                    Cloud Backup
+                                </h4>
+                                <p className="text-sm text-muted-foreground mt-1">
+                                    Your data is automatically backed up to
+                                    Google Drive
+                                </p>
+                            </div>
+                            <div className="bg-blue-500/10 rounded-lg p-4 border border-blue-500/20">
+                                <RefreshCw
+                                    className="text-blue-500 mb-2"
+                                    size={24}
+                                />
+                                <h4 className="font-medium text-foreground">
+                                    Sync Across Devices
+                                </h4>
+                                <p className="text-sm text-muted-foreground mt-1">
+                                    Access your data from any device, anywhere
+                                </p>
+                            </div>
+                            <div className="bg-green-500/10 rounded-lg p-4 border border-green-500/20">
+                                <CheckCircle2
+                                    className="text-green-500 mb-2"
+                                    size={24}
+                                />
+                                <h4 className="font-medium text-foreground">
+                                    Never Lose Data
+                                </h4>
+                                <p className="text-sm text-muted-foreground mt-1">
+                                    Your data is safe even if you clear your
+                                    browser
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Sign In Button */}
+                        <div className="flex flex-col items-center gap-4 py-4">
+                            <Button
+                                size="lg"
+                                onClick={() => {
+                                    // Trigger Google login
+                                    const loginButton = document.querySelector(
+                                        "[data-google-login]"
+                                    ) as HTMLButtonElement;
+                                    if (loginButton) {
+                                        loginButton.click();
+                                    }
+                                }}
+                                className="gap-2">
+                                <Cloud size={18} />
+                                Sign in with Google
+                            </Button>
+                            <p className="text-xs text-muted-foreground text-center max-w-md">
+                                We only access a dedicated LifeOS folder in your
+                                Google Drive. Your other files remain private.
+                            </p>
+                        </div>
+                    </div>
+                </Card>
+            )}
+
             {/* Cloud Sync Settings - Only show for logged in users */}
             {isAuthenticated && (
                 <Card className="p-6">

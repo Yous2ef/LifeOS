@@ -30,6 +30,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { DismissMenu } from "../components/ui/DismissMenu";
 import { FinanceWidget } from "@/components/finance/FinanceWidget";
+import { LoginPromptBanner } from "@/components/auth";
 import { useApp } from "../context/AppContext";
 import {
     getGreeting,
@@ -457,6 +458,9 @@ export const Dashboard = () => {
             </div>
 
             <Separator />
+
+            {/* Login Prompt for Guest Users */}
+            <LoginPromptBanner />
 
             {/* Urgent Notifications */}
             {urgentNotifications.length > 0 && (

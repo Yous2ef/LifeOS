@@ -2,6 +2,7 @@ import React, { useState, type ReactNode } from "react";
 import { Sidebar } from "./Sidebar";
 import { MobileNav } from "./MobileNav";
 import { ToastContainer } from "../ui/Toast";
+import { BackupReminderNotification } from "../auth";
 import { useApp } from "../../context/AppContext";
 import { useNotifications } from "../../hooks/useNotifications";
 import { importData } from "../../utils/storage";
@@ -131,6 +132,9 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                     )}
                 </div>
             </Modal>
+
+            {/* Backup Reminder for Guest Users */}
+            <BackupReminderNotification />
         </>
     );
 };

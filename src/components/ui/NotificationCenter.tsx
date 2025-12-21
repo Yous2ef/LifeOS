@@ -243,9 +243,9 @@ export const NotificationCenter: React.FC = () => {
             </button>
 
             {isOpen && (
-                <div className="absolute left-0 top-full mt-2 w-96 max-h-[600px] bg-popover border border-border rounded-lg shadow-2xl z-9999 overflow-hidden flex flex-col">
-                    <div className="p-4 border-b border-border flex items-center justify-between bg-muted/50">
-                        <h3 className="font-bold text-lg flex items-center gap-2 text-foreground">
+                <div className="fixed sm:absolute left-4 right-4 sm:left-auto sm:right-0 top-14 sm:top-full lg:left-0 sm:mt-2 w-auto sm:w-96 max-h-[70vh] sm:max-h-[600px] bg-popover border border-border rounded-lg shadow-2xl z-9999 overflow-hidden flex flex-col">
+                    <div className="p-3 sm:p-4 border-b border-border flex items-center justify-between bg-muted/50">
+                        <h3 className="font-bold text-base sm:text-lg flex items-center gap-2 text-foreground whitespace-nowrap">
                             <Bell size={20} className="text-primary" />
                             Notification Center
                         </h3>

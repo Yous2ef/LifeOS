@@ -381,17 +381,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                     }
                 }, 100);
 
-                // Timeout after 10 seconds
+                // Timeout after 5 seconds - just continue without Google (guest mode)
                 setTimeout(() => {
                     clearInterval(checkGoogle);
                     if (!window.google) {
+                        console.warn(
+                            "Google Sign-In not available in this environment. Continuing in guest mode."
+                        );
                         setState((prev) => ({
                             ...prev,
                             isLoading: false,
-                            error: "Failed to load Google Sign-In",
+                            // Don't set error - just continue in guest mode
                         }));
+                        // Mark as "loaded" so button doesn't stay disabled
+                        setIsGoogleLoaded(false);
                     }
-                }, 10000);
+                }, 5000);
             }
         };
 
