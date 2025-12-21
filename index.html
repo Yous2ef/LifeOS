@@ -1,17 +1,27 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.ico" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>LifeOS</title>
-    
-    <!-- Security Headers (Note: X-Frame-Options must be set via HTTP headers, not meta tags) -->
-    <meta http-equiv="X-Content-Type-Options" content="nosniff" />
-    <meta name="referrer" content="strict-origin-when-cross-origin" />
-    
-    <!-- Content Security Policy -->
-    <meta http-equiv="Content-Security-Policy" content="
+    <head>
+        <meta charset="UTF-8" />
+        <link rel="icon" type="image/svg+xml" href="/favicon.ico" />
+        <link rel="manifest" href="/manifest.json" />
+        <link rel="apple-touch-icon" href="/Logo.png" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta
+            name="apple-mobile-web-app-status-bar-style"
+            content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="LifeOS" />
+        <meta name="theme-color" content="#3b82f6" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>LifeOS</title>
+
+        <!-- Security Headers (Note: X-Frame-Options must be set via HTTP headers, not meta tags) -->
+        <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+        <meta name="referrer" content="strict-origin-when-cross-origin" />
+
+        <!-- Content Security Policy -->
+        <meta
+            http-equiv="Content-Security-Policy"
+            content="
       default-src 'self';
       script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com https://apis.google.com;
       style-src 'self' 'unsafe-inline' https://accounts.google.com;
@@ -20,12 +30,15 @@
       connect-src 'self' https://accounts.google.com https://www.googleapis.com https://oauth2.googleapis.com;
       frame-src https://accounts.google.com;
     " />
-    
-    <!-- Google Identity Services -->
-    <script src="https://accounts.google.com/gsi/client" async defer></script>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+
+        <!-- Google Identity Services -->
+        <script
+            src="https://accounts.google.com/gsi/client"
+            async
+            defer></script>
+    </head>
+    <body>
+        <div id="root"></div>
+        <script type="module" src="/src/main.tsx"></script>
+    </body>
 </html>
