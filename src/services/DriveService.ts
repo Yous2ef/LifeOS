@@ -66,6 +66,8 @@ export type SyncStatus = "idle" | "syncing" | "success" | "error";
 class DriveServiceClass {
     private accessToken: string | null = null;
     private appFolderId: string | null = null;
+    private backupsFolderId: string | null = null;
+    private backupsFolderPromise: Promise<string> | null = null;
     private syncStatus: SyncStatus = "idle";
     private syncListeners: Set<(status: SyncStatus) => void> = new Set();
 
@@ -74,9 +76,11 @@ class DriveServiceClass {
      */
     setAccessToken(token: string | null): void {
         this.accessToken = token;
-        // Reset folder ID when token changes (different user might login)
+        // Reset folder IDs when token changes (different user might login)
         if (!token) {
             this.appFolderId = null;
+            this.backupsFolderId = null;
+            this.backupsFolderPromise = null;
         }
     }
 
@@ -195,6 +199,78 @@ class DriveServiceClass {
         this.appFolderId = createResponse.id;
         console.log("Created new LifeOS folder:", this.appFolderId);
         return this.appFolderId;
+    }
+
+    /**
+     * Find or create the Backups subfolder inside the app folder
+     * Uses promise locking to prevent duplicate folder creation
+     */
+    async getOrCreateBackupsFolder(): Promise<string> {
+        // Return cached folder ID if available
+        if (this.backupsFolderId) {
+            return this.backupsFolderId;
+        }
+
+        // If a folder creation is already in progress, wait for it
+        if (this.backupsFolderPromise) {
+            return this.backupsFolderPromise;
+        }
+
+        // Create the promise and store it to prevent race conditions
+        this.backupsFolderPromise = this._createBackupsFolder();
+
+        try {
+            const folderId = await this.backupsFolderPromise;
+            return folderId;
+        } catch (error) {
+            // Reset promise on error so it can be retried
+            this.backupsFolderPromise = null;
+            throw error;
+        }
+    }
+
+    /**
+     * Internal method to actually create/find the Backups folder
+     */
+    private async _createBackupsFolder(): Promise<string> {
+        const appFolderId = await this.getOrCreateAppFolder();
+        const backupsFolderName = "Backups";
+
+        // Search for existing Backups folder inside app folder
+        const query = `name='${backupsFolderName}' and '${appFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+        const searchUrl = `${DRIVE_API_BASE}/files?q=${encodeURIComponent(
+            query
+        )}&fields=files(id,name)`;
+
+        const result = await this.request<DriveFileList>(searchUrl);
+
+        if (result.files && result.files.length > 0) {
+            this.backupsFolderId = result.files[0].id;
+            console.log("Found existing Backups folder:", this.backupsFolderId);
+            return this.backupsFolderId;
+        }
+
+        // Create new Backups folder
+        const folderMetadata = {
+            name: backupsFolderName,
+            mimeType: "application/vnd.google-apps.folder",
+            parents: [appFolderId],
+        };
+
+        const createResponse = await this.request<DriveFile>(
+            `${DRIVE_API_BASE}/files`,
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(folderMetadata),
+            }
+        );
+
+        this.backupsFolderId = createResponse.id;
+        console.log("Created new Backups folder:", this.backupsFolderId);
+        return this.backupsFolderId;
     }
 
     /**
@@ -357,14 +433,14 @@ class DriveServiceClass {
     }
 
     /**
-     * List all backup files in the app folder (excludes main data file)
+     * List all backup files in the Backups folder
      */
     async listBackups(): Promise<BackupInfo[]> {
         try {
-            const folderId = await this.getOrCreateAppFolder();
+            const backupsFolderId = await this.getOrCreateBackupsFolder();
 
-            // Only list files that start with "backup_" prefix
-            const query = `'${folderId}' in parents and trashed=false and name contains 'backup_'`;
+            // List all backup files in the Backups folder
+            const query = `'${backupsFolderId}' in parents and trashed=false and name contains 'backup_'`;
             const url = `${DRIVE_API_BASE}/files?q=${encodeURIComponent(
                 query
             )}&fields=files(id,name,modifiedTime,createdTime,size)&orderBy=modifiedTime desc`;
@@ -390,23 +466,76 @@ class DriveServiceClass {
     }
 
     /**
-     * Restore data from a backup file
+     * Find a file in the Backups folder
+     */
+    private async findBackupFile(fileName: string): Promise<DriveFile | null> {
+        const backupsFolderId = await this.getOrCreateBackupsFolder();
+
+        const query = `name='${fileName}' and '${backupsFolderId}' in parents and trashed=false`;
+        const searchUrl = `${DRIVE_API_BASE}/files?q=${encodeURIComponent(
+            query
+        )}&fields=files(id,name,modifiedTime,createdTime,size)`;
+
+        const result = await this.request<DriveFileList>(searchUrl);
+
+        return result.files && result.files.length > 0 ? result.files[0] : null;
+    }
+
+    /**
+     * Restore data from a backup file in the Backups folder
      */
     async restoreBackup<T>(backupFileName: string): Promise<T | null> {
         console.log(`🔄 Restoring from backup: ${backupFileName}`);
-        return this.loadData<T>(backupFileName);
+
+        try {
+            const file = await this.findBackupFile(backupFileName);
+
+            if (!file) {
+                console.log(`Backup file not found: ${backupFileName}`);
+                return null;
+            }
+
+            const url = `${DRIVE_API_BASE}/files/${file.id}?alt=media`;
+            const data = await this.request<T>(url);
+
+            console.log(`Loaded backup: ${backupFileName}`);
+            return data;
+        } catch (error) {
+            console.error(`Error loading backup ${backupFileName}:`, error);
+            throw error;
+        }
     }
 
     /**
-     * Delete a backup file by filename
+     * Delete a backup file from the Backups folder
      */
     async deleteBackup(backupFileName: string): Promise<boolean> {
         console.log(`🗑️ Deleting backup: ${backupFileName}`);
-        return this.deleteFile(backupFileName);
+
+        try {
+            const file = await this.findBackupFile(backupFileName);
+
+            if (!file) {
+                console.log(
+                    `Backup file not found for deletion: ${backupFileName}`
+                );
+                return false;
+            }
+
+            await this.request(`${DRIVE_API_BASE}/files/${file.id}`, {
+                method: "DELETE",
+            });
+
+            console.log(`Deleted backup: ${backupFileName}`);
+            return true;
+        } catch (error) {
+            console.error(`Error deleting backup ${backupFileName}:`, error);
+            throw error;
+        }
     }
 
     /**
-     * Create a timestamped backup of current data
+     * Create a timestamped backup in the Backups folder
      */
     async createBackup<T>(
         data: T,
@@ -415,7 +544,51 @@ class DriveServiceClass {
         const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
         const fileName = `${prefix}_${timestamp}.json`;
 
-        return this.saveData(fileName, data);
+        const backupsFolderId = await this.getOrCreateBackupsFolder();
+
+        const metadata = {
+            name: fileName,
+            mimeType: "application/json",
+            parents: [backupsFolderId],
+        };
+
+        const jsonData = JSON.stringify(data, null, 2);
+        const blob = new Blob([jsonData], { type: "application/json" });
+
+        // Create multipart request body
+        const boundary = "-------lifeos_boundary";
+        const delimiter = `\r\n--${boundary}\r\n`;
+        const closeDelimiter = `\r\n--${boundary}--`;
+
+        const body = new Blob([
+            delimiter,
+            "Content-Type: application/json; charset=UTF-8\r\n\r\n",
+            JSON.stringify(metadata),
+            delimiter,
+            "Content-Type: application/json\r\n\r\n",
+            blob,
+            closeDelimiter,
+        ]);
+
+        const url = `${DRIVE_UPLOAD_API}/files?uploadType=multipart&fields=id,name,modifiedTime,createdTime,size`;
+
+        const result = await this.request<DriveFile>(url, {
+            method: "POST",
+            headers: {
+                "Content-Type": `multipart/related; boundary=${boundary}`,
+            },
+            body,
+        });
+
+        console.log(`Created backup: ${fileName}`);
+        return result;
+    }
+
+    /**
+     * Download a backup file content
+     */
+    async downloadBackup<T>(backupFileName: string): Promise<T | null> {
+        return this.restoreBackup<T>(backupFileName);
     }
 
     /**
