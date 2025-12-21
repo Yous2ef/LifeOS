@@ -13,9 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
-
-// Storage key must match useFinance hook
-const FINANCE_DATA_KEY = "lifeos-finance-data";
+import { useApp } from "@/context/AppContext";
 
 interface FinanceWidgetProps {
     compact?: boolean;
@@ -23,25 +21,20 @@ interface FinanceWidgetProps {
 
 export function FinanceWidget({ compact = false }: FinanceWidgetProps) {
     const navigate = useNavigate();
+    const { data } = useApp();
 
-    // Load finance data directly from localStorage for Dashboard integration
+    // Get finance data from unified AppContext
     const financeData = useMemo(() => {
-        try {
-            const stored = localStorage.getItem(FINANCE_DATA_KEY);
-            if (stored) {
-                return JSON.parse(stored);
+        return (
+            data.finance || {
+                incomes: [],
+                expenses: [],
+                installments: [],
+                goals: [],
+                settings: { defaultCurrency: "EGP" },
             }
-        } catch (e) {
-            console.error("Error loading finance data:", e);
-        }
-        return {
-            incomes: [],
-            expenses: [],
-            installments: [],
-            goals: [],
-            settings: { currency: "EGP" },
-        };
-    }, []);
+        );
+    }, [data.finance]);
 
     // Calculate this month's stats
     const stats = useMemo(() => {
@@ -133,7 +126,7 @@ export function FinanceWidget({ compact = false }: FinanceWidgetProps) {
 
     // Format currency
     const formatCurrency = (amount: number): string => {
-        const currency = financeData.settings?.currency || "EGP";
+        const currency = financeData.settings?.defaultCurrency || "EGP";
         const symbols: Record<string, string> = {
             EGP: "ج.م",
             USD: "$",
