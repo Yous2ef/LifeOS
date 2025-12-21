@@ -51,9 +51,7 @@ export const GoogleLoginButton: React.FC<GoogleLoginButtonProps> = ({
                     </>
                 )}
             </Button>
-            {error && (
-                <p className="text-sm text-destructive mt-2">{error}</p>
-            )}
+            {error && <p className="text-sm text-destructive mt-2">{error}</p>}
         </div>
     );
 };
