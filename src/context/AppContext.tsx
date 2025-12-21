@@ -8,10 +8,7 @@ import React, {
     type ReactNode,
 } from "react";
 import type { AppData, Toast, DismissedNotification } from "../types";
-import {
-    loadData as loadStorageData,
-    saveData as saveStorageData,
-} from "../utils/storage";
+import { loadData as loadStorageData } from "../utils/storage";
 import { generateId } from "../utils/helpers";
 import { useStorageContext, STORAGE_KEYS } from "./StorageContext";
 
@@ -51,6 +48,8 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
     // Track if update came from external sync to prevent save loop
     const isExternalUpdate = useRef(false);
+    // Track if this is the initial mount to skip saving on first render
+    const isInitialMount = useRef(true);
 
     const [data, setData] = useState<AppData>(() => {
         // Load data from unified V2 storage (handles V1→V2 migration automatically)
@@ -100,8 +99,17 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         return unsubscribe;
     }, [subscribeToKey]);
 
-    // Persist to V2 unified storage only
+    // Get saveData from StorageContext for cloud sync support
+    const { saveData: saveToStorage } = useStorageContext();
+
+    // Persist to V2 unified storage with cloud sync
     useEffect(() => {
+        // Skip save on initial mount - we just loaded the data, no need to save it back
+        if (isInitialMount.current) {
+            isInitialMount.current = false;
+            return;
+        }
+
         // Skip save if update came from external sync
         if (isExternalUpdate.current) {
             isExternalUpdate.current = false;
@@ -109,12 +117,12 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         }
 
         try {
-            // Save to V2 unified storage (single key: "lifeos")
-            saveStorageData(data);
+            // Save to storage (local + cloud via StorageService)
+            saveToStorage(data);
         } catch (error) {
             console.error("Failed to save app data:", error);
         }
-    }, [data]);
+    }, [data, saveToStorage]);
 
     const updateData = (newData: Partial<AppData>) => {
         setData((prev) => {

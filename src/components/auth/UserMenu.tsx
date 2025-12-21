@@ -1,5 +1,7 @@
 import React, { useState } from "react";
 import { useAuth } from "../../context/AuthContext";
+import { useStorageContext } from "../../context/StorageContext";
+import { formatDistanceToNow } from "date-fns";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -18,6 +20,7 @@ import {
     RefreshCw,
     Loader2,
     ChevronDown,
+    Check,
 } from "lucide-react";
 
 interface UserMenuProps {
@@ -30,7 +33,9 @@ export const UserMenu: React.FC<UserMenuProps> = ({
     variant = "avatar",
 }) => {
     const { user, logout, isAuthenticated, accessToken } = useAuth();
+    const { syncNow, isSyncing, lastSyncTime } = useStorageContext();
     const [isLoggingOut, setIsLoggingOut] = useState(false);
+    const [justSynced, setJustSynced] = useState(false);
 
     const handleLogout = async () => {
         setIsLoggingOut(true);
@@ -39,6 +44,25 @@ export const UserMenu: React.FC<UserMenuProps> = ({
         } finally {
             setIsLoggingOut(false);
         }
+    };
+
+    const handleSyncNow = async () => {
+        try {
+            await syncNow();
+            setJustSynced(true);
+            // Reset the "just synced" state after 3 seconds
+            setTimeout(() => setJustSynced(false), 3000);
+        } catch (error) {
+            console.error("Sync failed:", error);
+        }
+    };
+
+    // Format last sync time
+    const getLastSyncText = () => {
+        if (!lastSyncTime) return "Never synced";
+        return `Last synced ${formatDistanceToNow(lastSyncTime, {
+            addSuffix: true,
+        })}`;
     };
 
     if (!isAuthenticated || !user) {
@@ -138,8 +162,10 @@ export const UserMenu: React.FC<UserMenuProps> = ({
                 <DropdownMenuSeparator />
 
                 {/* Sync Status */}
-                <DropdownMenuItem className="cursor-default" disabled>
-                    <div className="flex items-center gap-2 text-sm">
+                <DropdownMenuItem
+                    className="cursor-default flex-col items-start"
+                    disabled>
+                    <div className="flex items-center gap-2 text-sm w-full">
                         {accessToken ? (
                             <>
                                 <Cloud className="h-4 w-4 text-green-500" />
@@ -156,17 +182,37 @@ export const UserMenu: React.FC<UserMenuProps> = ({
                             </>
                         )}
                     </div>
+                    {accessToken && (
+                        <p className="text-xs text-muted-foreground mt-1 ml-6">
+                            {getLastSyncText()}
+                        </p>
+                    )}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
 
                 {/* Actions */}
                 <DropdownMenuItem
-                    onClick={() => {
-                        // TODO: Navigate to settings or trigger sync
-                    }}
+                    onClick={handleSyncNow}
+                    disabled={isSyncing || !accessToken}
                     className="cursor-pointer">
-                    <RefreshCw className="mr-2 h-4 w-4" />
-                    <span>Sync Now</span>
+                    {isSyncing ? (
+                        <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            <span>Syncing...</span>
+                        </>
+                    ) : justSynced ? (
+                        <>
+                            <Check className="mr-2 h-4 w-4 text-green-500" />
+                            <span className="text-green-600 dark:text-green-400">
+                                Synced!
+                            </span>
+                        </>
+                    ) : (
+                        <>
+                            <RefreshCw className="mr-2 h-4 w-4" />
+                            <span>Sync Now</span>
+                        </>
+                    )}
                 </DropdownMenuItem>
 
                 <DropdownMenuItem

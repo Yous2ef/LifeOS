@@ -8,3 +8,5 @@ export type { ListCardBadge, ListCardAction } from "./ListCard";
 export { WelcomeModal } from "./WelcomeModal";
 export { MigrationModal } from "./MigrationModal";
 export type { MigrationStatus } from "./MigrationModal";
+export { SyncConflictModal } from "./SyncConflictModal";
+export type { ConflictResolution, ConflictData } from "./SyncConflictModal";

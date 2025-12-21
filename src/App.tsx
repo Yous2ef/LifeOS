@@ -4,9 +4,14 @@ import { Toaster } from "react-hot-toast";
 import { AppProvider, useApp } from "./context/AppContext";
 import { ThemeProvider } from "./components/theme-provider";
 import { Layout } from "./components/layout/Layout";
-import { WelcomeModal, MigrationModal } from "./components/common";
+import {
+    WelcomeModal,
+    MigrationModal,
+    SyncConflictModal,
+} from "./components/common";
 import { isFirstTime, markFirstTimeComplete } from "./utils/storage";
 import { useMigration } from "./hooks/useMigration";
+import { useStorageContext } from "./context/StorageContext";
 
 // Lazy load all page components for code splitting
 const Dashboard = lazy(() =>
@@ -58,8 +63,12 @@ const LoadingFallback = () => (
 
 // Inner component that has access to AppContext
 const AppContent: React.FC = () => {
-    const { data, updateData } = useApp();
+    const { data, updateData, refreshData } = useApp();
     const [showWelcome, setShowWelcome] = useState(false);
+
+    // Storage context for sync conflict handling
+    const { hasConflict, conflictData, resolveConflict, isResolvingConflict } =
+        useStorageContext();
 
     // Migration hook
     const {
@@ -77,6 +86,15 @@ const AppContent: React.FC = () => {
             setShowWelcome(true);
         }
     }, []);
+
+    // Handle conflict resolution
+    const handleConflictResolve = async (
+        resolution: "cloud" | "local" | "merge"
+    ) => {
+        await resolveConflict(resolution);
+        // Refresh app data after conflict resolution
+        refreshData();
+    };
 
     const handleWelcomeComplete = (name: string) => {
         // Update the user's name in settings
@@ -159,6 +177,15 @@ const AppContent: React.FC = () => {
                 status={migrationStatus}
                 error={migrationError}
             />
+            {/* Sync conflict modal for when local and cloud data diverge */}
+            {hasConflict && conflictData && (
+                <SyncConflictModal
+                    isOpen={hasConflict && !showWelcome && !showMigrationModal}
+                    onResolve={handleConflictResolve}
+                    conflictData={conflictData}
+                    isResolving={isResolvingConflict}
+                />
+            )}
         </>
     );
 };

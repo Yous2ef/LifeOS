@@ -32,6 +32,12 @@ export const createDefaultSettings = (): SettingsData => ({
     theme: "dark",
     userName: "User",
     email: "",
+    backup: {
+        autoBackupEnabled: false,
+        frequency: "weekly",
+        lastBackupTime: null,
+        maxBackups: 5,
+    },
 });
 
 /**

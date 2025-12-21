@@ -10,6 +10,8 @@ import { Cloud, CloudOff, Loader2, Check, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "../../context/AuthContext";
 import { useDrive } from "../../hooks/useDrive";
+import { useStorageContext } from "../../context/StorageContext";
+import { formatDistanceToNow } from "date-fns";
 import {
     Tooltip,
     TooltipContent,
@@ -20,14 +22,31 @@ import {
 interface SyncStatusProps {
     className?: string;
     showLabel?: boolean;
+    showTime?: boolean; // Show last sync time
 }
 
 export const SyncStatus: React.FC<SyncStatusProps> = ({
     className = "",
     showLabel = false,
+    showTime = false,
 }) => {
     const { isAuthenticated, accessToken } = useAuth();
     const { syncStatus } = useDrive();
+    const { lastSyncTime, isSyncing } = useStorageContext();
+
+    // Format last sync time - short version
+    const getLastSyncShort = () => {
+        if (!lastSyncTime) return "Never";
+        return formatDistanceToNow(lastSyncTime, { addSuffix: false });
+    };
+
+    // Format last sync time - full version
+    const getLastSyncText = () => {
+        if (!lastSyncTime) return "Never synced";
+        return `Last synced ${formatDistanceToNow(lastSyncTime, {
+            addSuffix: true,
+        })}`;
+    };
 
     // Not authenticated - show offline status
     if (!isAuthenticated || !accessToken) {
@@ -47,15 +66,28 @@ export const SyncStatus: React.FC<SyncStatusProps> = ({
                         </div>
                     </TooltipTrigger>
                     <TooltipContent>
-                        <p>Sign in to sync with Google Drive</p>
+                        <p>Data is stored locally only</p>
+                        <p className="text-xs text-muted-foreground">
+                            Sign in to sync with Google Drive
+                        </p>
                     </TooltipContent>
                 </Tooltip>
             </TooltipProvider>
         );
     }
 
-    // Get status icon and styling
+    // Get status icon and styling - combine DriveService sync and StorageContext sync
     const getStatusDisplay = () => {
+        // If StorageContext is syncing, show that
+        if (isSyncing) {
+            return {
+                icon: <Loader2 className="h-4 w-4 animate-spin" />,
+                label: "Syncing...",
+                color: "text-blue-500",
+                tooltip: "Syncing with Google Drive...",
+            };
+        }
+
         switch (syncStatus) {
             case "syncing":
                 return {
@@ -90,25 +122,37 @@ export const SyncStatus: React.FC<SyncStatusProps> = ({
     };
 
     const status = getStatusDisplay();
+    const lastSyncText = getLastSyncText();
 
     return (
         <TooltipProvider>
             <Tooltip>
                 <TooltipTrigger asChild>
-                    <div
-                        className={cn(
-                            "flex items-center gap-2",
-                            status.color,
-                            className
-                        )}>
-                        {status.icon}
-                        {showLabel && (
-                            <span className="text-xs">{status.label}</span>
+                    <div className={cn("flex flex-col", className)}>
+                        <div
+                            className={cn(
+                                "flex items-center gap-2",
+                                status.color
+                            )}>
+                            {status.icon}
+                            {showLabel && (
+                                <span className="text-xs">{status.label}</span>
+                            )}
+                        </div>
+                        {showTime && lastSyncTime && (
+                            <span className="text-[10px] text-muted-foreground ml-6">
+                                {getLastSyncShort()} ago
+                            </span>
                         )}
                     </div>
                 </TooltipTrigger>
                 <TooltipContent>
                     <p>{status.tooltip}</p>
+                    {lastSyncText && (
+                        <p className="text-xs text-muted-foreground">
+                            {lastSyncText}
+                        </p>
+                    )}
                 </TooltipContent>
             </Tooltip>
         </TooltipProvider>

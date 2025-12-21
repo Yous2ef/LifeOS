@@ -25,7 +25,7 @@ import { ThemeToggle } from "../theme-toggle";
 import { Button } from "@/components/ui/Button";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "../../context/AuthContext";
-import { UserMenu } from "../auth";
+import { UserMenu, SyncStatus } from "../auth";
 
 interface MobileNavProps {
     onImport: () => void;
@@ -66,6 +66,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({ onImport }) => {
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
+                        <SyncStatus />
                         <NotificationCenter />
                         <ThemeToggle />
                         {/* User Menu in header for quick access */}
@@ -178,9 +179,20 @@ export const MobileNav: React.FC<MobileNavProps> = ({ onImport }) => {
                                                 </p>
                                             </div>
                                         </div>
+                                        {/* Sync Status indicator */}
+                                        <div className="px-2 py-1">
+                                            <SyncStatus showLabel showTime />
+                                        </div>
                                         <Separator className="my-2" />
                                     </>
                                 )
+                            )}
+
+                            {/* Show sync status for local mode too */}
+                            {!isAuthenticated && (
+                                <div className="px-2 py-1 mb-2">
+                                    <SyncStatus showLabel showTime />
+                                </div>
                             )}
 
                             <Button

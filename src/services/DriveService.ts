@@ -357,13 +357,14 @@ class DriveServiceClass {
     }
 
     /**
-     * List all backup files in the app folder
+     * List all backup files in the app folder (excludes main data file)
      */
     async listBackups(): Promise<BackupInfo[]> {
         try {
             const folderId = await this.getOrCreateAppFolder();
 
-            const query = `'${folderId}' in parents and trashed=false`;
+            // Only list files that start with "backup_" prefix
+            const query = `'${folderId}' in parents and trashed=false and name contains 'backup_'`;
             const url = `${DRIVE_API_BASE}/files?q=${encodeURIComponent(
                 query
             )}&fields=files(id,name,modifiedTime,createdTime,size)&orderBy=modifiedTime desc`;
@@ -386,6 +387,22 @@ class DriveServiceClass {
             console.error("Error listing backups:", error);
             throw error;
         }
+    }
+
+    /**
+     * Restore data from a backup file
+     */
+    async restoreBackup<T>(backupFileName: string): Promise<T | null> {
+        console.log(`🔄 Restoring from backup: ${backupFileName}`);
+        return this.loadData<T>(backupFileName);
+    }
+
+    /**
+     * Delete a backup file by filename
+     */
+    async deleteBackup(backupFileName: string): Promise<boolean> {
+        console.log(`🗑️ Deleting backup: ${backupFileName}`);
+        return this.deleteFile(backupFileName);
     }
 
     /**

@@ -29,8 +29,11 @@ import {
     type StorageKey,
     type StorageMode,
 } from "../services/StorageService";
+import { DriveService } from "../services/DriveService";
+import { DRIVE_FILE } from "../config/google";
 import type { AppData } from "../types";
 import type { StorageV2 } from "../utils/storageV2";
+import type { ConflictData, ConflictResolution } from "../components/common";
 
 interface StorageContextType {
     // Mode
@@ -41,6 +44,12 @@ interface StorageContextType {
     // Status
     isSyncing: boolean;
     lastSyncTime: Date | null;
+
+    // Conflict handling
+    hasConflict: boolean;
+    conflictData: ConflictData | null;
+    resolveConflict: (resolution: ConflictResolution) => Promise<void>;
+    isResolvingConflict: boolean;
 
     // Operations (V2 - unified AppData)
     saveData: (data: AppData) => void;
@@ -81,6 +90,11 @@ export const StorageProvider: React.FC<StorageProviderProps> = ({
     const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
     const [isReady, setIsReady] = useState(false);
 
+    // Conflict state
+    const [hasConflict, setHasConflict] = useState(false);
+    const [conflictData, setConflictData] = useState<ConflictData | null>(null);
+    const [isResolvingConflict, setIsResolvingConflict] = useState(false);
+
     // Subscribers for storage changes
     const subscribers = useRef<Map<StorageKey, Set<(data: unknown) => void>>>(
         new Map()
@@ -99,6 +113,8 @@ export const StorageProvider: React.FC<StorageProviderProps> = ({
         // Reset sync state when switching to local
         if (newMode === "local") {
             initialSyncDone.current = false;
+            setHasConflict(false);
+            setConflictData(null);
         }
     }, [isAuthenticated, accessToken]);
 
@@ -112,6 +128,7 @@ export const StorageProvider: React.FC<StorageProviderProps> = ({
                 try {
                     // Check if cloud has data
                     const hasCloud = await StorageService.hasAnyCloudData();
+                    const hasLocal = StorageService.hasLocalData();
 
                     if (!hasCloud) {
                         // No cloud data - upload local data
@@ -119,24 +136,59 @@ export const StorageProvider: React.FC<StorageProviderProps> = ({
                             "☁️ First login: uploading local data to cloud..."
                         );
                         await StorageService.syncLocalToCloud();
-                    } else {
-                        // Cloud has data - download to local
-                        console.log("☁️ Cloud data found: syncing to local...");
+                        setLastSyncTime(new Date());
+                    } else if (!hasLocal) {
+                        // No local data - download cloud data
+                        console.log(
+                            "☁️ No local data: downloading from cloud..."
+                        );
                         await StorageService.syncCloudToLocal();
+                        notifySubscribers();
+                        setLastSyncTime(new Date());
+                    } else {
+                        // Both have data - check for conflict
+                        console.log(
+                            "☁️ Both local and cloud have data, checking for conflicts..."
+                        );
+                        const conflict = await StorageService.detectConflict();
 
-                        // Notify all subscribers to refresh their data
-                        const localData =
-                            StorageService.loadFromLocal<StorageV2>(
-                                STORAGE_KEYS.MAIN_DATA
-                            );
-                        if (localData) {
-                            subscribers.current.forEach((callbacks) => {
-                                callbacks.forEach((cb) => cb(localData.data));
+                        if (
+                            conflict.hasConflict &&
+                            conflict.localMeta &&
+                            conflict.cloudMeta
+                        ) {
+                            console.log("⚠️ Sync conflict detected!");
+                            setConflictData({
+                                localLastModified:
+                                    conflict.localMeta.lastModified,
+                                cloudLastModified:
+                                    conflict.cloudMeta.lastModified,
+                                localDataSize: conflict.localMeta.size,
+                                cloudDataSize: conflict.cloudMeta.size,
                             });
+                            setHasConflict(true);
+                        } else {
+                            // No conflict - sync newer to older
+                            if (conflict.localMeta && conflict.cloudMeta) {
+                                if (
+                                    conflict.localMeta.lastModified >
+                                    conflict.cloudMeta.lastModified
+                                ) {
+                                    console.log(
+                                        "☁️ Local is newer, syncing to cloud..."
+                                    );
+                                    await StorageService.syncLocalToCloud();
+                                } else {
+                                    console.log(
+                                        "☁️ Cloud is newer, syncing to local..."
+                                    );
+                                    await StorageService.syncCloudToLocal();
+                                    notifySubscribers();
+                                }
+                            }
+                            setLastSyncTime(new Date());
                         }
                     }
-
-                    setLastSyncTime(new Date());
                 } catch (error) {
                     console.error("❌ Initial sync failed:", error);
                 } finally {
@@ -147,6 +199,122 @@ export const StorageProvider: React.FC<StorageProviderProps> = ({
 
         performInitialSync();
     }, [mode, accessToken]);
+
+    // Helper to notify all subscribers of data changes
+    const notifySubscribers = useCallback(() => {
+        const localData = StorageService.loadFromLocal<StorageV2>(
+            STORAGE_KEYS.MAIN_DATA
+        );
+        if (localData) {
+            subscribers.current.forEach((callbacks) => {
+                callbacks.forEach((cb) => cb(localData.data));
+            });
+        }
+    }, []);
+
+    // Background sync check - polls for cloud changes when user is already signed in
+    // This handles the case where user has multiple devices/tabs and cloud is updated elsewhere
+    useEffect(() => {
+        // Only run after initial sync is complete and user is authenticated
+        if (mode !== "cloud" || !initialSyncDone.current || !accessToken) {
+            return;
+        }
+
+        const SYNC_CHECK_INTERVAL = 30000; // Check every 30 seconds
+
+        const checkForCloudUpdates = async () => {
+            // Skip if already syncing or resolving conflict
+            if (isSyncing || isResolvingConflict || hasConflict) {
+                return;
+            }
+
+            try {
+                const localMeta = StorageService.getLocalStorageMetadata();
+                const cloudMeta =
+                    await StorageService.getCloudStorageMetadata();
+
+                if (!localMeta || !cloudMeta) {
+                    return;
+                }
+
+                // If cloud is newer than local, auto-download
+                if (cloudMeta.lastModified > localMeta.lastModified) {
+                    console.log("☁️ Cloud has newer data, auto-syncing...");
+
+                    // Compare actual data to confirm there's a real change
+                    const localStorage =
+                        StorageService.loadFromLocal<StorageV2>(
+                            STORAGE_KEYS.MAIN_DATA
+                        );
+                    const cloudData = await DriveService.loadData<StorageV2>(
+                        DRIVE_FILE
+                    );
+
+                    if (localStorage && cloudData) {
+                        const localDataStr = JSON.stringify(localStorage.data);
+                        const cloudDataStr = JSON.stringify(cloudData.data);
+
+                        if (localDataStr !== cloudDataStr) {
+                            // Cloud has different/newer data, pull it
+                            setIsSyncing(true);
+                            await StorageService.syncCloudToLocal();
+                            notifySubscribers();
+                            setLastSyncTime(new Date());
+                            setIsSyncing(false);
+                            console.log(
+                                "✅ Auto-synced from cloud (background check)"
+                            );
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error("❌ Background sync check failed:", error);
+            }
+        };
+
+        // Run immediately once, then set up interval
+        const timeoutId = setTimeout(checkForCloudUpdates, 5000); // First check after 5 seconds
+        const intervalId = setInterval(
+            checkForCloudUpdates,
+            SYNC_CHECK_INTERVAL
+        );
+
+        return () => {
+            clearTimeout(timeoutId);
+            clearInterval(intervalId);
+        };
+    }, [
+        mode,
+        accessToken,
+        isSyncing,
+        isResolvingConflict,
+        hasConflict,
+        notifySubscribers,
+    ]);
+
+    // Resolve conflict with user choice
+    const resolveConflict = useCallback(
+        async (resolution: ConflictResolution): Promise<void> => {
+            setIsResolvingConflict(true);
+            try {
+                await StorageService.resolveConflict(resolution);
+                setHasConflict(false);
+                setConflictData(null);
+                setLastSyncTime(new Date());
+
+                // Notify subscribers of the resolved data
+                notifySubscribers();
+
+                console.log(`✅ Conflict resolved using: ${resolution}`);
+            } catch (error) {
+                console.error("❌ Failed to resolve conflict:", error);
+                throw error;
+            } finally {
+                setIsResolvingConflict(false);
+            }
+        },
+        [notifySubscribers]
+    );
 
     // Mark as ready once mode is determined
     useEffect(() => {
@@ -183,6 +351,82 @@ export const StorageProvider: React.FC<StorageProviderProps> = ({
         return storage?.data ?? null;
     }, []);
 
+    // Auto-backup scheduler - checks if a backup is due based on user settings
+    useEffect(() => {
+        // Only run in cloud mode after initial sync
+        if (mode !== "cloud" || !initialSyncDone.current || !accessToken) {
+            return;
+        }
+
+        const checkAndRunAutoBackup = async () => {
+            try {
+                const currentData = loadData();
+                if (!currentData?.settings?.backup?.autoBackupEnabled) {
+                    return; // Auto-backup is disabled
+                }
+
+                const backupSettings = currentData.settings.backup;
+                const lastBackupTime = backupSettings.lastBackupTime;
+                const frequency = backupSettings.frequency;
+                const now = Date.now();
+
+                // Calculate interval in milliseconds
+                const frequencyMs: Record<string, number> = {
+                    daily: 24 * 60 * 60 * 1000,
+                    every2days: 2 * 24 * 60 * 60 * 1000,
+                    weekly: 7 * 24 * 60 * 60 * 1000,
+                    monthly: 30 * 24 * 60 * 60 * 1000,
+                };
+
+                const interval = frequencyMs[frequency];
+                if (!interval) return;
+
+                // Check if backup is due
+                const isBackupDue =
+                    !lastBackupTime || now - lastBackupTime > interval;
+
+                if (isBackupDue) {
+                    console.log("⏰ Auto-backup is due, creating backup...");
+
+                    // Create backup
+                    const result = await StorageService.createCloudBackup();
+
+                    if (result.success) {
+                        // Cleanup old backups
+                        await StorageService.cleanupOldBackups(
+                            backupSettings.maxBackups || 5
+                        );
+
+                        // Update lastBackupTime in the data
+                        const updatedData = {
+                            ...currentData,
+                            settings: {
+                                ...currentData.settings,
+                                backup: {
+                                    ...backupSettings,
+                                    lastBackupTime: now,
+                                },
+                            },
+                        };
+
+                        // Save the updated settings (this will sync to cloud)
+                        StorageService.saveAppData(updatedData);
+                        notifySubscribers();
+
+                        console.log("✅ Auto-backup completed");
+                    }
+                }
+            } catch (error) {
+                console.error("❌ Auto-backup failed:", error);
+            }
+        };
+
+        // Check once on mount (after 10 second delay to let everything stabilize)
+        const timeoutId = setTimeout(checkAndRunAutoBackup, 10000);
+
+        return () => clearTimeout(timeoutId);
+    }, [mode, accessToken, loadData, notifySubscribers]);
+
     // Manual sync trigger
     const syncNow = useCallback(
         async function syncNowFn(): Promise<void> {
@@ -193,13 +437,27 @@ export const StorageProvider: React.FC<StorageProviderProps> = ({
 
             setIsSyncing(true);
             try {
+                // First flush any pending debounced saves
                 await StorageService.flushPendingSaves();
+
+                // Then force an immediate sync with updated timestamp
+                const currentData = loadData();
+                if (currentData) {
+                    console.log(
+                        "☁️ Manual sync: forcing immediate cloud save..."
+                    );
+                    await StorageService.saveAppData(currentData, {
+                        immediate: true,
+                    });
+                }
+
                 setLastSyncTime(new Date());
+                console.log("✅ Manual sync completed");
             } finally {
                 setIsSyncing(false);
             }
         },
-        [mode]
+        [mode, loadData]
     );
 
     // Subscribe to storage changes
@@ -227,6 +485,10 @@ export const StorageProvider: React.FC<StorageProviderProps> = ({
                 isReady,
                 isSyncing,
                 lastSyncTime,
+                hasConflict,
+                conflictData,
+                resolveConflict,
+                isResolvingConflict,
                 saveData,
                 loadData,
                 syncNow,

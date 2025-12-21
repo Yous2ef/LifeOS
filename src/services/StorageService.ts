@@ -359,6 +359,388 @@ class StorageServiceClass {
     }
 
     /**
+     * Check if local storage has meaningful data (not just defaults)
+     */
+    hasLocalData(): boolean {
+        const storage = this.loadFromLocal<StorageV2>(STORAGE_KEYS.MAIN_DATA);
+        if (!storage?.data) return false;
+
+        // Check if any module has actual data
+        const data = storage.data;
+        return (
+            (data.university?.subjects?.length ?? 0) > 0 ||
+            (data.university?.tasks?.length ?? 0) > 0 ||
+            (data.freelancing?.projects?.length ?? 0) > 0 ||
+            (data.freelancing?.applications?.length ?? 0) > 0 ||
+            (data.programming?.projects?.length ?? 0) > 0 ||
+            (data.programming?.learningItems?.length ?? 0) > 0 ||
+            (data.finance?.incomes?.length ?? 0) > 0 ||
+            (data.finance?.expenses?.length ?? 0) > 0 ||
+            (data.home?.tasks?.length ?? 0) > 0 ||
+            (data.misc?.notes?.length ?? 0) > 0
+        );
+    }
+
+    /**
+     * Get local storage metadata
+     */
+    getLocalStorageMetadata(): { lastModified: Date; size: number } | null {
+        const storage = this.loadFromLocal<StorageV2>(STORAGE_KEYS.MAIN_DATA);
+        if (!storage) return null;
+
+        const stored = localStorage.getItem(STORAGE_KEYS.MAIN_DATA);
+        const size = stored ? new Blob([stored]).size : 0;
+
+        return {
+            lastModified: new Date(storage.lastModified),
+            size,
+        };
+    }
+
+    /**
+     * Get cloud storage metadata
+     */
+    async getCloudStorageMetadata(): Promise<{
+        lastModified: Date;
+        size: number;
+    } | null> {
+        if (!this.isCloudMode()) return null;
+
+        try {
+            const cloudData = await DriveService.loadData<StorageV2>(
+                DRIVE_FILE
+            );
+            if (!cloudData) return null;
+
+            // Estimate size from stringified data
+            const size = new Blob([JSON.stringify(cloudData)]).size;
+
+            return {
+                lastModified: new Date(cloudData.lastModified),
+                size,
+            };
+        } catch {
+            return null;
+        }
+    }
+
+    /**
+     * Detect if there's a conflict between local and cloud data
+     *
+     * A conflict only exists when:
+     * - Local has NEWER data than cloud (user made changes locally)
+     * - AND the data is actually different
+     *
+     * If cloud is newer, that's NOT a conflict - just download it.
+     * If data is identical, that's NOT a conflict - just sync timestamps.
+     */
+    async detectConflict(): Promise<{
+        hasConflict: boolean;
+        localMeta?: { lastModified: Date; size: number };
+        cloudMeta?: { lastModified: Date; size: number };
+    }> {
+        const localMeta = this.getLocalStorageMetadata();
+        const cloudMeta = await this.getCloudStorageMetadata();
+
+        // No conflict if either side has no data
+        if (!localMeta || !cloudMeta) {
+            return {
+                hasConflict: false,
+                localMeta: localMeta ?? undefined,
+                cloudMeta: cloudMeta ?? undefined,
+            };
+        }
+
+        // Check if local has meaningful data
+        const hasLocalData = this.hasLocalData();
+        if (!hasLocalData) {
+            return { hasConflict: false, localMeta, cloudMeta };
+        }
+
+        // Step 1: If timestamps are exactly the same, no conflict
+        if (
+            localMeta.lastModified.getTime() ===
+            cloudMeta.lastModified.getTime()
+        ) {
+            console.log("☁️ Timestamps match exactly, no conflict");
+            return { hasConflict: false, localMeta, cloudMeta };
+        }
+
+        // Step 2: If cloud is newer than local, NO conflict - just download cloud
+        // This handles the case where another device synced and this device just needs to update
+        if (cloudMeta.lastModified > localMeta.lastModified) {
+            console.log(
+                "☁️ Cloud is newer than local, will auto-sync from cloud"
+            );
+            return { hasConflict: false, localMeta, cloudMeta };
+        }
+
+        // Step 3: Local is newer - check if data is actually different
+        const localStorage = this.loadFromLocal<StorageV2>(
+            STORAGE_KEYS.MAIN_DATA
+        );
+        const cloudData = await DriveService.loadData<StorageV2>(DRIVE_FILE);
+
+        if (!localStorage || !cloudData) {
+            return { hasConflict: false, localMeta, cloudMeta };
+        }
+
+        // Compare actual data (excluding metadata like lastModified)
+        const localDataStr = JSON.stringify(localStorage.data);
+        const cloudDataStr = JSON.stringify(cloudData.data);
+
+        if (localDataStr === cloudDataStr) {
+            // Data is identical, just sync the timestamps (upload local since it's newer)
+            console.log(
+                "☁️ Data is identical, local is newer - syncing to cloud..."
+            );
+            await this.syncLocalToCloud();
+            return { hasConflict: false, localMeta, cloudMeta };
+        }
+
+        // Local is newer AND data is different - this is a real conflict
+        // User made changes locally that differ from cloud
+        console.log(
+            "⚠️ Local is newer with different data - conflict detected"
+        );
+        return { hasConflict: true, localMeta, cloudMeta };
+    }
+
+    /**
+     * Merge local and cloud data, keeping newest items from each module
+     */
+    async mergeLocalAndCloud(): Promise<StorageV2> {
+        const localStorage = this.loadFromLocal<StorageV2>(
+            STORAGE_KEYS.MAIN_DATA
+        );
+        const cloudData = await DriveService.loadData<StorageV2>(DRIVE_FILE);
+
+        // If one side is missing, return the other
+        if (!localStorage && cloudData) return cloudData;
+        if (localStorage && !cloudData) return localStorage;
+        if (!localStorage && !cloudData) {
+            // Both missing, return empty structure
+            throw new Error("No data to merge");
+        }
+
+        const local = localStorage!.data;
+        const cloud = cloudData!.data;
+
+        // Helper to merge arrays by id, keeping newest by checking all items
+        const mergeArraysById = <T extends { id: string }>(
+            localArr: T[],
+            cloudArr: T[]
+        ): T[] => {
+            const merged = new Map<string, T>();
+
+            // Add all local items
+            for (const item of localArr) {
+                merged.set(item.id, item);
+            }
+
+            // Override/add cloud items
+            for (const item of cloudArr) {
+                if (!merged.has(item.id)) {
+                    merged.set(item.id, item);
+                }
+                // If both have it, keep the one from the newer source (cloud in this case)
+                // We could add a lastModified to each item for more precision
+            }
+
+            return Array.from(merged.values());
+        };
+
+        // Merge each module
+        const mergedData = {
+            university: {
+                subjects: mergeArraysById(
+                    local.university?.subjects ?? [],
+                    cloud.university?.subjects ?? []
+                ),
+                tasks: mergeArraysById(
+                    local.university?.tasks ?? [],
+                    cloud.university?.tasks ?? []
+                ),
+                exams: mergeArraysById(
+                    local.university?.exams ?? [],
+                    cloud.university?.exams ?? []
+                ),
+                gradeEntries: mergeArraysById(
+                    local.university?.gradeEntries ?? [],
+                    cloud.university?.gradeEntries ?? []
+                ),
+                academicYears: mergeArraysById(
+                    local.university?.academicYears ?? [],
+                    cloud.university?.academicYears ?? []
+                ),
+                terms: mergeArraysById(
+                    local.university?.terms ?? [],
+                    cloud.university?.terms ?? []
+                ),
+                currentYearId:
+                    local.university?.currentYearId ??
+                    cloud.university?.currentYearId,
+                currentTermId:
+                    local.university?.currentTermId ??
+                    cloud.university?.currentTermId,
+            },
+            freelancing: {
+                profile:
+                    local.freelancing?.profile ?? cloud.freelancing?.profile,
+                applications: mergeArraysById(
+                    local.freelancing?.applications ?? [],
+                    cloud.freelancing?.applications ?? []
+                ),
+                projects: mergeArraysById(
+                    local.freelancing?.projects ?? [],
+                    cloud.freelancing?.projects ?? []
+                ),
+                projectTasks: mergeArraysById(
+                    local.freelancing?.projectTasks ?? [],
+                    cloud.freelancing?.projectTasks ?? []
+                ),
+                standaloneTasks: mergeArraysById(
+                    local.freelancing?.standaloneTasks ?? [],
+                    cloud.freelancing?.standaloneTasks ?? []
+                ),
+            },
+            programming: {
+                learningItems: mergeArraysById(
+                    local.programming?.learningItems ?? [],
+                    cloud.programming?.learningItems ?? []
+                ),
+                skills: mergeArraysById(
+                    local.programming?.skills ?? [],
+                    cloud.programming?.skills ?? []
+                ),
+                tools: mergeArraysById(
+                    local.programming?.tools ?? [],
+                    cloud.programming?.tools ?? []
+                ),
+                projects: mergeArraysById(
+                    local.programming?.projects ?? [],
+                    cloud.programming?.projects ?? []
+                ),
+            },
+            finance: {
+                incomes: mergeArraysById(
+                    local.finance?.incomes ?? [],
+                    cloud.finance?.incomes ?? []
+                ),
+                expenses: mergeArraysById(
+                    local.finance?.expenses ?? [],
+                    cloud.finance?.expenses ?? []
+                ),
+                categories: mergeArraysById(
+                    local.finance?.categories ?? [],
+                    cloud.finance?.categories ?? []
+                ),
+                installments: mergeArraysById(
+                    local.finance?.installments ?? [],
+                    cloud.finance?.installments ?? []
+                ),
+                budgets: mergeArraysById(
+                    local.finance?.budgets ?? [],
+                    cloud.finance?.budgets ?? []
+                ),
+                goals: mergeArraysById(
+                    local.finance?.goals ?? [],
+                    cloud.finance?.goals ?? []
+                ),
+                alerts: mergeArraysById(
+                    local.finance?.alerts ?? [],
+                    cloud.finance?.alerts ?? []
+                ),
+                settings: {
+                    ...(cloud.finance?.settings ?? {}),
+                    ...(local.finance?.settings ?? {}),
+                },
+            },
+            home: {
+                tasks: mergeArraysById(
+                    local.home?.tasks ?? [],
+                    cloud.home?.tasks ?? []
+                ),
+                goals: mergeArraysById(
+                    local.home?.goals ?? [],
+                    cloud.home?.goals ?? []
+                ),
+                habits: mergeArraysById(
+                    local.home?.habits ?? [],
+                    cloud.home?.habits ?? []
+                ),
+            },
+            misc: {
+                notes: mergeArraysById(
+                    local.misc?.notes ?? [],
+                    cloud.misc?.notes ?? []
+                ),
+                bookmarks: mergeArraysById(
+                    local.misc?.bookmarks ?? [],
+                    cloud.misc?.bookmarks ?? []
+                ),
+                quickCaptures: mergeArraysById(
+                    local.misc?.quickCaptures ?? [],
+                    cloud.misc?.quickCaptures ?? []
+                ),
+            },
+            settings: {
+                ...(cloud.settings ?? {}),
+                ...(local.settings ?? {}),
+            },
+            notificationSettings: {
+                dismissedNotifications: [
+                    ...(local.notificationSettings?.dismissedNotifications ??
+                        []),
+                    ...(cloud.notificationSettings?.dismissedNotifications ??
+                        []),
+                ].filter(
+                    (item, index, self) =>
+                        self.findIndex((t) => t.id === item.id) === index
+                ),
+                neverShowAgain: [
+                    ...new Set([
+                        ...(local.notificationSettings?.neverShowAgain ?? []),
+                        ...(cloud.notificationSettings?.neverShowAgain ?? []),
+                    ]),
+                ],
+            },
+        };
+
+        return {
+            version: "2.0.0",
+            lastModified: new Date().toISOString(),
+            created:
+                localStorage!.created < cloudData!.created
+                    ? localStorage!.created
+                    : cloudData!.created,
+            data: mergedData as any,
+        };
+    }
+
+    /**
+     * Resolve conflict by applying chosen resolution
+     */
+    async resolveConflict(
+        resolution: "cloud" | "local" | "merge"
+    ): Promise<void> {
+        switch (resolution) {
+            case "cloud":
+                await this.syncCloudToLocal();
+                break;
+            case "local":
+                await this.syncLocalToCloud();
+                break;
+            case "merge":
+                const merged = await this.mergeLocalAndCloud();
+                // Save merged data to both local and cloud
+                this.saveToLocal(STORAGE_KEYS.MAIN_DATA, merged);
+                await this.saveToCloud(merged);
+                break;
+        }
+    }
+
+    /**
      * Flush all pending saves immediately
      * Call this before logout or page unload
      */
@@ -392,6 +774,168 @@ class StorageServiceClass {
             isCloudReady: DriveService.isReady(),
             localStorageSize,
         };
+    }
+
+    // =========================================================================
+    // CLOUD BACKUP METHODS
+    // =========================================================================
+
+    /**
+     * Create a cloud backup of current data
+     */
+    async createCloudBackup(): Promise<{
+        success: boolean;
+        fileName?: string;
+        error?: string;
+    }> {
+        if (!this.isCloudMode()) {
+            return { success: false, error: "Not in cloud mode" };
+        }
+
+        try {
+            const localData = this.loadFromLocal<StorageV2>(
+                STORAGE_KEYS.MAIN_DATA
+            );
+            if (!localData) {
+                return { success: false, error: "No data to backup" };
+            }
+
+            const result = await DriveService.createBackup(localData, "backup");
+            console.log("☁️ Cloud backup created:", result.name);
+
+            return { success: true, fileName: result.name };
+        } catch (error) {
+            console.error("❌ Failed to create cloud backup:", error);
+            return {
+                success: false,
+                error: error instanceof Error ? error.message : "Backup failed",
+            };
+        }
+    }
+
+    /**
+     * List all cloud backups
+     */
+    async listCloudBackups(): Promise<
+        Array<{
+            id: string;
+            name: string;
+            fileName: string;
+            modifiedTime: string;
+            createdTime: string;
+            size: number;
+        }>
+    > {
+        if (!this.isCloudMode()) {
+            return [];
+        }
+
+        try {
+            return await DriveService.listBackups();
+        } catch (error) {
+            console.error("❌ Failed to list backups:", error);
+            return [];
+        }
+    }
+
+    /**
+     * Restore from a cloud backup
+     */
+    async restoreCloudBackup(
+        backupFileName: string
+    ): Promise<{ success: boolean; error?: string }> {
+        if (!this.isCloudMode()) {
+            return { success: false, error: "Not in cloud mode" };
+        }
+
+        try {
+            const backupData = await DriveService.restoreBackup<StorageV2>(
+                backupFileName
+            );
+            if (!backupData) {
+                return { success: false, error: "Backup not found" };
+            }
+
+            // Save to local storage
+            this.saveToLocal(STORAGE_KEYS.MAIN_DATA, backupData);
+
+            // Save to cloud (overwrites current data)
+            await this.saveToCloud(backupData);
+
+            console.log("✅ Restored from backup:", backupFileName);
+            return { success: true };
+        } catch (error) {
+            console.error("❌ Failed to restore backup:", error);
+            return {
+                success: false,
+                error:
+                    error instanceof Error ? error.message : "Restore failed",
+            };
+        }
+    }
+
+    /**
+     * Delete a cloud backup
+     */
+    async deleteCloudBackup(
+        backupFileName: string
+    ): Promise<{ success: boolean; error?: string }> {
+        if (!this.isCloudMode()) {
+            return { success: false, error: "Not in cloud mode" };
+        }
+
+        try {
+            await DriveService.deleteBackup(backupFileName);
+            console.log("🗑️ Deleted backup:", backupFileName);
+            return { success: true };
+        } catch (error) {
+            console.error("❌ Failed to delete backup:", error);
+            return {
+                success: false,
+                error: error instanceof Error ? error.message : "Delete failed",
+            };
+        }
+    }
+
+    /**
+     * Auto-cleanup old backups, keeping only the specified number
+     */
+    async cleanupOldBackups(maxBackups: number = 5): Promise<number> {
+        if (!this.isCloudMode()) {
+            return 0;
+        }
+
+        try {
+            const backups = await this.listCloudBackups();
+
+            if (backups.length <= maxBackups) {
+                return 0;
+            }
+
+            // Sort by modified time (newest first)
+            const sortedBackups = [...backups].sort(
+                (a, b) =>
+                    new Date(b.modifiedTime).getTime() -
+                    new Date(a.modifiedTime).getTime()
+            );
+
+            // Delete backups beyond the limit
+            const toDelete = sortedBackups.slice(maxBackups);
+            let deleted = 0;
+
+            for (const backup of toDelete) {
+                const result = await this.deleteCloudBackup(backup.fileName);
+                if (result.success) {
+                    deleted++;
+                }
+            }
+
+            console.log(`🧹 Cleaned up ${deleted} old backups`);
+            return deleted;
+        } catch (error) {
+            console.error("❌ Failed to cleanup backups:", error);
+            return 0;
+        }
     }
 }
 

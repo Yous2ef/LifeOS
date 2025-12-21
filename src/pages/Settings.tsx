@@ -1,7 +1,19 @@
 import { useState, useEffect } from "react";
 import { useApp } from "../context/AppContext";
+import { useAuth } from "../context/AuthContext";
+import { useStorageContext } from "../context/StorageContext";
+import { StorageService, STORAGE_KEYS } from "../services/StorageService";
 import { Card } from "../components/ui/Card";
 import { Button } from "../components/ui/Button";
+import { Label } from "../components/ui/Label";
+import { Switch } from "../components/ui/switch";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "../components/ui/Select";
 import {
     Settings as SettingsIcon,
     Bell,
@@ -14,9 +26,12 @@ import {
     AlertTriangle,
     CheckCircle2,
     Loader2,
-    Code,
-    ChevronDown,
-    ChevronUp,
+    Cloud,
+    CloudOff,
+    Clock,
+    RefreshCw,
+    Save,
+    Calendar,
 } from "lucide-react";
 import {
     detectStorageVersion,
@@ -25,20 +40,21 @@ import {
     V2_STORAGE_KEY,
 } from "../utils/storage";
 import { hasV1Backup, restoreV1FromBackup } from "../utils/legacyStorage";
-import {
-    getFeatureFlags,
-    setFeatureFlag,
-    resetFeatureFlags,
-    type FeatureFlags,
-} from "../utils/featureFlags";
+import type { BackupFrequency, BackupSettings } from "../types/core/settings";
+import type { BackupInfo } from "../services/DriveService";
 
 export const Settings: React.FC = () => {
     const {
+        data,
+        updateData,
         dismissedNotifications,
         neverShowAgain,
         resetDismissedNotifications,
         refreshData,
     } = useApp();
+    const { isAuthenticated } = useAuth();
+    const { lastSyncTime, isCloudMode } = useStorageContext();
+
     const [showConfirm, setShowConfirm] = useState(false);
     const [showRollbackConfirm, setShowRollbackConfirm] = useState(false);
     const [isRollingBack, setIsRollingBack] = useState(false);
@@ -46,15 +62,28 @@ export const Settings: React.FC = () => {
     const [importError, setImportError] = useState<string | null>(null);
     const [isImporting, setIsImporting] = useState(false);
 
+    // Cloud sync state
+    const [showClearConfirm, setShowClearConfirm] = useState(false);
+    const [isClearing, setIsClearing] = useState(false);
+    const [clearError, setClearError] = useState<string | null>(null);
+
+    // Cloud backup list state
+    const [cloudBackups, setCloudBackups] = useState<BackupInfo[]>([]);
+    const [isLoadingBackups, setIsLoadingBackups] = useState(false);
+    const [isCreatingBackup, setIsCreatingBackup] = useState(false);
+    const [createBackupSuccess, setCreateBackupSuccess] = useState(false);
+    const [restoringBackupId, setRestoringBackupId] = useState<string | null>(
+        null
+    );
+    const [deletingBackupId, setDeletingBackupId] = useState<string | null>(
+        null
+    );
+    const [backupError, setBackupError] = useState<string | null>(null);
+
     // Storage info state
     const [storageVersion, setStorageVersion] = useState<string | null>(null);
     const [storageSize, setStorageSize] = useState<number>(0);
     const [hasBackup, setHasBackup] = useState(false);
-
-    // Developer options state
-    const [showDevOptions, setShowDevOptions] = useState(false);
-    const [featureFlags, setFeatureFlagsState] =
-        useState<FeatureFlags>(getFeatureFlags);
 
     // Load storage info on mount
     useEffect(() => {
@@ -68,19 +97,6 @@ export const Settings: React.FC = () => {
             setStorageSize(new Blob([v2Data]).size);
         }
     }, []);
-
-    const handleFeatureFlagChange = <K extends keyof FeatureFlags>(
-        flag: K,
-        value: FeatureFlags[K]
-    ) => {
-        setFeatureFlag(flag, value);
-        setFeatureFlagsState(getFeatureFlags());
-    };
-
-    const handleResetFlags = () => {
-        resetFeatureFlags();
-        setFeatureFlagsState(getFeatureFlags());
-    };
 
     const handleRollback = async () => {
         setIsRollingBack(true);
@@ -109,6 +125,207 @@ export const Settings: React.FC = () => {
         exportData();
     };
 
+    // Clear all data - both local and cloud
+    const handleClearAllData = async () => {
+        setIsClearing(true);
+        setClearError(null);
+
+        try {
+            // Delete from storage (handles both local and cloud)
+            await StorageService.delete(STORAGE_KEYS.MAIN_DATA);
+
+            // Clear any legacy storage too
+            localStorage.removeItem(V2_STORAGE_KEY);
+
+            // Reload the page to reset the app
+            window.location.reload();
+        } catch (error) {
+            setClearError(
+                error instanceof Error ? error.message : "Failed to clear data"
+            );
+            setIsClearing(false);
+        }
+    };
+
+    // Load cloud backups list
+    const loadCloudBackups = async () => {
+        if (!isCloudMode) return;
+
+        setIsLoadingBackups(true);
+        try {
+            const backups = await StorageService.listCloudBackups();
+            setCloudBackups(backups);
+        } catch (error) {
+            console.error("Failed to load backups:", error);
+        } finally {
+            setIsLoadingBackups(false);
+        }
+    };
+
+    // Create a new cloud backup
+    const handleCreateCloudBackup = async () => {
+        setIsCreatingBackup(true);
+        setBackupError(null);
+        setCreateBackupSuccess(false);
+
+        try {
+            const result = await StorageService.createCloudBackup();
+            if (result.success) {
+                setCreateBackupSuccess(true);
+                setTimeout(() => setCreateBackupSuccess(false), 3000);
+
+                // Cleanup old backups if needed
+                const maxBackups = data.settings?.backup?.maxBackups ?? 5;
+                await StorageService.cleanupOldBackups(maxBackups);
+
+                // Update last backup time in settings
+                updateData({
+                    settings: {
+                        ...data.settings,
+                        backup: {
+                            ...(data.settings?.backup ?? {
+                                autoBackupEnabled: false,
+                                frequency: "weekly" as BackupFrequency,
+                                maxBackups: 5,
+                            }),
+                            lastBackupTime: Date.now(),
+                        },
+                    },
+                });
+
+                // Refresh the backup list
+                await loadCloudBackups();
+            } else {
+                setBackupError(result.error || "Backup failed");
+            }
+        } catch (error) {
+            setBackupError(
+                error instanceof Error ? error.message : "Backup failed"
+            );
+        } finally {
+            setIsCreatingBackup(false);
+        }
+    };
+
+    // Restore from a cloud backup
+    const handleRestoreBackup = async (backup: BackupInfo) => {
+        if (
+            !confirm(
+                `Are you sure you want to restore from "${backup.name}"? Your current data will be overwritten.`
+            )
+        ) {
+            return;
+        }
+
+        setRestoringBackupId(backup.id);
+        setBackupError(null);
+
+        try {
+            const result = await StorageService.restoreCloudBackup(
+                backup.fileName
+            );
+            if (result.success) {
+                // Reload the page to apply restored data
+                window.location.reload();
+            } else {
+                setBackupError(result.error || "Restore failed");
+            }
+        } catch (error) {
+            setBackupError(
+                error instanceof Error ? error.message : "Restore failed"
+            );
+        } finally {
+            setRestoringBackupId(null);
+        }
+    };
+
+    // Delete a cloud backup
+    const handleDeleteBackup = async (backup: BackupInfo) => {
+        if (!confirm(`Are you sure you want to delete "${backup.name}"?`)) {
+            return;
+        }
+
+        setDeletingBackupId(backup.id);
+        setBackupError(null);
+
+        try {
+            const result = await StorageService.deleteCloudBackup(
+                backup.fileName
+            );
+            if (result.success) {
+                // Refresh the backup list
+                await loadCloudBackups();
+            } else {
+                setBackupError(result.error || "Delete failed");
+            }
+        } catch (error) {
+            setBackupError(
+                error instanceof Error ? error.message : "Delete failed"
+            );
+        } finally {
+            setDeletingBackupId(null);
+        }
+    };
+
+    // Download a cloud backup as a JSON file
+    const handleDownloadBackup = async (backup: BackupInfo) => {
+        try {
+            // Use DriveService directly to get the backup data without restoring
+            const { DriveService } = await import("../services/DriveService");
+            const backupData = await DriveService.restoreBackup(
+                backup.fileName
+            );
+
+            if (backupData) {
+                const blob = new Blob([JSON.stringify(backupData, null, 2)], {
+                    type: "application/json",
+                });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                const date = new Date(backup.createdTime);
+                a.download = `lifeos-backup-${
+                    date.toISOString().split("T")[0]
+                }.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            } else {
+                setBackupError("Failed to download backup");
+            }
+        } catch (error) {
+            setBackupError(
+                error instanceof Error ? error.message : "Download failed"
+            );
+        }
+    };
+
+    // Update backup settings
+    const handleBackupSettingsChange = (settings: Partial<BackupSettings>) => {
+        updateData({
+            settings: {
+                ...data.settings,
+                backup: {
+                    ...(data.settings?.backup ?? {
+                        autoBackupEnabled: false,
+                        frequency: "weekly" as BackupFrequency,
+                        lastBackupTime: null,
+                        maxBackups: 5,
+                    }),
+                    ...settings,
+                },
+            },
+        });
+    };
+
+    // Load backups when cloud mode becomes available
+    useEffect(() => {
+        if (isCloudMode && isAuthenticated) {
+            loadCloudBackups();
+        }
+    }, [isCloudMode, isAuthenticated]);
+
     const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (!file) return;
@@ -136,6 +353,26 @@ export const Settings: React.FC = () => {
         const sizes = ["Bytes", "KB", "MB", "GB"];
         const i = Math.floor(Math.log(bytes) / Math.log(k));
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+    };
+
+    // Format date in a consistent way that works with RTL and LTR
+    const formatDate = (date: Date): string => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const day = String(date.getDate()).padStart(2, "0");
+        return `${year}-${month}-${day}`;
+    };
+
+    const formatTime = (date: Date): string => {
+        const hours = date.getHours();
+        const minutes = String(date.getMinutes()).padStart(2, "0");
+        const ampm = hours >= 12 ? "PM" : "AM";
+        const hour12 = hours % 12 || 12;
+        return `${hour12}:${minutes} ${ampm}`;
+    };
+
+    const formatDateTime = (date: Date): string => {
+        return `${formatDate(date)} ${formatTime(date)}`;
     };
 
     const handleResetNotifications = () => {
@@ -253,9 +490,11 @@ export const Settings: React.FC = () => {
                                             ? "Until next session"
                                             : isPastDue
                                             ? "Expired (will show again)"
-                                            : `Until ${new Date(
-                                                  notification.dismissUntil
-                                              ).toLocaleDateString()}`;
+                                            : `Until ${formatDate(
+                                                  new Date(
+                                                      notification.dismissUntil
+                                                  )
+                                              )}`;
 
                                     return (
                                         <div
@@ -398,8 +637,17 @@ export const Settings: React.FC = () => {
                             <div className="text-sm text-muted-foreground mb-1">
                                 Backup Available
                             </div>
-                            <div className="text-xl font-bold text-green-600 dark:text-green-400">
-                                {hasBackup ? "Yes (V1)" : "No"}
+                            <div
+                                className={`text-xl font-bold flex items-center gap-2 ${
+                                    cloudBackups.length > 0 || hasBackup
+                                        ? "text-green-600 dark:text-green-400"
+                                        : "text-red-600 dark:text-red-400"
+                                }`}>
+                                {cloudBackups.length > 0
+                                    ? `Yes (${cloudBackups.length} cloud)`
+                                    : hasBackup
+                                    ? "Yes (V1)"
+                                    : "No"}
                             </div>
                         </div>
                     </div>
@@ -532,148 +780,446 @@ export const Settings: React.FC = () => {
                 </div>
             </Card>
 
-            {/* Developer Options (Collapsible) */}
-            <Card className="p-6">
-                <button
-                    onClick={() => setShowDevOptions(!showDevOptions)}
-                    className="flex items-center justify-between w-full text-left">
-                    <div className="flex items-center gap-2">
-                        <Code className="text-muted-foreground" size={24} />
+            {/* Cloud Sync Settings - Only show for logged in users */}
+            {isAuthenticated && (
+                <Card className="p-6">
+                    <div className="flex items-center gap-2 mb-4">
+                        {isCloudMode ? (
+                            <Cloud className="text-primary" size={24} />
+                        ) : (
+                            <CloudOff
+                                className="text-muted-foreground"
+                                size={24}
+                            />
+                        )}
                         <h2 className="text-2xl font-bold text-foreground">
-                            Developer Options
+                            Cloud Sync
                         </h2>
                     </div>
-                    {showDevOptions ? (
-                        <ChevronUp
-                            className="text-muted-foreground"
-                            size={20}
-                        />
-                    ) : (
-                        <ChevronDown
-                            className="text-muted-foreground"
-                            size={20}
-                        />
-                    )}
-                </button>
 
-                {showDevOptions && (
-                    <div className="space-y-6 mt-6 pt-6 border-t border-border">
-                        <p className="text-sm text-muted-foreground">
-                            These options are for advanced users and developers.
-                            Changes may require a page refresh to take effect.
-                        </p>
-
-                        {/* Feature Flags */}
-                        <div className="space-y-4">
-                            <h3 className="font-semibold text-lg text-foreground">
-                                Feature Flags
-                            </h3>
-
-                            <div className="space-y-3">
-                                <label className="flex items-center justify-between p-3 bg-muted/50 rounded-lg border border-border cursor-pointer">
-                                    <div>
-                                        <div className="font-medium text-foreground">
-                                            Use Unified Storage (V2)
-                                        </div>
-                                        <div className="text-sm text-muted-foreground">
-                                            Single localStorage key with all
-                                            data
-                                        </div>
-                                    </div>
-                                    <input
-                                        type="checkbox"
-                                        checked={featureFlags.useUnifiedStorage}
-                                        onChange={(e) =>
-                                            handleFeatureFlagChange(
-                                                "useUnifiedStorage",
-                                                e.target.checked
-                                            )
-                                        }
-                                        className="w-5 h-5 accent-primary"
-                                    />
-                                </label>
-
-                                <label className="flex items-center justify-between p-3 bg-muted/50 rounded-lg border border-border cursor-pointer">
-                                    <div>
-                                        <div className="font-medium text-foreground">
-                                            Debug Mode
-                                        </div>
-                                        <div className="text-sm text-muted-foreground">
-                                            Show extra logging in browser
-                                            console
-                                        </div>
-                                    </div>
-                                    <input
-                                        type="checkbox"
-                                        checked={featureFlags.debugMode}
-                                        onChange={(e) =>
-                                            handleFeatureFlagChange(
-                                                "debugMode",
-                                                e.target.checked
-                                            )
-                                        }
-                                        className="w-5 h-5 accent-primary"
-                                    />
-                                </label>
-
-                                <label className="flex items-center justify-between p-3 bg-muted/50 rounded-lg border border-border cursor-pointer">
-                                    <div>
-                                        <div className="font-medium text-foreground">
-                                            Experimental Features
-                                        </div>
-                                        <div className="text-sm text-muted-foreground">
-                                            Enable features that are still in
-                                            development
-                                        </div>
-                                    </div>
-                                    <input
-                                        type="checkbox"
-                                        checked={
-                                            featureFlags.experimentalFeatures
-                                        }
-                                        onChange={(e) =>
-                                            handleFeatureFlagChange(
-                                                "experimentalFeatures",
-                                                e.target.checked
-                                            )
-                                        }
-                                        className="w-5 h-5 accent-primary"
-                                    />
-                                </label>
+                    <div className="space-y-6">
+                        {/* Sync Status */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="bg-primary/10 rounded-lg p-4 border border-primary/20">
+                                <div className="text-sm text-muted-foreground mb-1">
+                                    Sync Status
+                                </div>
+                                <div className="text-xl font-bold text-primary flex items-center gap-2">
+                                    {isCloudMode ? (
+                                        <>
+                                            <CheckCircle2 size={18} />
+                                            Connected
+                                        </>
+                                    ) : (
+                                        <>
+                                            <CloudOff size={18} />
+                                            Offline
+                                        </>
+                                    )}
+                                </div>
                             </div>
-
-                            <Button
-                                variant="outline"
-                                onClick={handleResetFlags}>
-                                <RotateCcw size={16} />
-                                Reset to Defaults
-                            </Button>
+                            <div className="bg-blue-500/10 rounded-lg p-4 border border-blue-500/20">
+                                <div className="text-sm text-muted-foreground mb-1">
+                                    Last Synced
+                                </div>
+                                <div className="text-xl font-bold text-blue-600 dark:text-blue-400">
+                                    {lastSyncTime
+                                        ? formatDateTime(lastSyncTime)
+                                        : "Never"}
+                                </div>
+                            </div>
                         </div>
 
-                        {/* Debug Info */}
-                        {featureFlags.debugMode && (
-                            <div className="space-y-2">
-                                <h3 className="font-semibold text-lg text-foreground">
-                                    Debug Information
-                                </h3>
-                                <pre className="p-4 bg-muted/50 rounded-lg border border-border text-xs overflow-x-auto">
-                                    {JSON.stringify(
-                                        {
-                                            storageVersion,
-                                            storageSize: `${storageSize} bytes`,
-                                            hasV1Backup: hasBackup,
-                                            featureFlags,
-                                            userAgent: navigator.userAgent,
-                                            timestamp: new Date().toISOString(),
-                                        },
-                                        null,
-                                        2
+                        {/* Cloud Backup Management */}
+                        <div className="border border-border rounded-lg p-4">
+                            <h3 className="font-semibold text-lg mb-2 text-foreground flex items-center gap-2">
+                                <Save size={18} className="text-primary" />
+                                Cloud Backups
+                            </h3>
+                            <p className="text-sm text-muted-foreground mb-4">
+                                Create and manage backups stored directly in
+                                your Google Drive. These backups can be restored
+                                at any time.
+                            </p>
+
+                            {/* Create Backup Button */}
+                            <div className="mb-4">
+                                <Button
+                                    onClick={handleCreateCloudBackup}
+                                    disabled={isCreatingBackup || !isCloudMode}>
+                                    {isCreatingBackup ? (
+                                        <>
+                                            <Loader2
+                                                className="animate-spin"
+                                                size={16}
+                                            />
+                                            Creating Backup...
+                                        </>
+                                    ) : createBackupSuccess ? (
+                                        <>
+                                            <CheckCircle2
+                                                size={16}
+                                                className="text-green-500"
+                                            />
+                                            Backup Created!
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Save size={16} />
+                                            Create Cloud Backup
+                                        </>
                                     )}
-                                </pre>
+                                </Button>
                             </div>
-                        )}
+
+                            {/* Backup Error */}
+                            {backupError && (
+                                <div className="mb-4 p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-sm">
+                                    {backupError}
+                                </div>
+                            )}
+
+                            {/* Backup List */}
+                            <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                    <h4 className="font-medium text-sm text-muted-foreground">
+                                        Your Backups
+                                    </h4>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={loadCloudBackups}
+                                        disabled={isLoadingBackups}>
+                                        <RefreshCw
+                                            size={14}
+                                            className={
+                                                isLoadingBackups
+                                                    ? "animate-spin"
+                                                    : ""
+                                            }
+                                        />
+                                    </Button>
+                                </div>
+
+                                {isLoadingBackups ? (
+                                    <div className="flex items-center justify-center py-8">
+                                        <Loader2
+                                            className="animate-spin text-muted-foreground"
+                                            size={24}
+                                        />
+                                    </div>
+                                ) : cloudBackups.length === 0 ? (
+                                    <div className="text-center py-8 text-muted-foreground text-sm">
+                                        No cloud backups found. Create one to
+                                        get started.
+                                    </div>
+                                ) : (
+                                    <div className="space-y-2 max-h-64 overflow-y-auto">
+                                        {cloudBackups.map((backup) => {
+                                            const backupDate = new Date(
+                                                backup.createdTime
+                                            );
+                                            return (
+                                                <div
+                                                    key={backup.id}
+                                                    className="flex items-center justify-between p-3 bg-muted/50 rounded-lg border border-border">
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="font-medium text-sm">
+                                                            Backup from{" "}
+                                                            {formatDate(
+                                                                backupDate
+                                                            )}
+                                                        </div>
+                                                        <div className="text-xs text-muted-foreground">
+                                                            {formatTime(
+                                                                backupDate
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-1 ml-2">
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={() =>
+                                                                handleRestoreBackup(
+                                                                    backup
+                                                                )
+                                                            }
+                                                            disabled={
+                                                                restoringBackupId ===
+                                                                backup.id
+                                                            }
+                                                            title="Restore this backup">
+                                                            {restoringBackupId ===
+                                                            backup.id ? (
+                                                                <Loader2
+                                                                    className="animate-spin"
+                                                                    size={14}
+                                                                />
+                                                            ) : (
+                                                                <RotateCcw
+                                                                    size={14}
+                                                                />
+                                                            )}
+                                                        </Button>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={() =>
+                                                                handleDownloadBackup(
+                                                                    backup
+                                                                )
+                                                            }
+                                                            title="Download this backup">
+                                                            <Download
+                                                                size={14}
+                                                            />
+                                                        </Button>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={() =>
+                                                                handleDeleteBackup(
+                                                                    backup
+                                                                )
+                                                            }
+                                                            disabled={
+                                                                deletingBackupId ===
+                                                                backup.id
+                                                            }
+                                                            className="text-destructive hover:text-destructive"
+                                                            title="Delete this backup">
+                                                            {deletingBackupId ===
+                                                            backup.id ? (
+                                                                <Loader2
+                                                                    className="animate-spin"
+                                                                    size={14}
+                                                                />
+                                                            ) : (
+                                                                <Trash2
+                                                                    size={14}
+                                                                />
+                                                            )}
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Auto-Backup Settings */}
+                        <div className="border border-border rounded-lg p-4">
+                            <h3 className="font-semibold text-lg mb-2 text-foreground flex items-center gap-2">
+                                <Calendar size={18} className="text-primary" />
+                                Automatic Backups
+                            </h3>
+                            <p className="text-sm text-muted-foreground mb-4">
+                                Schedule automatic backups to keep your data
+                                safe. Backups are stored in your Google Drive.
+                            </p>
+
+                            <div className="space-y-4">
+                                {/* Enable Toggle */}
+                                <div className="flex items-center justify-between">
+                                    <Label
+                                        htmlFor="auto-backup"
+                                        className="cursor-pointer">
+                                        Enable Automatic Backups
+                                    </Label>
+                                    <Switch
+                                        id="auto-backup"
+                                        checked={
+                                            data.settings?.backup
+                                                ?.autoBackupEnabled ?? false
+                                        }
+                                        onCheckedChange={(checked) =>
+                                            handleBackupSettingsChange({
+                                                autoBackupEnabled: checked,
+                                            })
+                                        }
+                                    />
+                                </div>
+
+                                {/* Frequency Select */}
+                                {data.settings?.backup?.autoBackupEnabled && (
+                                    <>
+                                        <div className="space-y-2">
+                                            <Label htmlFor="backup-frequency">
+                                                Backup Frequency
+                                            </Label>
+                                            <Select
+                                                value={
+                                                    data.settings?.backup
+                                                        ?.frequency ?? "weekly"
+                                                }
+                                                onValueChange={(value) =>
+                                                    handleBackupSettingsChange({
+                                                        frequency:
+                                                            value as BackupFrequency,
+                                                    })
+                                                }>
+                                                <SelectTrigger id="backup-frequency">
+                                                    <SelectValue placeholder="Select frequency" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="daily">
+                                                        Daily
+                                                    </SelectItem>
+                                                    <SelectItem value="every2days">
+                                                        Every 2 Days
+                                                    </SelectItem>
+                                                    <SelectItem value="weekly">
+                                                        Weekly
+                                                    </SelectItem>
+                                                    <SelectItem value="monthly">
+                                                        Monthly
+                                                    </SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+
+                                        {/* Max Backups */}
+                                        <div className="space-y-2">
+                                            <Label htmlFor="max-backups">
+                                                Maximum Backups to Keep
+                                            </Label>
+                                            <Select
+                                                value={String(
+                                                    data.settings?.backup
+                                                        ?.maxBackups ?? 5
+                                                )}
+                                                onValueChange={(value) =>
+                                                    handleBackupSettingsChange({
+                                                        maxBackups: parseInt(
+                                                            value,
+                                                            10
+                                                        ),
+                                                    })
+                                                }>
+                                                <SelectTrigger id="max-backups">
+                                                    <SelectValue placeholder="Select max backups" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="3">
+                                                        3 backups
+                                                    </SelectItem>
+                                                    <SelectItem value="5">
+                                                        5 backups
+                                                    </SelectItem>
+                                                    <SelectItem value="10">
+                                                        10 backups
+                                                    </SelectItem>
+                                                    <SelectItem value="20">
+                                                        20 backups
+                                                    </SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                            <p className="text-xs text-muted-foreground">
+                                                Older backups will be
+                                                automatically deleted when this
+                                                limit is reached.
+                                            </p>
+                                        </div>
+
+                                        {/* Last Backup Time */}
+                                        {data.settings?.backup
+                                            ?.lastBackupTime && (
+                                            <div className="text-sm text-muted-foreground flex items-center gap-2">
+                                                <Clock size={14} />
+                                                Last auto-backup:{" "}
+                                                {formatDateTime(
+                                                    new Date(
+                                                        data.settings.backup.lastBackupTime
+                                                    )
+                                                )}
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+                            </div>
+                        </div>
                     </div>
-                )}
+                </Card>
+            )}
+
+            {/* Clear All Data - Available for all users */}
+            <Card className="p-6">
+                <div className="flex items-center gap-2 mb-4">
+                    <Trash2 className="text-destructive" size={24} />
+                    <h2 className="text-2xl font-bold text-foreground">
+                        Danger Zone
+                    </h2>
+                </div>
+
+                <div className="border border-destructive/30 bg-destructive/5 rounded-lg p-4">
+                    <h3 className="font-semibold text-lg mb-2 text-foreground flex items-center gap-2">
+                        <Trash2 className="text-destructive" size={20} />
+                        Clear All Data
+                    </h3>
+                    <p className="text-sm text-muted-foreground mb-4">
+                        {isAuthenticated
+                            ? "Permanently delete all your data from both local storage and Google Drive. This action cannot be undone. Make sure to download a backup first!"
+                            : "Permanently delete all your local data. This action cannot be undone. Make sure to export your data first!"}
+                    </p>
+
+                    {!showClearConfirm ? (
+                        <Button
+                            variant="outline"
+                            onClick={() => setShowClearConfirm(true)}
+                            className="border-destructive/50 hover:bg-destructive/10 text-destructive">
+                            <Trash2 size={16} />
+                            Clear All Data
+                        </Button>
+                    ) : (
+                        <div className="space-y-3 bg-destructive/10 border border-destructive/30 rounded p-4">
+                            <p className="text-sm font-medium text-destructive">
+                                Are you absolutely sure? This will permanently
+                                delete:
+                            </p>
+                            <ul className="text-sm text-muted-foreground list-disc list-inside space-y-1">
+                                <li>All local storage data</li>
+                                {isAuthenticated && (
+                                    <li>All cloud data in Google Drive</li>
+                                )}
+                                <li>
+                                    All your tasks, projects, finances, etc.
+                                </li>
+                            </ul>
+                            {clearError && (
+                                <p className="text-sm text-destructive">
+                                    {clearError}
+                                </p>
+                            )}
+                            <div className="flex gap-2">
+                                <Button
+                                    variant="destructive"
+                                    onClick={handleClearAllData}
+                                    disabled={isClearing}>
+                                    {isClearing ? (
+                                        <>
+                                            <Loader2
+                                                className="animate-spin"
+                                                size={16}
+                                            />
+                                            Clearing...
+                                        </>
+                                    ) : (
+                                        "Yes, Delete Everything"
+                                    )}
+                                </Button>
+                                <Button
+                                    variant="secondary"
+                                    onClick={() => setShowClearConfirm(false)}
+                                    disabled={isClearing}>
+                                    Cancel
+                                </Button>
+                            </div>
+                        </div>
+                    )}
+                </div>
             </Card>
         </div>
     );

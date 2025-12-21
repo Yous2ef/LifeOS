@@ -24,7 +24,7 @@ import { ThemeToggle } from "../theme-toggle";
 import { Button } from "@/components/ui/Button";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { UserMenu } from "../auth";
+import { UserMenu, SyncStatus } from "../auth";
 import { useAuth } from "../../context/AuthContext";
 
 interface SidebarProps {
@@ -178,14 +178,31 @@ export const Sidebar: React.FC<SidebarProps> = ({ onImport }) => {
                 {isAuthenticated && user && !isCollapsed && (
                     <>
                         <UserMenu variant="full" className="w-full" />
+                        <div className="px-3 py-1">
+                            <SyncStatus showLabel showTime />
+                        </div>
                         <Separator className="my-2" />
                     </>
                 )}
                 {isAuthenticated && user && isCollapsed && (
                     <>
                         <UserMenu />
+                        <div className="flex justify-center py-1">
+                            <SyncStatus />
+                        </div>
                         <Separator className="my-2" />
                     </>
+                )}
+                {/* Show sync status for local mode too */}
+                {!isAuthenticated && !isCollapsed && (
+                    <div className="px-3 py-1 mb-2">
+                        <SyncStatus showLabel showTime />
+                    </div>
+                )}
+                {!isAuthenticated && isCollapsed && (
+                    <div className="flex justify-center py-1 mb-2">
+                        <SyncStatus />
+                    </div>
                 )}
                 {!isCollapsed ? (
                     <>
