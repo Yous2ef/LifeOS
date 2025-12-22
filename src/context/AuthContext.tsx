@@ -20,6 +20,7 @@ import { DriveService } from "../services/DriveService";
 const AUTH_STORAGE_KEY = "lifeos_auth";
 const TOKEN_STORAGE_KEY = "lifeos_access_token";
 const TOKEN_EXPIRY_KEY = "lifeos_token_expiry";
+const STAY_SIGNED_IN_KEY = "lifeos_stay_signed_in";
 
 // Google userinfo endpoint
 const USERINFO_ENDPOINT = "https://www.googleapis.com/oauth2/v3/userinfo";
@@ -29,6 +30,8 @@ interface AuthContextType extends AuthState {
     logout: () => void;
     refreshToken: () => Promise<void>;
     isGoogleLoaded: boolean;
+    staySignedIn: boolean;
+    setStaySignedIn: (value: boolean) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -44,6 +47,17 @@ export const useAuth = () => {
 interface AuthProviderProps {
     children: ReactNode;
 }
+
+// Helper to get the appropriate storage (localStorage for persistent, sessionStorage for session-only)
+const getStorage = (persistent: boolean): Storage => {
+    return persistent ? localStorage : sessionStorage;
+};
+
+// Helper to check if user wants to stay signed in
+const shouldStaySignedIn = (): boolean => {
+    const saved = localStorage.getItem(STAY_SIGNED_IN_KEY);
+    return saved === "true" || saved === null; // Default to true
+};
 
 // Helper to decode JWT token
 const decodeJwt = (token: string): Record<string, unknown> => {
@@ -120,16 +134,59 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         error: null,
     });
     const [isGoogleLoaded, setIsGoogleLoaded] = useState(false);
+    const [staySignedIn, setStaySignedInState] = useState<boolean>(
+        shouldStaySignedIn()
+    );
 
     // Use refs to avoid dependency issues in callbacks
     const tokenClientRef = useRef<TokenClient | null>(null);
     const hasRestoredSession = useRef(false);
     const pendingTokenRequest = useRef(false);
 
-    // Get saved user from localStorage
+    // Update stay signed in preference
+    const setStaySignedIn = useCallback((value: boolean) => {
+        localStorage.setItem(STAY_SIGNED_IN_KEY, value.toString());
+        setStaySignedInState(value);
+
+        // If turning off, move data from localStorage to sessionStorage
+        if (!value) {
+            const userData = localStorage.getItem(AUTH_STORAGE_KEY);
+            const tokenData = localStorage.getItem(TOKEN_STORAGE_KEY);
+            const expiryData = localStorage.getItem(TOKEN_EXPIRY_KEY);
+
+            if (userData) sessionStorage.setItem(AUTH_STORAGE_KEY, userData);
+            if (tokenData) sessionStorage.setItem(TOKEN_STORAGE_KEY, tokenData);
+            if (expiryData)
+                sessionStorage.setItem(TOKEN_EXPIRY_KEY, expiryData);
+
+            localStorage.removeItem(AUTH_STORAGE_KEY);
+            localStorage.removeItem(TOKEN_STORAGE_KEY);
+            localStorage.removeItem(TOKEN_EXPIRY_KEY);
+        }
+        // If turning on, move from sessionStorage to localStorage
+        else {
+            const userData = sessionStorage.getItem(AUTH_STORAGE_KEY);
+            const tokenData = sessionStorage.getItem(TOKEN_STORAGE_KEY);
+            const expiryData = sessionStorage.getItem(TOKEN_EXPIRY_KEY);
+
+            if (userData) localStorage.setItem(AUTH_STORAGE_KEY, userData);
+            if (tokenData) localStorage.setItem(TOKEN_STORAGE_KEY, tokenData);
+            if (expiryData) localStorage.setItem(TOKEN_EXPIRY_KEY, expiryData);
+
+            sessionStorage.removeItem(AUTH_STORAGE_KEY);
+            sessionStorage.removeItem(TOKEN_STORAGE_KEY);
+            sessionStorage.removeItem(TOKEN_EXPIRY_KEY);
+        }
+    }, []);
+
+    // Get saved user from storage (check both localStorage and sessionStorage)
     const getSavedUser = useCallback((): GoogleUser | null => {
         try {
-            const savedAuth = localStorage.getItem(AUTH_STORAGE_KEY);
+            // Check localStorage first (persistent), then sessionStorage
+            const savedAuth =
+                localStorage.getItem(AUTH_STORAGE_KEY) ||
+                sessionStorage.getItem(AUTH_STORAGE_KEY);
+
             if (savedAuth) {
                 return JSON.parse(savedAuth) as GoogleUser;
             }
@@ -139,11 +196,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return null;
     }, []);
 
-    // Check if we have a valid saved token
+    // Check if we have a valid saved token (check both storages)
     const hasValidToken = useCallback((): boolean => {
         try {
-            const savedToken = localStorage.getItem(TOKEN_STORAGE_KEY);
-            const tokenExpiry = localStorage.getItem(TOKEN_EXPIRY_KEY);
+            const savedToken =
+                localStorage.getItem(TOKEN_STORAGE_KEY) ||
+                sessionStorage.getItem(TOKEN_STORAGE_KEY);
+            const tokenExpiry =
+                localStorage.getItem(TOKEN_EXPIRY_KEY) ||
+                sessionStorage.getItem(TOKEN_EXPIRY_KEY);
 
             if (savedToken && tokenExpiry) {
                 const expiryTime = parseInt(tokenExpiry, 10);
@@ -156,13 +217,40 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return false;
     }, []);
 
-    // Restore session from localStorage
+    // Get saved token from storage
+    const getSavedToken = useCallback((): string | null => {
+        return (
+            localStorage.getItem(TOKEN_STORAGE_KEY) ||
+            sessionStorage.getItem(TOKEN_STORAGE_KEY)
+        );
+    }, []);
+
+    // Save token to appropriate storage
+    const saveToken = useCallback(
+        (token: string, expiryTime: number) => {
+            const storage = getStorage(staySignedIn);
+            storage.setItem(TOKEN_STORAGE_KEY, token);
+            storage.setItem(TOKEN_EXPIRY_KEY, expiryTime.toString());
+        },
+        [staySignedIn]
+    );
+
+    // Save user to appropriate storage
+    const saveUser = useCallback(
+        (user: GoogleUser) => {
+            const storage = getStorage(staySignedIn);
+            storage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
+        },
+        [staySignedIn]
+    );
+
+    // Restore session from storage
     const restoreSession = useCallback(() => {
         const savedUser = getSavedUser();
-        const savedToken = localStorage.getItem(TOKEN_STORAGE_KEY);
+        const savedToken = getSavedToken();
 
         if (savedUser && savedToken && hasValidToken()) {
-            console.log("Restoring session from localStorage");
+            console.log("Restoring session from storage");
             setState({
                 isAuthenticated: true,
                 isLoading: false,
@@ -174,7 +262,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             return true;
         }
         return false;
-    }, [getSavedUser, hasValidToken]);
+    }, [getSavedUser, getSavedToken, hasValidToken]);
 
     // Request a new access token silently (without user interaction)
     const requestTokenSilently = useCallback(() => {
@@ -215,8 +303,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
             const expiryTime = Date.now() + response.expires_in * 1000;
 
-            localStorage.setItem(TOKEN_STORAGE_KEY, response.access_token);
-            localStorage.setItem(TOKEN_EXPIRY_KEY, expiryTime.toString());
+            // Save to appropriate storage
+            saveToken(response.access_token, expiryTime);
 
             // Try to get saved user, or fetch from Google API
             const savedUser = getSavedUser();
@@ -227,10 +315,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 fetchUserInfo(response.access_token).then((fetchedUser) => {
                     if (fetchedUser) {
                         console.log("User info fetched:", fetchedUser.email);
-                        localStorage.setItem(
-                            AUTH_STORAGE_KEY,
-                            JSON.stringify(fetchedUser)
-                        );
+                        saveUser(fetchedUser);
                         setState({
                             isAuthenticated: true,
                             isLoading: false,
@@ -273,10 +358,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 // User cancelled - don't clear session, just stop loading
                 setState((prev) => ({ ...prev, isLoading: false }));
             } else {
-                // Other error - session might be invalid
+                // Other error - session might be invalid, clear both storages
                 localStorage.removeItem(AUTH_STORAGE_KEY);
                 localStorage.removeItem(TOKEN_STORAGE_KEY);
                 localStorage.removeItem(TOKEN_EXPIRY_KEY);
+                sessionStorage.removeItem(AUTH_STORAGE_KEY);
+                sessionStorage.removeItem(TOKEN_STORAGE_KEY);
+                sessionStorage.removeItem(TOKEN_EXPIRY_KEY);
 
                 setState({
                     isAuthenticated: false,
@@ -401,7 +489,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         };
 
         initializeGoogle();
-    }, [getSavedUser, restoreSession, requestTokenSilently]);
+    }, [
+        getSavedUser,
+        restoreSession,
+        requestTokenSilently,
+        saveToken,
+        saveUser,
+    ]);
 
     // Login function
     const login = useCallback(() => {
@@ -454,10 +548,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             window.google.accounts.id.disableAutoSelect();
         }
 
-        // Clear storage
+        // Clear both localStorage AND sessionStorage
         localStorage.removeItem(AUTH_STORAGE_KEY);
         localStorage.removeItem(TOKEN_STORAGE_KEY);
         localStorage.removeItem(TOKEN_EXPIRY_KEY);
+        sessionStorage.removeItem(AUTH_STORAGE_KEY);
+        sessionStorage.removeItem(TOKEN_STORAGE_KEY);
+        sessionStorage.removeItem(TOKEN_EXPIRY_KEY);
 
         // Reset state
         setState({
@@ -484,14 +581,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 callback: (response: TokenResponse) => {
                     const expiryTime = Date.now() + response.expires_in * 1000;
 
-                    localStorage.setItem(
-                        TOKEN_STORAGE_KEY,
-                        response.access_token
-                    );
-                    localStorage.setItem(
-                        TOKEN_EXPIRY_KEY,
-                        expiryTime.toString()
-                    );
+                    // Save to appropriate storage
+                    saveToken(response.access_token, expiryTime);
 
                     setState((prev) => ({
                         ...prev,
@@ -510,14 +601,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 reject(new Error("Failed to create token client"));
             }
         });
-    }, []);
+    }, [saveToken]);
 
     // Check token expiry periodically and refresh if needed
     useEffect(() => {
         if (!state.isAuthenticated || !state.accessToken) return;
 
         const checkTokenExpiry = () => {
-            const expiry = localStorage.getItem(TOKEN_EXPIRY_KEY);
+            // Check both storages for expiry time
+            const expiry =
+                localStorage.getItem(TOKEN_EXPIRY_KEY) ||
+                sessionStorage.getItem(TOKEN_EXPIRY_KEY);
             if (expiry) {
                 const expiryTime = parseInt(expiry, 10);
                 const timeUntilExpiry = expiryTime - Date.now();
@@ -553,6 +647,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 logout,
                 refreshToken,
                 isGoogleLoaded,
+                staySignedIn,
+                setStaySignedIn,
             }}>
             {children}
         </AuthContext.Provider>
