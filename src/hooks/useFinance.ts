@@ -39,8 +39,9 @@ const getMonthStart = (month: string, startDay: number = 1): Date => {
 
 const getMonthEnd = (month: string, startDay: number = 1): Date => {
     const [year, monthNum] = month.split("-").map(Number);
-    const nextMonth = new Date(year, monthNum, startDay - 1);
-    return nextMonth;
+    // Setting day to startDay - 1, but hours to 23:59:59
+    const end = new Date(year, monthNum, startDay - 1, 23, 59, 59, 999);
+    return end;
 };
 
 const isInMonth = (
