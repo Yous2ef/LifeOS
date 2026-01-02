@@ -978,7 +978,7 @@ export const useFinance = () => {
 
     // ==================== Budget Operations ====================
 
-    const getOrCreateBudget = useCallback(
+    const getBudgetOverview = useCallback(
         (month: string = getCurrentMonth()) => {
             const startDay = data.settings.monthStartDay;
             const monthExpenses = data.expenses.filter((e) =>
@@ -1034,9 +1034,10 @@ export const useFinance = () => {
                 };
             }
 
+            // Return virtual budget if not created yet
             const now = new Date().toISOString();
-            const newBudget: Budget = {
-                id: generateId(),
+            return {
+                id: "virtual_" + month,
                 month,
                 totalPlannedIncome: 0,
                 totalActualIncome,
@@ -1047,6 +1048,31 @@ export const useFinance = () => {
                 categoryBudgets,
                 createdAt: now,
                 updatedAt: now,
+                isVirtual: true, 
+            };
+        },
+        [
+            data.budgets,
+            data.categories,
+            data.expenses,
+            data.incomes,
+            data.settings.monthStartDay,
+        ]
+    );
+
+    const createBudget = useCallback(
+        (month: string = getCurrentMonth()) => {
+            const existing = data.budgets.find((b) => b.month === month);
+            if (existing) return existing;
+
+            // Use the overview logic to get initial values
+            const overview = getBudgetOverview(month);
+            
+            // Remove virtual flag and ensure ID
+            const { isVirtual, ...budgetData } = overview as any;
+            const newBudget: Budget = {
+                ...budgetData,
+                id: generateId(),
             };
 
             setData((prev) => ({
@@ -1055,14 +1081,29 @@ export const useFinance = () => {
             }));
             return newBudget;
         },
-        [
-            data.budgets,
-            data.categories,
-            data.expenses,
-            data.incomes,
-            data.settings.monthStartDay,
-            setData,
-        ]
+        [data.budgets, getBudgetOverview, setData]
+    );
+
+    // Backward compatibility wrapper (but safe for useEffect)
+    const getOrCreateBudget = useCallback(
+        (month: string = getCurrentMonth()) => {
+             // If used in render, use getBudgetOverview.
+             // If used in event/effect, use createBudget logic.
+             // This is tricky to fix without breaking consumers.
+             // We will return the overview, and lazily create if needed using setTimeout to avoid render error
+             
+             const overview = getBudgetOverview(month);
+             const existing = data.budgets.find((b) => b.month === month);
+             
+             if (!existing) {
+                 // Schedule creation to avoid side-effect during render
+                 setTimeout(() => {
+                     createBudget(month);
+                 }, 0);
+             }
+             return overview;
+        },
+        [getBudgetOverview, createBudget, data.budgets]
     );
 
     const updateBudget = useCallback(
