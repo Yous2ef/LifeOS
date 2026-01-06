@@ -132,9 +132,12 @@ export const createDefaultFinanceSettings = (): FinanceSettings => ({
  * Create default finance data
  */
 export const createDefaultFinanceData = (): FinanceData => ({
+    accounts: [],
+    transfers: [],
     incomes: [],
     expenses: [],
     categories: [],
+    incomeCategories: [],
     installments: [],
     budgets: [],
     goals: [],

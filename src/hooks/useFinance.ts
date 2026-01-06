@@ -1,10 +1,12 @@
 ﻿import { useEffect, useCallback, useMemo } from "react";
 import { useApp } from "../context/AppContext";
+import { runMigrationIfNeeded } from "@/utils/finance/migration";
 import type {
     FinanceData,
     Income,
     Expense,
     ExpenseCategory,
+    IncomeCategory,
     Installment,
     InstallmentPayment,
     Budget,
@@ -16,6 +18,9 @@ import type {
     CategorySpending,
     DailySpending,
     Transaction,
+    Account,
+    AccountTransfer,
+    PaymentMethod,
 } from "@/types/modules/finance";
 
 // ==================== Helper Functions ====================
@@ -65,7 +70,7 @@ const getDefaultFinanceData = (): FinanceData => {
             id: generateId(),
             name: "Rent/Mortgage",
             nameAr: "إيجار/قسط سكن",
-            icon: "",
+            icon: "🏠",
             color: "#3b82f6",
             isEssential: true,
             isDefault: true,
@@ -76,7 +81,7 @@ const getDefaultFinanceData = (): FinanceData => {
             id: generateId(),
             name: "Utilities",
             nameAr: "فواتير",
-            icon: "",
+            icon: "⚡",
             color: "#eab308",
             isEssential: true,
             isDefault: true,
@@ -87,7 +92,7 @@ const getDefaultFinanceData = (): FinanceData => {
             id: generateId(),
             name: "Transportation",
             nameAr: "مواصلات",
-            icon: "",
+            icon: "🚗",
             color: "#8b5cf6",
             isEssential: true,
             isDefault: true,
@@ -98,7 +103,7 @@ const getDefaultFinanceData = (): FinanceData => {
             id: generateId(),
             name: "Groceries",
             nameAr: "طعام وبقالة",
-            icon: "",
+            icon: "🛒",
             color: "#22c55e",
             isEssential: true,
             isDefault: true,
@@ -109,7 +114,7 @@ const getDefaultFinanceData = (): FinanceData => {
             id: generateId(),
             name: "Healthcare",
             nameAr: "صحة ودواء",
-            icon: "",
+            icon: "💊",
             color: "#ef4444",
             isEssential: true,
             isDefault: true,
@@ -120,7 +125,7 @@ const getDefaultFinanceData = (): FinanceData => {
             id: generateId(),
             name: "Insurance",
             nameAr: "تأمين",
-            icon: "",
+            icon: "🛡️",
             color: "#0ea5e9",
             isEssential: true,
             isDefault: true,
@@ -131,7 +136,7 @@ const getDefaultFinanceData = (): FinanceData => {
             id: generateId(),
             name: "Dining Out",
             nameAr: "أكل بره",
-            icon: "",
+            icon: "🍔",
             color: "#f97316",
             isEssential: false,
             isDefault: true,
@@ -142,7 +147,7 @@ const getDefaultFinanceData = (): FinanceData => {
             id: generateId(),
             name: "Entertainment",
             nameAr: "ترفيه",
-            icon: "",
+            icon: "🎮",
             color: "#ec4899",
             isEssential: false,
             isDefault: true,
@@ -153,7 +158,7 @@ const getDefaultFinanceData = (): FinanceData => {
             id: generateId(),
             name: "Shopping",
             nameAr: "تسوق",
-            icon: "",
+            icon: "🛍️",
             color: "#a855f7",
             isEssential: false,
             isDefault: true,
@@ -164,7 +169,7 @@ const getDefaultFinanceData = (): FinanceData => {
             id: generateId(),
             name: "Clothing",
             nameAr: "ملابس",
-            icon: "",
+            icon: "👔",
             color: "#06b6d4",
             isEssential: false,
             isDefault: true,
@@ -175,7 +180,7 @@ const getDefaultFinanceData = (): FinanceData => {
             id: generateId(),
             name: "Education",
             nameAr: "تعليم",
-            icon: "",
+            icon: "📚",
             color: "#14b8a6",
             isEssential: false,
             isDefault: true,
@@ -186,7 +191,7 @@ const getDefaultFinanceData = (): FinanceData => {
             id: generateId(),
             name: "Gifts",
             nameAr: "هدايا",
-            icon: "",
+            icon: "🎁",
             color: "#f43f5e",
             isEssential: false,
             isDefault: true,
@@ -197,7 +202,7 @@ const getDefaultFinanceData = (): FinanceData => {
             id: generateId(),
             name: "Sports",
             nameAr: "رياضة",
-            icon: "",
+            icon: "⚽",
             color: "#10b981",
             isEssential: false,
             isDefault: true,
@@ -208,7 +213,7 @@ const getDefaultFinanceData = (): FinanceData => {
             id: generateId(),
             name: "Travel",
             nameAr: "سفر",
-            icon: "",
+            icon: "✈️",
             color: "#6366f1",
             isEssential: false,
             isDefault: true,
@@ -219,7 +224,7 @@ const getDefaultFinanceData = (): FinanceData => {
             id: generateId(),
             name: "Subscriptions",
             nameAr: "اشتراكات",
-            icon: "",
+            icon: "📱",
             color: "#8b5cf6",
             isEssential: false,
             isDefault: true,
@@ -230,7 +235,7 @@ const getDefaultFinanceData = (): FinanceData => {
             id: generateId(),
             name: "Personal Care",
             nameAr: "عناية شخصية",
-            icon: "",
+            icon: "💇",
             color: "#d946ef",
             isEssential: false,
             isDefault: true,
@@ -241,7 +246,7 @@ const getDefaultFinanceData = (): FinanceData => {
             id: generateId(),
             name: "Emergency",
             nameAr: "طوارئ",
-            icon: "",
+            icon: "🚨",
             color: "#dc2626",
             isEssential: true,
             isDefault: true,
@@ -252,7 +257,7 @@ const getDefaultFinanceData = (): FinanceData => {
             id: generateId(),
             name: "Other",
             nameAr: "أخرى",
-            icon: "",
+            icon: "📦",
             color: "#64748b",
             isEssential: false,
             isDefault: true,
@@ -261,10 +266,116 @@ const getDefaultFinanceData = (): FinanceData => {
         },
     ];
 
+    const incomeCategories: IncomeCategory[] = [
+        {
+            id: generateId(),
+            name: "Salary",
+            nameAr: "راتب",
+            icon: "💼",
+            color: "#3b82f6",
+            isDefault: true,
+            order: 1,
+            createdAt: now,
+        },
+        {
+            id: generateId(),
+            name: "Freelance",
+            nameAr: "عمل حر",
+            icon: "💻",
+            color: "#8b5cf6",
+            isDefault: true,
+            order: 2,
+            createdAt: now,
+        },
+        {
+            id: generateId(),
+            name: "Business",
+            nameAr: "أعمال",
+            icon: "🏢",
+            color: "#14b8a6",
+            isDefault: true,
+            order: 3,
+            createdAt: now,
+        },
+        {
+            id: generateId(),
+            name: "Investment",
+            nameAr: "استثمار",
+            icon: "📈",
+            color: "#22c55e",
+            isDefault: true,
+            order: 4,
+            createdAt: now,
+        },
+        {
+            id: generateId(),
+            name: "Bonus",
+            nameAr: "مكافأة",
+            icon: "🎉",
+            color: "#f59e0b",
+            isDefault: true,
+            order: 5,
+            createdAt: now,
+        },
+        {
+            id: generateId(),
+            name: "Commission",
+            nameAr: "عمولة",
+            icon: "💰",
+            color: "#10b981",
+            isDefault: true,
+            order: 6,
+            createdAt: now,
+        },
+        {
+            id: generateId(),
+            name: "Gift",
+            nameAr: "هدية",
+            icon: "🎁",
+            color: "#ec4899",
+            isDefault: true,
+            order: 7,
+            createdAt: now,
+        },
+        {
+            id: generateId(),
+            name: "Refund",
+            nameAr: "استرداد",
+            icon: "🔄",
+            color: "#06b6d4",
+            isDefault: true,
+            order: 8,
+            createdAt: now,
+        },
+        {
+            id: generateId(),
+            name: "Rental Income",
+            nameAr: "دخل إيجار",
+            icon: "🏠",
+            color: "#6366f1",
+            isDefault: true,
+            order: 9,
+            createdAt: now,
+        },
+        {
+            id: generateId(),
+            name: "Other",
+            nameAr: "أخرى",
+            icon: "📦",
+            color: "#64748b",
+            isDefault: true,
+            order: 10,
+            createdAt: now,
+        },
+    ];
+
     return {
+        accounts: [], // Will be populated by migration or user
+        transfers: [],
         incomes: [],
         expenses: [],
         categories,
+        incomeCategories,
         installments: [],
         budgets: [],
         goals: [],
@@ -290,17 +401,38 @@ export const useFinance = () => {
     const { data: appData, updateData } = useApp();
 
     // Get finance data from unified AppData, with defaults
-    const data: FinanceData = useMemo(
-        () => ({
+    // Run migration if needed to upgrade from v1 to v2
+    const data: FinanceData = useMemo(() => {
+        const baseData: FinanceData = {
             ...getDefaultFinanceData(),
             ...appData.finance,
             settings: {
                 ...getDefaultFinanceData().settings,
                 ...(appData.finance?.settings || {}),
             },
-        }),
-        [appData.finance]
-    );
+        };
+
+        // Check if migration is needed (no accounts array OR no income categories)
+        const needsAccountMigration =
+            !baseData.accounts || baseData.accounts.length === 0;
+        const needsIncomeCategoryCreation =
+            !baseData.incomeCategories ||
+            baseData.incomeCategories.length === 0;
+
+        if (needsAccountMigration || needsIncomeCategoryCreation) {
+            // Import migration utility
+            const migratedData = runMigrationIfNeeded(baseData);
+
+            // Save migrated data back to storage
+            setTimeout(() => {
+                updateData({ finance: migratedData });
+            }, 0);
+
+            return migratedData;
+        }
+
+        return baseData;
+    }, [appData.finance, updateData]);
 
     // Helper to update finance data in AppContext
     const setData = useCallback(
@@ -709,6 +841,263 @@ export const useFinance = () => {
         [data.categories]
     );
 
+    // ==================== Income Category Operations ====================
+
+    const addIncomeCategory = useCallback(
+        (categoryData: Omit<IncomeCategory, "id" | "createdAt">) => {
+            const newCategory: IncomeCategory = {
+                ...categoryData,
+                id: generateId(),
+                createdAt: new Date().toISOString(),
+            };
+            setData((prev) => ({
+                ...prev,
+                incomeCategories: [
+                    ...(prev.incomeCategories || []),
+                    newCategory,
+                ],
+            }));
+            return newCategory;
+        },
+        [setData]
+    );
+
+    const updateIncomeCategory = useCallback(
+        (id: string, updates: Partial<IncomeCategory>) => {
+            setData((prev) => ({
+                ...prev,
+                incomeCategories: (prev.incomeCategories || []).map((cat) =>
+                    cat.id === id ? { ...cat, ...updates } : cat
+                ),
+            }));
+        },
+        [setData]
+    );
+
+    const deleteIncomeCategory = useCallback(
+        (id: string) => {
+            const category = (data.incomeCategories || []).find(
+                (c) => c.id === id
+            );
+            if (category?.isDefault) return false;
+            setData((prev) => ({
+                ...prev,
+                incomeCategories: (prev.incomeCategories || []).filter(
+                    (cat) => cat.id !== id
+                ),
+            }));
+            return true;
+        },
+        [data.incomeCategories, setData]
+    );
+
+    const getIncomeCategoryById = useCallback(
+        (id: string) =>
+            (data.incomeCategories || []).find((cat) => cat.id === id),
+        [data.incomeCategories]
+    );
+
+    // ==================== Account Operations ====================
+
+    const addAccount = useCallback(
+        (
+            accountData: Omit<
+                Account,
+                "id" | "createdAt" | "updatedAt" | "balance"
+            >
+        ) => {
+            const now = new Date().toISOString();
+            const newAccount: Account = {
+                ...accountData,
+                id: generateId(),
+                balance: accountData.initialBalance, // Start with initial balance
+                createdAt: now,
+                updatedAt: now,
+            };
+            setData((prev) => ({
+                ...prev,
+                accounts: [...prev.accounts, newAccount],
+            }));
+            return newAccount;
+        },
+        [setData]
+    );
+
+    const updateAccount = useCallback(
+        (id: string, updates: Partial<Account>) => {
+            setData((prev) => ({
+                ...prev,
+                accounts: prev.accounts.map((account) =>
+                    account.id === id
+                        ? {
+                              ...account,
+                              ...updates,
+                              updatedAt: new Date().toISOString(),
+                          }
+                        : account
+                ),
+            }));
+        },
+        [setData]
+    );
+
+    const deleteAccount = useCallback(
+        (id: string): { success: boolean; error?: string } => {
+            // Check if account has any transactions
+            const hasTransactions =
+                data.expenses.some((e) => e.accountId === id) ||
+                data.incomes.some((i) => i.accountId === id) ||
+                data.installments.some((inst) => inst.linkedAccountId === id);
+
+            if (hasTransactions) {
+                return {
+                    success: false,
+                    error: "Cannot delete account with existing transactions. Archive it instead.",
+                };
+            }
+
+            // Check if it's the last active account
+            const activeAccounts = data.accounts.filter(
+                (a) => a.isActive && a.id !== id
+            );
+            if (activeAccounts.length === 0) {
+                return {
+                    success: false,
+                    error: "Cannot delete the last active account. Create another account first.",
+                };
+            }
+
+            // Proceed with deletion
+            setData((prev) => ({
+                ...prev,
+                accounts: prev.accounts.filter((a) => a.id !== id),
+            }));
+
+            return { success: true };
+        },
+        [data.accounts, data.expenses, data.incomes, data.installments, setData]
+    );
+
+    const getAccountById = useCallback(
+        (id: string) => data.accounts.find((account) => account.id === id),
+        [data.accounts]
+    );
+
+    // Calculate real-time balance for an account
+    const calculateAccountBalance = useCallback(
+        (accountId: string): number => {
+            const account = data.accounts.find((a) => a.id === accountId);
+            if (!account) return 0;
+
+            // Start with initial balance
+            let balance = account.initialBalance;
+
+            // Add all incomes to this account
+            const accountIncomes = data.incomes.filter(
+                (inc) =>
+                    inc.accountId === accountId && inc.status === "received"
+            );
+            balance += accountIncomes.reduce((sum, inc) => sum + inc.amount, 0);
+
+            // Subtract all expenses from this account
+            const accountExpenses = data.expenses.filter(
+                (exp) => exp.accountId === accountId
+            );
+            balance -= accountExpenses.reduce(
+                (sum, exp) => sum + exp.amount,
+                0
+            );
+
+            // Subtract installment payments
+            const accountInstallments = data.installments.filter(
+                (inst) => inst.linkedAccountId === accountId
+            );
+            balance -= accountInstallments.reduce(
+                (sum, inst) => sum + inst.paidAmount,
+                0
+            );
+
+            // Account for transfers
+            const transfersFrom = (data.transfers || []).filter(
+                (t) => t.fromAccountId === accountId
+            );
+            const transfersTo = (data.transfers || []).filter(
+                (t) => t.toAccountId === accountId
+            );
+
+            balance -= transfersFrom.reduce((sum, t) => sum + t.amount, 0);
+            balance += transfersTo.reduce((sum, t) => sum + t.amount, 0);
+
+            return balance;
+        },
+        [
+            data.accounts,
+            data.incomes,
+            data.expenses,
+            data.installments,
+            data.transfers,
+        ]
+    );
+
+    // Transfer money between accounts
+    const transferBetweenAccounts = useCallback(
+        (
+            fromAccountId: string,
+            toAccountId: string,
+            amount: number,
+            notes?: string
+        ) => {
+            const fromAccount = data.accounts.find(
+                (a) => a.id === fromAccountId
+            );
+            const toAccount = data.accounts.find((a) => a.id === toAccountId);
+
+            if (!fromAccount || !toAccount) {
+                throw new Error("Invalid account IDs");
+            }
+
+            if (amount <= 0) {
+                throw new Error("Transfer amount must be greater than 0");
+            }
+
+            const now = new Date().toISOString();
+            const transfer: AccountTransfer = {
+                id: generateId(),
+                fromAccountId,
+                toAccountId,
+                amount,
+                date: now.split("T")[0],
+                notes,
+                createdAt: now,
+            };
+
+            setData((prev) => ({
+                ...prev,
+                transfers: [...(prev.transfers || []), transfer],
+                accounts: prev.accounts.map((account) => {
+                    if (account.id === fromAccountId) {
+                        return {
+                            ...account,
+                            balance: account.balance - amount,
+                            updatedAt: now,
+                        };
+                    }
+                    if (account.id === toAccountId) {
+                        return {
+                            ...account,
+                            balance: account.balance + amount,
+                            updatedAt: now,
+                        };
+                    }
+                    return account;
+                }),
+            }));
+
+            return transfer;
+        },
+        [data.accounts, setData]
+    );
+
     // ==================== Installment Operations ====================
 
     const addInstallment = useCallback(
@@ -778,12 +1167,17 @@ export const useFinance = () => {
             payment: Omit<
                 InstallmentPayment,
                 "id" | "installmentId" | "createdAt"
-            >
+            >,
+            expenseInfo?: {
+                accountId: string;
+                paymentMethod: PaymentMethod;
+            }
         ) => {
             const now = new Date().toISOString();
+            const paymentId = generateId();
             const newPayment: InstallmentPayment = {
                 ...payment,
-                id: generateId(),
+                id: paymentId,
                 installmentId,
                 createdAt: now,
             };
@@ -825,8 +1219,32 @@ export const useFinance = () => {
                 const isCompleted =
                     paidInstallments >= installment.totalInstallments;
 
+                // Create expense for the payment if expenseInfo provided
+                let newExpenses = prev.expenses;
+                if (expenseInfo && payment.amount > 0) {
+                    const expense: Expense = {
+                        id: generateId(),
+                        title: `${installment.title} - Payment ${paidInstallments}`,
+                        amount: payment.amount,
+                        currency: prev.settings.defaultCurrency,
+                        categoryId: installment.categoryId,
+                        type: "fixed",
+                        paymentMethod: expenseInfo.paymentMethod,
+                        accountId: expenseInfo.accountId,
+                        date: payment.date,
+                        isRecurring: false,
+                        tags: ["installment"],
+                        notes: payment.notes,
+                        linkedInstallmentId: installmentId,
+                        createdAt: now,
+                        updatedAt: now,
+                    };
+                    newExpenses = [...prev.expenses, expense];
+                }
+
                 return {
                     ...prev,
+                    expenses: newExpenses,
                     installments: prev.installments.map((inst) =>
                         inst.id === installmentId
                             ? {
@@ -848,6 +1266,115 @@ export const useFinance = () => {
             });
 
             return newPayment;
+        },
+        [setData]
+    );
+
+    // Add refund to installment (negative payment) - creates income transaction
+    const addInstallmentRefund = useCallback(
+        (
+            installmentId: string,
+            amount: number,
+            reason?: string,
+            incomeInfo?: {
+                accountId: string;
+            }
+        ) => {
+            const now = new Date().toISOString();
+            const refundPayment: InstallmentPayment = {
+                id: generateId(),
+                installmentId,
+                date: now.split("T")[0],
+                amount: -Math.abs(amount), // Ensure negative
+                status: "paid", // Refunds count towards recalculation
+                notes: reason || "Refund",
+                createdAt: now,
+            };
+
+            setData((prev) => {
+                const installment = prev.installments.find(
+                    (i) => i.id === installmentId
+                );
+                if (!installment) return prev;
+
+                const updatedPayments = [
+                    ...installment.payments,
+                    refundPayment,
+                ];
+                // Recalculate paid amount including refunds
+                const paidAmount = Math.max(
+                    0,
+                    updatedPayments
+                        .filter(
+                            (p) => p.status === "paid" || p.status === "late"
+                        )
+                        .reduce((sum, p) => sum + p.amount, 0)
+                );
+
+                // Recalculate paid installments (only positive payments)
+                const paidInstallments = Math.max(
+                    0,
+                    Math.floor(paidAmount / installment.installmentAmount)
+                );
+
+                const isCompleted =
+                    paidInstallments >= installment.totalInstallments;
+
+                // Create income transaction if account info provided
+                let updatedIncomes = prev.incomes;
+                if (incomeInfo?.accountId) {
+                    // Find refund category or use first available
+                    const refundCategory = prev.incomeCategories.find(
+                        (c) => c.name.toLowerCase() === "refund"
+                    );
+                    const refundIncome: Income = {
+                        id: generateId(),
+                        title: `Refund: ${installment.title}${
+                            reason ? ` - ${reason}` : ""
+                        }`,
+                        amount: Math.abs(amount),
+                        currency: prev.settings.defaultCurrency,
+                        type: "variable",
+                        categoryId:
+                            refundCategory?.id ||
+                            prev.incomeCategories[0]?.id ||
+                            "",
+                        status: "received",
+                        frequency: "one-time",
+                        accountId: incomeInfo.accountId,
+                        actualDate: now.split("T")[0],
+                        isRecurring: false,
+                        tags: ["refund"],
+                        linkedInstallmentId: installmentId,
+                        createdAt: now,
+                        updatedAt: now,
+                    };
+                    updatedIncomes = [...prev.incomes, refundIncome];
+                }
+
+                return {
+                    ...prev,
+                    incomes: updatedIncomes,
+                    installments: prev.installments.map((inst) =>
+                        inst.id === installmentId
+                            ? {
+                                  ...inst,
+                                  payments: updatedPayments,
+                                  paidAmount,
+                                  paidInstallments,
+                                  status: isCompleted
+                                      ? "completed"
+                                      : inst.status === "completed"
+                                      ? "active"
+                                      : inst.status,
+                                  updatedAt: now,
+                              }
+                            : inst
+                    ),
+                };
+            });
+
+            return refundPayment;
         },
         [setData]
     );
@@ -1028,6 +1555,7 @@ export const useFinance = () => {
                 return {
                     ...existing,
                     categoryBudgets,
+                    totalPlannedExpenses: totalPlanned,
                     totalActualIncome,
                     totalActualExpenses,
                     actualSavings: totalActualIncome - totalActualExpenses,
@@ -1048,7 +1576,7 @@ export const useFinance = () => {
                 categoryBudgets,
                 createdAt: now,
                 updatedAt: now,
-                isVirtual: true, 
+                isVirtual: true,
             };
         },
         [
@@ -1067,7 +1595,7 @@ export const useFinance = () => {
 
             // Use the overview logic to get initial values
             const overview = getBudgetOverview(month);
-            
+
             // Remove virtual flag and ensure ID
             const { isVirtual, ...budgetData } = overview as any;
             const newBudget: Budget = {
@@ -1087,21 +1615,21 @@ export const useFinance = () => {
     // Backward compatibility wrapper (but safe for useEffect)
     const getOrCreateBudget = useCallback(
         (month: string = getCurrentMonth()) => {
-             // If used in render, use getBudgetOverview.
-             // If used in event/effect, use createBudget logic.
-             // This is tricky to fix without breaking consumers.
-             // We will return the overview, and lazily create if needed using setTimeout to avoid render error
-             
-             const overview = getBudgetOverview(month);
-             const existing = data.budgets.find((b) => b.month === month);
-             
-             if (!existing) {
-                 // Schedule creation to avoid side-effect during render
-                 setTimeout(() => {
-                     createBudget(month);
-                 }, 0);
-             }
-             return overview;
+            // If used in render, use getBudgetOverview.
+            // If used in event/effect, use createBudget logic.
+            // This is tricky to fix without breaking consumers.
+            // We will return the overview, and lazily create if needed using setTimeout to avoid render error
+
+            const overview = getBudgetOverview(month);
+            const existing = data.budgets.find((b) => b.month === month);
+
+            if (!existing) {
+                // Schedule creation to avoid side-effect during render
+                setTimeout(() => {
+                    createBudget(month);
+                }, 0);
+            }
+            return overview;
         },
         [getBudgetOverview, createBudget, data.budgets]
     );
@@ -1388,6 +1916,7 @@ export const useFinance = () => {
                         title: income.title,
                         amount: income.amount,
                         date: income.actualDate!,
+                        accountId: income.accountId,
                     });
                 });
 
@@ -1401,6 +1930,8 @@ export const useFinance = () => {
                     title: expense.title,
                     amount: expense.amount,
                     date: expense.date,
+                    accountId: expense.accountId,
+                    location: expense.location,
                     category: category?.name,
                     categoryIcon: category?.icon,
                     categoryColor: category?.color,
@@ -1427,6 +1958,15 @@ export const useFinance = () => {
             notes?: string
         ) => {
             const category = data.categories.find((c) => c.id === categoryId);
+            // Get default account or first available account
+            const defaultAccount =
+                data.accounts.find((a) => a.isDefault) || data.accounts[0];
+
+            if (!defaultAccount) {
+                console.error("No account available for quick add expense");
+                return null;
+            }
+
             return addExpense({
                 title: title || category?.name || "Expense",
                 amount,
@@ -1434,13 +1974,19 @@ export const useFinance = () => {
                 categoryId,
                 type: "variable",
                 paymentMethod: "cash",
+                accountId: defaultAccount.id, // Use default account
                 date: new Date().toISOString().split("T")[0],
                 isRecurring: false,
                 tags: [],
                 notes,
             });
         },
-        [addExpense, data.categories, data.settings.defaultCurrency]
+        [
+            addExpense,
+            data.accounts,
+            data.categories,
+            data.settings.defaultCurrency,
+        ]
     );
 
     // ==================== Format Helpers ====================
@@ -1461,9 +2007,19 @@ export const useFinance = () => {
 
     const exportData = useCallback((): FinanceData => {
         return {
-            ...data,
+            accounts: data.accounts || [],
+            transfers: data.transfers || [],
+            incomes: data.incomes,
+            expenses: data.expenses,
+            categories: data.categories,
+            incomeCategories: data.incomeCategories || [],
+            installments: data.installments,
+            budgets: data.budgets,
+            goals: data.goals,
+            alerts: data.alerts,
+            settings: data.settings,
             exportedAt: new Date().toISOString(),
-            version: "1.0.0",
+            version: "2.0.0",
         };
     }, [data]);
 
@@ -1476,17 +2032,24 @@ export const useFinance = () => {
             ) {
                 throw new Error("Invalid data structure");
             }
+
+            // Run migration if imported data doesn't have accounts
+            const migratedData = runMigrationIfNeeded(importedData);
+
             setData({
-                incomes: importedData.incomes || [],
-                expenses: importedData.expenses || [],
-                categories: importedData.categories || data.categories,
-                installments: importedData.installments || [],
-                budgets: importedData.budgets || [],
-                goals: importedData.goals || [],
-                alerts: importedData.alerts || [],
-                settings: importedData.settings || data.settings,
+                accounts: migratedData.accounts || [],
+                transfers: migratedData.transfers || [],
+                incomes: migratedData.incomes || [],
+                expenses: migratedData.expenses || [],
+                categories: migratedData.categories || data.categories,
+                incomeCategories: migratedData.incomeCategories || [],
+                installments: migratedData.installments || [],
+                budgets: migratedData.budgets || [],
+                goals: migratedData.goals || [],
+                alerts: migratedData.alerts || [],
+                settings: migratedData.settings || data.settings,
                 exportedAt: new Date().toISOString(),
-                version: importedData.version || "1.0.0",
+                version: migratedData.version || "2.0.0",
             });
         },
         [data.categories, data.settings, setData]
@@ -1500,9 +2063,12 @@ export const useFinance = () => {
     // Return all operations and data
     return {
         // Data
+        accounts: data.accounts,
+        transfers: data.transfers,
         incomes: data.incomes,
         expenses: data.expenses,
         categories: data.categories,
+        incomeCategories: data.incomeCategories || [],
         installments: data.installments,
         budgets: data.budgets,
         goals: data.goals,
@@ -1528,11 +2094,26 @@ export const useFinance = () => {
         deleteCategory,
         getCategoryById,
 
+        // Income Category operations
+        addIncomeCategory,
+        updateIncomeCategory,
+        deleteIncomeCategory,
+        getIncomeCategoryById,
+
+        // Account operations
+        addAccount,
+        updateAccount,
+        deleteAccount,
+        getAccountById,
+        calculateAccountBalance,
+        transferBetweenAccounts,
+
         // Installment operations
         addInstallment,
         updateInstallment,
         deleteInstallment,
         addInstallmentPayment,
+        addInstallmentRefund,
 
         // Goal operations
         addGoal,
@@ -1542,6 +2123,8 @@ export const useFinance = () => {
 
         // Budget operations
         getOrCreateBudget,
+        getBudgetOverview,
+        createBudget,
         updateBudget,
 
         // Alert operations

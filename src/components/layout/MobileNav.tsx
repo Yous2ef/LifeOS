@@ -54,7 +54,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({ onImport }) => {
                     <div className="flex items-center gap-3">
                         <div className="w-16 h-16 rounded-xl overflow-hidden flex items-center justify-center bg-white/10">
                             <img
-                                src="./Logo.png"
+                                src="../Logo.png"
                                 alt="LifeOS Logo"
                                 className="w-16 h-16 object-contain"
                             />

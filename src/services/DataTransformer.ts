@@ -132,6 +132,12 @@ export class DataTransformer {
                 ),
             },
             finance: {
+                accounts: this.decompressArray(
+                    compressed.data.finance?.accounts
+                ),
+                transfers: this.decompressArray(
+                    compressed.data.finance?.transfers
+                ),
                 incomes: this.decompressArray(compressed.data.finance?.incomes),
                 expenses: this.decompressArray(
                     compressed.data.finance?.expenses
@@ -139,6 +145,10 @@ export class DataTransformer {
                 categories: this.decompressArray(
                     compressed.data.finance?.categories
                 ),
+                incomeCategories:
+                    this.decompressArray(
+                        compressed.data.finance?.incomeCategories
+                    ) || [],
                 installments: this.decompressArray(
                     compressed.data.finance?.installments
                 ),

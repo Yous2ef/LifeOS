@@ -75,7 +75,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onImport }) => {
                     <div className="flex flex-col items-center gap-3">
                         <div className="w-10 h-10 flex items-center justify-center">
                             <img
-                                src="/favicon.ico"
+                                src="../Logo.png"
                                 alt="LifeOS Logo"
                                 className="w-10 h-10 object-contain"
                             />
@@ -85,7 +85,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onImport }) => {
                     <div className="flex items-center gap-3 mb-4">
                         <div className="w-14 h-14 flex items-center justify-center shrink-0">
                             <img
-                                src="./Logo.png"
+                                src="../Logo.png"
                                 alt="LifeOS Logo"
                                 className="w-14 h-14 object-contain"
                             />

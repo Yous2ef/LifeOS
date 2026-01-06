@@ -36,15 +36,15 @@
 
 ### 📦 Core Modules
 
-| Module             | Capabilities                                                                                                                          |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
-| 🎓 **University**  | Subjects management, assignments, exams scheduling, grade tracking, academic years & terms, GPA calculation, study progress analytics |
-| 💼 **Freelancing** | Client projects, applications tracking, platforms management, Kanban & list views, time tracking, earnings analytics                  |
-| 💻 **Programming** | Projects management, learning items, skills tracking, tools inventory, task boards with time entries, GitHub integration              |
-| 🏠 **Home**        | Daily tasks, habit tracking with streaks, personal goals, routines management                                                         |
-| 💰 **Finance**     | Income & expense tracking, budget planning, installments management, savings goals, category-based analytics, multi-currency support  |
-| 📚 **Misc**        | Notes, bookmarks, quick capture for ideas                                                                                             |
-| 📊 **Dashboard**   | Activity insights, upcoming deadlines, notifications, daily motivational quotes, cross-module overview                                |
+| Module             | Capabilities                                                                                                                                                                             |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 🎓 **University**  | Subjects management, assignments, exams scheduling, grade tracking, academic years & terms, GPA calculation, study progress analytics                                                    |
+| 💼 **Freelancing** | Client projects, applications tracking, platforms management, Kanban & list views, time tracking, earnings analytics                                                                     |
+| 💻 **Programming** | Projects management, learning items, skills tracking, tools inventory, task boards with time entries, GitHub integration                                                                 |
+| 🏠 **Home**        | Daily tasks, habit tracking with streaks, personal goals, routines management                                                                                                            |
+| 💰 **Finance**     | Multi-account tracking, income & expenses with categories, transaction types (fixed/variable/emergency), budget planning, installments, savings goals, financial reports, multi-currency |
+| 📚 **Misc**        | Notes, bookmarks, quick capture for ideas                                                                                                                                                |
+| 📊 **Dashboard**   | Activity insights, upcoming deadlines, notifications, daily motivational quotes, cross-module overview                                                                                   |
 
 ### 🔐 Authentication & Cloud Sync
 
@@ -189,6 +189,86 @@ src/
     ├── storageV2.ts     # V2 storage implementation
     └── helpers.ts       # Utility functions
 ```
+
+---
+
+## 💰 Finance Module Architecture
+
+The Finance module uses a sophisticated data model for comprehensive financial tracking:
+
+### Data Structure
+
+```typescript
+FinanceData {
+  accounts: Account[]           // Bank accounts, wallets, cash
+  incomes: Income[]             // All income transactions
+  expenses: Expense[]           // All expense transactions
+  incomeCategories: IncomeCategory[]   // Income categorization
+  expenseCategories: ExpenseCategory[] // Expense categorization
+  installments: Installment[]   // Recurring payments (loans, subscriptions)
+  goals: Goal[]                 // Savings goals with targets
+  budgetOverview: BudgetOverview // Budget planning & tracking
+  settings: FinanceSettings     // Currency, preferences
+}
+```
+
+### Transaction Types
+
+Both Income and Expense use a unified **TransactionNature** type:
+
+| Type             | Description                       | Examples                       |
+| ---------------- | --------------------------------- | ------------------------------ |
+| 📌 **Fixed**     | Regular, predictable transactions | Salary, Rent, Subscriptions    |
+| 📊 **Variable**  | Fluctuating amounts               | Freelance, Shopping, Utilities |
+| 🚨 **Emergency** | Unexpected or urgent transactions | Medical bills, Car repairs     |
+
+### Account System
+
+```typescript
+Account {
+  id, name, type, currency, balance,
+  color, icon, isDefault, isActive,
+  includeInTotal, createdAt, updatedAt
+}
+```
+
+**Account Types:** `cash` | `bank` | `credit` | `savings` | `investment` | `wallet` | `other`
+
+### Categories
+
+Both Income and Expense have customizable categories:
+
+```typescript
+Category {
+  id, name, nameAr,      // Bilingual support
+  icon, color,           // Visual customization
+  isDefault, order,      // Organization
+  createdAt
+}
+```
+
+**Default Income Categories:** Salary, Freelance, Commission, Bonus, Investment, Gift, Refund, Dividends, Rental Income, Other
+
+**Default Expense Categories:** Food, Transport, Shopping, Bills, Entertainment, Health, Education, Other
+
+### Budget Planning
+
+```typescript
+BudgetOverview {
+  monthlyIncome: number
+  totalPlannedExpenses: number
+  categoryBudgets: CategoryBudget[]  // Per-category limits
+  lastUpdated: string
+}
+```
+
+### Data Migration
+
+The system includes automatic migration for:
+
+-   **V1 → V2:** Single balance → Multi-account support
+-   **Income Categories:** Auto-creates categories if missing
+-   **Type Migration:** Converts old income types to `categoryId` + `TransactionNature`
 
 ---
 

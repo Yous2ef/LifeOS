@@ -2,6 +2,16 @@
 
 @layer theme, base, components, utilities;
 
+/* Hide scrollbar for category scroll containers - modern mobile app style */
+.category-scroll {
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
+}
+
+.category-scroll::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+}
+
 @layer theme {
     :root {
         --background: 0 0% 100%;
@@ -371,6 +381,30 @@ body {
     box-shadow: 0 0 20px rgba(6, 182, 212, 0.3);
 }
 
-h2{
+h2 {
     @apply text-foreground;
+}
+
+/* 3D Card Flip Utilities */
+.perspective-1000 {
+    perspective: 1000px;
+}
+
+.preserve-3d {
+    transform-style: preserve-3d;
+}
+
+.backface-hidden {
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+}
+
+/* Hide scrollbar but keep functionality */
+.scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
 }

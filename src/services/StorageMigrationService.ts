@@ -269,9 +269,12 @@ export function getDefaultModuleData(): AppData {
             projects: [],
         },
         finance: {
+            accounts: [],
+            transfers: [],
             incomes: [],
             expenses: [],
             categories: [],
+            incomeCategories: [],
             installments: [],
             budgets: [],
             goals: [],

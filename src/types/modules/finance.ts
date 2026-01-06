@@ -1,9 +1,51 @@
 // Finance Module Types
 
+// ==================== Account Types ====================
+
+export type AccountType =
+    | "bank"
+    | "mobile-wallet" // Vodafone Cash, Instapay, etc.
+    | "cash"
+    | "credit-card"
+    | "savings"
+    | "investment";
+
+export interface Account {
+    id: string;
+    name: string; // "Vodafone Cash", "CIB Bank", "Cash in Hand"
+    type: AccountType;
+    balance: number; // Real-time calculated balance
+    initialBalance: number; // Starting balance
+    color: string; // Hex color for UI representation
+    icon: string; // Emoji or icon name
+    currency: Currency;
+    isDefault: boolean; // Primary account for quick transactions
+    isActive: boolean; // Can be archived
+    order: number; // Display order
+    notes?: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+// Alias for backward compatibility with AccountManager component
+export type FinancialAccount = Account;
+
+// For Account Transfers
+export interface AccountTransfer {
+    id: string;
+    fromAccountId: string;
+    toAccountId: string;
+    amount: number;
+    date: string;
+    notes?: string;
+    createdAt: string;
+}
+
 // ==================== Enums & Constants ====================
 
 export type Currency = "EGP" | "USD" | "EUR" | "GBP" | "SAR" | "AED" | "KWD";
 
+// @deprecated - Income categories are now stored in IncomeCategory with categoryId reference
 export type IncomeType =
     | "salary"
     | "freelance"
@@ -24,7 +66,11 @@ export type IncomeFrequency =
     | "quarterly"
     | "yearly";
 
-export type ExpenseType = "fixed" | "variable" | "emergency";
+// Transaction nature - applies to both Income and Expense
+export type TransactionNature = "fixed" | "variable" | "emergency";
+
+// @deprecated Use TransactionNature instead
+export type ExpenseType = TransactionNature;
 
 export type PaymentMethod =
     | "cash"
@@ -87,16 +133,29 @@ export interface ExpenseCategory {
     createdAt: string;
 }
 
+// Income Category
+export interface IncomeCategory {
+    id: string;
+    name: string;
+    nameAr?: string; // Arabic name (optional)
+    icon: string;
+    color: string;
+    isDefault: boolean; // System default category
+    order: number;
+    createdAt: string;
+}
+
 // Income
 export interface Income {
     id: string;
     title: string;
     amount: number;
     currency: Currency;
-    type: IncomeType;
-    category?: string;
+    categoryId: string; // Reference to IncomeCategory
+    type: TransactionNature; // fixed, variable, or emergency
     status: IncomeStatus;
     frequency: IncomeFrequency;
+    accountId: string; // Which account received this
     expectedDate?: string;
     actualDate?: string;
     isRecurring: boolean;
@@ -104,6 +163,7 @@ export interface Income {
     nextOccurrence?: string;
     notes?: string;
     tags: string[];
+    linkedInstallmentId?: string; // For installment refunds
     createdAt: string;
     updatedAt: string;
 }
@@ -115,8 +175,10 @@ export interface Expense {
     amount: number;
     currency: Currency;
     categoryId: string;
-    type: ExpenseType;
+    type: TransactionNature; // fixed, variable, or emergency
     paymentMethod: PaymentMethod;
+    accountId: string; // NEW: Which account paid this
+    location?: string; // NEW: Physical/digital location
     date: string;
     isRecurring: boolean;
     recurringFrequency?: RecurringFrequency;
@@ -154,6 +216,7 @@ export interface Installment {
     paidInstallments: number;
     frequency: RecurringFrequency;
     categoryId: string;
+    linkedAccountId: string; // NEW: Which account auto-pays this
     startDate: string;
     nextPaymentDate: string;
     endDate: string;
@@ -205,6 +268,7 @@ export interface FinancialGoal {
     description?: string;
     icon?: string;
     color?: string;
+    imageUrl?: string; // NEW: For visualization (Polaroid-style)
     targetAmount: number;
     currentAmount: number;
     currency: Currency;
@@ -504,6 +568,92 @@ export const DEFAULT_EXPENSE_CATEGORIES: Omit<
     },
 ];
 
+export const DEFAULT_INCOME_CATEGORIES: Omit<
+    IncomeCategory,
+    "id" | "createdAt"
+>[] = [
+    {
+        name: "Salary",
+        nameAr: "راتب",
+        icon: "💼",
+        color: "#3b82f6",
+        isDefault: true,
+        order: 1,
+    },
+    {
+        name: "Freelance",
+        nameAr: "عمل حر",
+        icon: "💻",
+        color: "#8b5cf6",
+        isDefault: true,
+        order: 2,
+    },
+    {
+        name: "Business",
+        nameAr: "أعمال",
+        icon: "🏢",
+        color: "#14b8a6",
+        isDefault: true,
+        order: 3,
+    },
+    {
+        name: "Investment",
+        nameAr: "استثمار",
+        icon: "📈",
+        color: "#22c55e",
+        isDefault: true,
+        order: 4,
+    },
+    {
+        name: "Bonus",
+        nameAr: "مكافأة",
+        icon: "🎉",
+        color: "#f59e0b",
+        isDefault: true,
+        order: 5,
+    },
+    {
+        name: "Commission",
+        nameAr: "عمولة",
+        icon: "💰",
+        color: "#10b981",
+        isDefault: true,
+        order: 6,
+    },
+    {
+        name: "Gift",
+        nameAr: "هدية",
+        icon: "🎁",
+        color: "#ec4899",
+        isDefault: true,
+        order: 7,
+    },
+    {
+        name: "Refund",
+        nameAr: "استرداد",
+        icon: "🔄",
+        color: "#06b6d4",
+        isDefault: true,
+        order: 8,
+    },
+    {
+        name: "Rental Income",
+        nameAr: "دخل إيجار",
+        icon: "🏠",
+        color: "#6366f1",
+        isDefault: true,
+        order: 9,
+    },
+    {
+        name: "Other",
+        nameAr: "أخرى",
+        icon: "📦",
+        color: "#64748b",
+        isDefault: true,
+        order: 10,
+    },
+];
+
 export const DEFAULT_FINANCE_SETTINGS: FinanceSettings = {
     defaultCurrency: "EGP",
     monthStartDay: 1,
@@ -519,7 +669,7 @@ export const DEFAULT_FINANCE_SETTINGS: FinanceSettings = {
 
 // ==================== Helper Types ====================
 
-export type TransactionType = "income" | "expense";
+export type TransactionType = "income" | "expense" | "transfer";
 
 export interface Transaction {
     id: string;
@@ -527,9 +677,19 @@ export interface Transaction {
     title: string;
     amount: number;
     date: string;
+    accountId: string; // Which account was used
+    toAccountId?: string; // For transfers: destination account
+    location?: string; // Where was it spent/earned
     category?: string;
+    categoryId?: string; // Reference to category
     categoryIcon?: string;
     categoryColor?: string;
+    notes?: string;
+    tags?: string[];
+    status?: IncomeStatus; // For income
+    frequency?: IncomeFrequency | RecurringFrequency; // For recurring transactions
+    isRecurring?: boolean;
+    transactionNature?: TransactionNature; // fixed, variable, or emergency
 }
 
 // For Quick Add
@@ -564,9 +724,12 @@ export type TimePeriod =
 
 // Complete Finance Data for export/import
 export interface FinanceData {
+    accounts: Account[]; // NEW: Multi-account support
+    transfers: AccountTransfer[]; // NEW: Transfer history
     incomes: Income[];
     expenses: Expense[];
     categories: ExpenseCategory[];
+    incomeCategories: IncomeCategory[]; // NEW: Income categories
     installments: Installment[];
     budgets: Budget[];
     goals: FinancialGoal[];
