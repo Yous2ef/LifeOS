@@ -78,13 +78,13 @@ export const University = () => {
     const [examModalOpen, setExamModalOpen] = useState(false);
     const [timetableModalOpen, setTimetableModalOpen] = useState(false);
     const [editingSubject, setEditingSubject] = useState<Subject | undefined>(
-        undefined
+        undefined,
     );
     const [editingTask, setEditingTask] = useState<UniversityTask | undefined>(
-        undefined
+        undefined,
     );
     const [editingExam, setEditingExam] = useState<ExamType | undefined>(
-        undefined
+        undefined,
     );
     const [editingTimetableSubject, setEditingTimetableSubject] = useState<
         Subject | undefined
@@ -111,7 +111,7 @@ export const University = () => {
         // Handle "unassigned" filter
         if (currentYearId === "unassigned") {
             return data.university.subjects.filter(
-                (subject) => !subject.yearId && !subject.termId
+                (subject) => !subject.yearId && !subject.termId,
             );
         }
 
@@ -141,7 +141,7 @@ export const University = () => {
             return data.university.tasks;
         }
         return data.university.tasks.filter((task) =>
-            filteredSubjectIds.has(task.subjectId)
+            filteredSubjectIds.has(task.subjectId),
         );
     }, [
         data.university.tasks,
@@ -156,7 +156,7 @@ export const University = () => {
             return data.university.exams;
         }
         return data.university.exams.filter((exam) =>
-            filteredSubjectIds.has(exam.subjectId)
+            filteredSubjectIds.has(exam.subjectId),
         );
     }, [
         data.university.exams,
@@ -178,7 +178,7 @@ export const University = () => {
                             ? terms.find(
                                   (t) =>
                                       t.id === currentTermId &&
-                                      t.yearId === yearId
+                                      t.yearId === yearId,
                               )
                                 ? currentTermId
                                 : undefined
@@ -186,7 +186,7 @@ export const University = () => {
                 },
             });
         },
-        [data.university, currentTermId, terms, updateData]
+        [data.university, currentTermId, terms, updateData],
     );
 
     const handleTermChange = useCallback(
@@ -198,7 +198,7 @@ export const University = () => {
                 },
             });
         },
-        [data.university, updateData]
+        [data.university, updateData],
     );
 
     const handleSaveYearsAndTerms = useCallback(
@@ -212,7 +212,7 @@ export const University = () => {
             });
             showToast("Academic years and terms updated", "success");
         },
-        [data.university, updateData, showToast]
+        [data.university, updateData, showToast],
     );
 
     // Calculate stats (using filtered data when filtering is active)
@@ -223,19 +223,19 @@ export const University = () => {
 
         const totalTasks = tasksToCount.length;
         const completedTasks = tasksToCount.filter(
-            (t) => t.status === "done"
+            (t) => t.status === "done",
         ).length;
         const inProgressTasks = tasksToCount.filter(
-            (t) => t.status === "in-progress"
+            (t) => t.status === "in-progress",
         ).length;
         const todoTasks = tasksToCount.filter(
-            (t) => t.status === "todo"
+            (t) => t.status === "todo",
         ).length;
         const upcomingExams = examsToCount.filter(
             (e) =>
                 !e.taken &&
                 getDaysUntil(e.date) >= 0 &&
-                getDaysUntil(e.date) <= 7
+                getDaysUntil(e.date) <= 7,
         ).length;
 
         // Calculate overall grade
@@ -246,10 +246,10 @@ export const University = () => {
 
         subjectsToCount.forEach((subject) => {
             const subjectExams = examsToCount.filter(
-                (e) => e.subjectId === subject.id
+                (e) => e.subjectId === subject.id,
             );
             const subjectEntries = gradeEntries.filter(
-                (e) => e.subjectId === subject.id
+                (e) => e.subjectId === subject.id,
             );
             const grades = calculateGrades(subjectExams, subjectEntries);
 
@@ -290,13 +290,13 @@ export const University = () => {
                 university: {
                     ...data.university,
                     subjects: data.university.subjects.filter(
-                        (s) => s.id !== subjectId
+                        (s) => s.id !== subjectId,
                     ),
                     tasks: data.university.tasks.filter(
-                        (t) => t.subjectId !== subjectId
+                        (t) => t.subjectId !== subjectId,
                     ),
                     exams: data.university.exams.filter(
-                        (e) => e.subjectId !== subjectId
+                        (e) => e.subjectId !== subjectId,
                     ),
                 },
             });
@@ -342,7 +342,7 @@ export const University = () => {
 
     const handleSaveExamGrade = (
         examId: string,
-        updates: Partial<ExamType>
+        updates: Partial<ExamType>,
     ) => {
         updateData({
             university: {
@@ -353,7 +353,7 @@ export const University = () => {
                               ...e,
                               ...updates,
                           }
-                        : e
+                        : e,
                 ),
             },
         });
@@ -361,7 +361,7 @@ export const University = () => {
             updates.grade !== undefined
                 ? "Grade saved successfully"
                 : "Exam marked as taken",
-            "success"
+            "success",
         );
         setMarkExamModalOpen(false);
         setSelectedExamForGrade(undefined);
@@ -369,13 +369,13 @@ export const University = () => {
 
     const handleTaskStatusChange = (
         task: UniversityTask,
-        newStatus: UniversityTask["status"]
+        newStatus: UniversityTask["status"],
     ) => {
         updateData({
             university: {
                 ...data.university,
                 tasks: data.university.tasks.map((t) =>
-                    t.id === task.id ? { ...t, status: newStatus } : t
+                    t.id === task.id ? { ...t, status: newStatus } : t,
                 ),
             },
         });
@@ -396,7 +396,7 @@ export const University = () => {
     // Helper functions for task badges and actions
     const getTaskBadges = (task: UniversityTask): KanbanCardBadge[] => {
         const subject = data.university.subjects.find(
-            (s) => s.id === task.subjectId
+            (s) => s.id === task.subjectId,
         );
         const badges: KanbanCardBadge[] = [];
 
@@ -468,7 +468,7 @@ export const University = () => {
 
     const getListTaskBadges = (task: UniversityTask): ListCardBadge[] => {
         const subject = data.university.subjects.find(
-            (s) => s.id === task.subjectId
+            (s) => s.id === task.subjectId,
         );
         const badges: ListCardBadge[] = [];
 
@@ -648,7 +648,7 @@ export const University = () => {
                         <div
                             className={cn(
                                 "text-2xl font-bold",
-                                getGradeColor(stats.overallGrade)
+                                getGradeColor(stats.overallGrade),
                             )}>
                             {stats.subjectsWithGrades > 0
                                 ? `${stats.overallGrade}%`
@@ -720,7 +720,7 @@ export const University = () => {
                                     className={cn(
                                         "text-primary",
                                         viewMode === "kanban" &&
-                                            "bg-primary/10 text-primary hover:bg-primary/20"
+                                            "bg-primary/10 text-primary hover:bg-primary/20",
                                     )}>
                                     <Grid3x3 className="h-4 w-4" />
                                 </Button>
@@ -736,7 +736,7 @@ export const University = () => {
                                     className={cn(
                                         "text-primary",
                                         viewMode === "list" &&
-                                            "bg-primary/10 hover:bg-primary/20"
+                                            "bg-primary/10 hover:bg-primary/20",
                                     )}>
                                     <List className="h-4 w-4" />
                                 </Button>
@@ -807,12 +807,12 @@ export const University = () => {
                                 getItemId={(task) => task.id}
                                 onDragEnd={(taskId, newStatus) => {
                                     const task = data.university.tasks.find(
-                                        (t) => t.id === taskId
+                                        (t) => t.id === taskId,
                                     );
                                     if (task) {
                                         handleTaskStatusChange(
                                             task,
-                                            newStatus as UniversityTask["status"]
+                                            newStatus as UniversityTask["status"],
                                         );
                                     }
                                 }}
@@ -916,17 +916,17 @@ export const University = () => {
                                                 filteredExams.filter(
                                                     (e) =>
                                                         e.subjectId ===
-                                                        subject.id
+                                                        subject.id,
                                                 );
                                             const subjectEntries =
                                                 gradeEntries.filter(
                                                     (e) =>
                                                         e.subjectId ===
-                                                        subject.id
+                                                        subject.id,
                                                 );
                                             const grades = calculateGrades(
                                                 subjectExams,
-                                                subjectEntries
+                                                subjectEntries,
                                             );
                                             totalEarned += grades.totalEarned;
                                             totalPossible +=
@@ -947,19 +947,19 @@ export const University = () => {
                                                         className={cn(
                                                             "w-12 h-12 mx-auto mb-2",
                                                             getGradeColor(
-                                                                overallPercentage
-                                                            )
+                                                                overallPercentage,
+                                                            ),
                                                         )}
                                                     />
                                                     <div
                                                         className={cn(
                                                             "text-4xl font-bold",
                                                             getGradeColor(
-                                                                overallPercentage
-                                                            )
+                                                                overallPercentage,
+                                                            ),
                                                         )}>
                                                         {overallPercentage.toFixed(
-                                                            1
+                                                            1,
                                                         )}
                                                         %
                                                     </div>
@@ -974,7 +974,7 @@ export const University = () => {
                                                         </span>
                                                         <span className="font-medium">
                                                             {totalEarned.toFixed(
-                                                                1
+                                                                1,
                                                             )}
                                                         </span>
                                                     </div>
@@ -985,7 +985,7 @@ export const University = () => {
                                                         </span>
                                                         <span className="font-medium">
                                                             {totalPossible.toFixed(
-                                                                1
+                                                                1,
                                                             )}
                                                         </span>
                                                     </div>
@@ -998,18 +998,18 @@ export const University = () => {
                                                             {
                                                                 filteredSubjects.filter(
                                                                     (
-                                                                        subject
+                                                                        subject,
                                                                     ) => {
                                                                         const subjectExams =
                                                                             filteredExams.filter(
                                                                                 (
-                                                                                    e
+                                                                                    e,
                                                                                 ) =>
                                                                                     e.subjectId ===
                                                                                         subject.id &&
                                                                                     e.taken &&
                                                                                     e.grade !==
-                                                                                        undefined
+                                                                                        undefined,
                                                                             );
                                                                         const subjectEntries =
                                                                             (
@@ -1019,10 +1019,10 @@ export const University = () => {
                                                                                 []
                                                                             ).filter(
                                                                                 (
-                                                                                    e
+                                                                                    e,
                                                                                 ) =>
                                                                                     e.subjectId ===
-                                                                                    subject.id
+                                                                                    subject.id,
                                                                             );
                                                                         return (
                                                                             subjectExams.length >
@@ -1030,7 +1030,7 @@ export const University = () => {
                                                                             subjectEntries.length >
                                                                                 0
                                                                         );
-                                                                    }
+                                                                    },
                                                                 ).length
                                                             }{" "}
                                                             /{" "}
@@ -1050,19 +1050,20 @@ export const University = () => {
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                 {filteredSubjects.map((subject) => {
                                     const subjectExams = filteredExams.filter(
-                                        (e) => e.subjectId === subject.id
+                                        (e) => e.subjectId === subject.id,
                                     );
                                     const subjectEntries = (
                                         data.university.gradeEntries || []
                                     ).filter((e) => e.subjectId === subject.id);
                                     const grades = calculateGrades(
                                         subjectExams,
-                                        subjectEntries
+                                        subjectEntries,
                                     );
                                     const gradedExamsCount =
                                         subjectExams.filter(
                                             (e) =>
-                                                e.taken && e.grade !== undefined
+                                                e.taken &&
+                                                e.grade !== undefined,
                                         ).length;
 
                                     return (
@@ -1075,7 +1076,7 @@ export const University = () => {
                                             }}
                                             onClick={() =>
                                                 navigate(
-                                                    `/university/subject/${subject.id}`
+                                                    `/university/subject/${subject.id}`,
                                                 )
                                             }>
                                             <CardContent className="pt-6">
@@ -1106,13 +1107,13 @@ export const University = () => {
                                                         className={cn(
                                                             "text-2xl font-bold",
                                                             getGradeColor(
-                                                                grades.percentage
-                                                            )
+                                                                grades.percentage,
+                                                            ),
                                                         )}>
                                                         {grades.totalPossible >
                                                         0
                                                             ? `${grades.percentage.toFixed(
-                                                                  1
+                                                                  1,
                                                               )}%`
                                                             : "—"}
                                                     </div>
@@ -1123,17 +1124,17 @@ export const University = () => {
                                                         <Progress
                                                             value={Math.min(
                                                                 grades.percentage,
-                                                                100
+                                                                100,
                                                             )}
                                                             className="h-2 mb-2"
                                                         />
                                                         <div className="text-xs text-muted-foreground">
                                                             {grades.totalEarned.toFixed(
-                                                                1
+                                                                1,
                                                             )}{" "}
                                                             /{" "}
                                                             {grades.totalPossible.toFixed(
-                                                                1
+                                                                1,
                                                             )}{" "}
                                                             points
                                                         </div>
@@ -1178,17 +1179,17 @@ export const University = () => {
                         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                             {filteredSubjects.map((subject) => {
                                 const subjectTasks = filteredTasks.filter(
-                                    (t) => t.subjectId === subject.id
+                                    (t) => t.subjectId === subject.id,
                                 );
                                 const completedTasks = subjectTasks.filter(
-                                    (t) => t.status === "done"
+                                    (t) => t.status === "done",
                                 ).length;
                                 const progress =
                                     subjectTasks.length > 0
                                         ? Math.round(
                                               (completedTasks /
                                                   subjectTasks.length) *
-                                                  100
+                                                  100,
                                           )
                                         : 0;
 
@@ -1198,7 +1199,7 @@ export const University = () => {
                                         className="hover:shadow-lg transition-shadow cursor-pointer"
                                         onClick={() =>
                                             navigate(
-                                                `/university/subject/${subject.id}`
+                                                `/university/subject/${subject.id}`,
                                             )
                                         }>
                                         <CardHeader>
@@ -1234,10 +1235,10 @@ export const University = () => {
                                                             <DropdownMenuItem
                                                                 onClick={() => {
                                                                     setEditingSubject(
-                                                                        subject
+                                                                        subject,
                                                                     );
                                                                     setSubjectModalOpen(
-                                                                        true
+                                                                        true,
                                                                     );
                                                                 }}>
                                                                 <Edit className="h-4 w-4 mr-2" />
@@ -1247,7 +1248,7 @@ export const University = () => {
                                                             <DropdownMenuItem
                                                                 onClick={() =>
                                                                     handleDeleteSubject(
-                                                                        subject.id
+                                                                        subject.id,
                                                                     )
                                                                 }
                                                                 className="text-destructive">
@@ -1322,7 +1323,7 @@ export const University = () => {
                                     const today = new Date(
                                         now.getFullYear(),
                                         now.getMonth(),
-                                        now.getDate()
+                                        now.getDate(),
                                     );
                                     const dateA = new Date(a.date);
                                     const dateB = new Date(b.date);
@@ -1373,7 +1374,7 @@ export const University = () => {
                                 .map((exam) => {
                                     const subject =
                                         data.university.subjects.find(
-                                            (s) => s.id === exam.subjectId
+                                            (s) => s.id === exam.subjectId,
                                         );
                                     return (
                                         <ExamCard
@@ -1405,7 +1406,7 @@ export const University = () => {
                         subjects={filteredSubjects}
                         onAddSchedule={(subjectId) => {
                             const subject = filteredSubjects.find(
-                                (s) => s.id === subjectId
+                                (s) => s.id === subjectId,
                             );
                             if (subject) {
                                 setEditingTimetableSubject(subject);
@@ -1414,7 +1415,7 @@ export const University = () => {
                         }}
                         onEditSchedule={(subjectId) => {
                             const subject = filteredSubjects.find(
-                                (s) => s.id === subjectId
+                                (s) => s.id === subjectId,
                             );
                             if (subject) {
                                 setEditingTimetableSubject(subject);
@@ -1440,6 +1441,7 @@ export const University = () => {
                     setEditingTask(undefined);
                 }}
                 task={editingTask}
+                availableSubjects={filteredSubjects}
             />
             <ExamModal
                 isOpen={examModalOpen}
@@ -1448,6 +1450,7 @@ export const University = () => {
                     setEditingExam(undefined);
                 }}
                 exam={editingExam}
+                availableSubjects={filteredSubjects}
             />
             <MarkExamModal
                 isOpen={markExamModalOpen}

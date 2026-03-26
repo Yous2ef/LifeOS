@@ -1,6 +1,7 @@
 import React, {
     useState,
     useEffect,
+    useMemo,
     type ChangeEvent,
     type FormEvent,
 } from "react";
@@ -10,20 +11,30 @@ import { FormSelect } from "../ui/FormSelect";
 import { Button } from "../ui/Button";
 import { useApp } from "../../context/AppContext";
 import { generateId } from "../../utils/helpers";
-import type { Exam } from "../../types";
+import type { Exam, Subject } from "../../types";
 
 interface ExamModalProps {
     isOpen: boolean;
     onClose: () => void;
     exam?: Exam;
+    availableSubjects?: Subject[];
+    defaultSubjectId?: string;
+    lockSubject?: boolean;
 }
 
 export const ExamModal: React.FC<ExamModalProps> = ({
     isOpen,
     onClose,
     exam,
+    availableSubjects,
+    defaultSubjectId,
+    lockSubject = false,
 }) => {
     const { data, updateData, showToast } = useApp();
+    const subjectsForSelection = useMemo(
+        () => availableSubjects ?? data.university.subjects,
+        [availableSubjects, data.university.subjects],
+    );
     const [formData, setFormData] = useState({
         subjectId: "",
         title: "",
@@ -46,7 +57,7 @@ export const ExamModal: React.FC<ExamModalProps> = ({
             });
         } else {
             setFormData({
-                subjectId: "",
+                subjectId: defaultSubjectId || "",
                 title: "",
                 date: new Date().toISOString().split("T")[0],
                 duration: 120,
@@ -54,10 +65,37 @@ export const ExamModal: React.FC<ExamModalProps> = ({
                 maxGrade: 100,
             });
         }
-    }, [exam, isOpen]);
+    }, [exam, isOpen, defaultSubjectId]);
+
+    // Keep subject selection valid for the current filtered list.
+    useEffect(() => {
+        if (exam || !isOpen) return;
+
+        const currentIsValid = subjectsForSelection.some(
+            (s) => s.id === formData.subjectId,
+        );
+        if (currentIsValid) return;
+
+        const fallbackSubjectId =
+            defaultSubjectId &&
+            subjectsForSelection.some((s) => s.id === defaultSubjectId)
+                ? defaultSubjectId
+                : "";
+
+        setFormData((prev) => ({
+            ...prev,
+            subjectId: fallbackSubjectId,
+        }));
+    }, [
+        subjectsForSelection,
+        defaultSubjectId,
+        formData.subjectId,
+        exam,
+        isOpen,
+    ]);
 
     const handleChange = (
-        e: ChangeEvent<HTMLInputElement | HTMLSelectElement>
+        e: ChangeEvent<HTMLInputElement | HTMLSelectElement>,
     ) => {
         const { name, value } = e.target;
         setFormData((prev) => ({
@@ -71,6 +109,14 @@ export const ExamModal: React.FC<ExamModalProps> = ({
 
     const handleSubmit = (e: FormEvent) => {
         e.preventDefault();
+
+        if (subjectsForSelection.length === 0) {
+            showToast(
+                "No subjects available for the selected year/term",
+                "error",
+            );
+            return;
+        }
 
         if (!formData.title || !formData.subjectId || !formData.date) {
             showToast("Please fill in required fields", "error");
@@ -90,7 +136,7 @@ export const ExamModal: React.FC<ExamModalProps> = ({
                           location: formData.location,
                           maxGrade: formData.maxGrade,
                       }
-                    : ex
+                    : ex,
             );
             updateData({
                 university: {
@@ -139,20 +185,33 @@ export const ExamModal: React.FC<ExamModalProps> = ({
                 </>
             }>
             <form onSubmit={handleSubmit} className="space-y-4">
-                <FormSelect
-                    label="Subject *"
-                    name="subjectId"
-                    value={formData.subjectId}
-                    onChange={handleChange}
-                    options={[
-                        { value: "", label: "Select a subject" },
-                        ...data.university.subjects.map((s) => ({
-                            value: s.id,
-                            label: s.name,
-                        })),
-                    ]}
-                    required
-                />
+                {lockSubject && !exam ? (
+                    <div>
+                        <label className="block text-sm font-medium text-foreground mb-2">
+                            Subject
+                        </label>
+                        <div className="w-full px-3 py-2 bg-muted/50 border border-input rounded-md text-foreground">
+                            {subjectsForSelection.find(
+                                (s) => s.id === formData.subjectId,
+                            )?.name || "No subject selected"}
+                        </div>
+                    </div>
+                ) : (
+                    <FormSelect
+                        label="Subject *"
+                        name="subjectId"
+                        value={formData.subjectId}
+                        onChange={handleChange}
+                        options={[
+                            { value: "", label: "Select a subject" },
+                            ...subjectsForSelection.map((s) => ({
+                                value: s.id,
+                                label: s.name,
+                            })),
+                        ]}
+                        required
+                    />
+                )}
 
                 <FormInput
                     label="Exam Title *"

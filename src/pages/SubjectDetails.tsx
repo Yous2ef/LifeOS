@@ -58,7 +58,7 @@ export const SubjectDetails = () => {
     const [markExamModalOpen, setMarkExamModalOpen] = useState(false);
     const [gradeEntryModalOpen, setGradeEntryModalOpen] = useState(false);
     const [editingTask, setEditingTask] = useState<UniversityTask | undefined>(
-        undefined
+        undefined,
     );
     const [editingResource, setEditingResource] = useState<
         Resource | undefined
@@ -98,14 +98,14 @@ export const SubjectDetails = () => {
     // Get grade entries for this subject
     const subjectGradeEntries = useMemo(() => {
         return (data.university.gradeEntries || []).filter(
-            (e) => e.subjectId === subjectId
+            (e) => e.subjectId === subjectId,
         );
     }, [data.university.gradeEntries, subjectId]);
 
     // Task statistics
     const taskStats = useMemo(() => {
         const completed = subjectTasks.filter(
-            (t) => t.status === "done"
+            (t) => t.status === "done",
         ).length;
         const total = subjectTasks.length;
         const pending = total - completed;
@@ -119,7 +119,7 @@ export const SubjectDetails = () => {
         return {
             todo: subjectTasks.filter((t) => t.status === "todo"),
             "in-progress": subjectTasks.filter(
-                (t) => t.status === "in-progress"
+                (t) => t.status === "in-progress",
             ),
             done: subjectTasks.filter((t) => t.status === "done"),
         };
@@ -154,7 +154,7 @@ export const SubjectDetails = () => {
                           | "in-progress"
                           | "done",
                   }
-                : task
+                : task,
         );
         updateData({
             university: {
@@ -166,7 +166,7 @@ export const SubjectDetails = () => {
 
     const handleTaskDelete = (taskId: string) => {
         const updatedTasks = data.university.tasks.filter(
-            (t) => t.id !== taskId
+            (t) => t.id !== taskId,
         );
         updateData({
             university: {
@@ -179,10 +179,10 @@ export const SubjectDetails = () => {
 
     const handleTaskStatusChange = (
         taskId: string,
-        newStatus: "todo" | "in-progress" | "done"
+        newStatus: "todo" | "in-progress" | "done",
     ) => {
         const updatedTasks = data.university.tasks.map((task) =>
-            task.id === taskId ? { ...task, status: newStatus } : task
+            task.id === taskId ? { ...task, status: newStatus } : task,
         );
         updateData({
             university: {
@@ -196,7 +196,7 @@ export const SubjectDetails = () => {
         const updatedSubjects = data.university.subjects.map((s) =>
             s.id === subjectId
                 ? { ...s, description: description.trim() || undefined }
-                : s
+                : s,
         );
         updateData({
             university: {
@@ -220,7 +220,7 @@ export const SubjectDetails = () => {
                       ...s,
                       resources: [...(s.resources || []), newResource],
                   }
-                : s
+                : s,
         );
 
         updateData({
@@ -244,10 +244,10 @@ export const SubjectDetails = () => {
                       resources: (s.resources || []).map((r) =>
                           r.id === editingResource.id
                               ? { ...r, ...resourceData }
-                              : r
+                              : r,
                       ),
                   }
-                : s
+                : s,
         );
 
         updateData({
@@ -268,10 +268,10 @@ export const SubjectDetails = () => {
                 ? {
                       ...s,
                       resources: (s.resources || []).filter(
-                          (r) => r.id !== resourceId
+                          (r) => r.id !== resourceId,
                       ),
                   }
-                : s
+                : s,
         );
 
         updateData({
@@ -308,7 +308,7 @@ export const SubjectDetails = () => {
                 university: {
                     ...data.university,
                     exams: data.university.exams.filter(
-                        (e) => e.id !== exam.id
+                        (e) => e.id !== exam.id,
                     ),
                 },
             });
@@ -321,7 +321,7 @@ export const SubjectDetails = () => {
             university: {
                 ...data.university,
                 exams: data.university.exams.map((e) =>
-                    e.id === examId ? { ...e, ...updates } : e
+                    e.id === examId ? { ...e, ...updates } : e,
                 ),
             },
         });
@@ -329,7 +329,7 @@ export const SubjectDetails = () => {
             updates.grade !== undefined
                 ? "Grade saved successfully!"
                 : "Exam marked as taken!",
-            "success"
+            "success",
         );
     };
 
@@ -337,7 +337,7 @@ export const SubjectDetails = () => {
     const handleSaveGradeEntry = (entry: GradeEntry) => {
         const existingEntries = data.university.gradeEntries || [];
         const existingIndex = existingEntries.findIndex(
-            (e) => e.id === entry.id
+            (e) => e.id === entry.id,
         );
 
         if (existingIndex >= 0) {
@@ -346,7 +346,7 @@ export const SubjectDetails = () => {
                 university: {
                     ...data.university,
                     gradeEntries: existingEntries.map((e) =>
-                        e.id === entry.id ? entry : e
+                        e.id === entry.id ? entry : e,
                     ),
                 },
             });
@@ -369,7 +369,7 @@ export const SubjectDetails = () => {
                 university: {
                     ...data.university,
                     gradeEntries: (data.university.gradeEntries || []).filter(
-                        (e) => e.id !== entryId
+                        (e) => e.id !== entryId,
                     ),
                 },
             });
@@ -567,7 +567,7 @@ export const SubjectDetails = () => {
                                                             </div>
                                                         )}
                                                     </div>
-                                                )
+                                                ),
                                             )}
                                         </div>
                                     )}
@@ -614,7 +614,7 @@ export const SubjectDetails = () => {
                                                             </div>
                                                         )}
                                                     </div>
-                                                )
+                                                ),
                                             )}
                                         </div>
                                     )}
@@ -656,14 +656,14 @@ export const SubjectDetails = () => {
                                                 <button
                                                     onClick={() =>
                                                         handleTaskComplete(
-                                                            task.id
+                                                            task.id,
                                                         )
                                                     }
                                                     className={cn(
                                                         "w-5 h-5 rounded border-2 flex items-center justify-center transition-colors",
                                                         task.status === "done"
                                                             ? "bg-primary border-primary"
-                                                            : "border-muted-foreground"
+                                                            : "border-muted-foreground",
                                                     )}>
                                                     {task.status === "done" && (
                                                         <CheckCircle2 className="w-3 h-3 text-primary-foreground" />
@@ -675,7 +675,7 @@ export const SubjectDetails = () => {
                                                             "font-medium",
                                                             task.status ===
                                                                 "done" &&
-                                                                "line-through text-muted-foreground"
+                                                                "line-through text-muted-foreground",
                                                         )}>
                                                         {task.title}
                                                     </div>
@@ -683,7 +683,7 @@ export const SubjectDetails = () => {
                                                         <div className="text-xs text-muted-foreground">
                                                             Due:{" "}
                                                             {formatDate(
-                                                                task.dueDate
+                                                                task.dueDate,
                                                             )}
                                                         </div>
                                                     )}
@@ -694,10 +694,10 @@ export const SubjectDetails = () => {
                                                 style={{
                                                     borderColor:
                                                         getPriorityColor(
-                                                            task.priority
+                                                            task.priority,
                                                         ),
                                                     color: getPriorityColor(
-                                                        task.priority
+                                                        task.priority,
                                                     ),
                                                 }}>
                                                 {task.priority}
@@ -767,17 +767,17 @@ export const SubjectDetails = () => {
                                                 const today = new Date(
                                                     now.getFullYear(),
                                                     now.getMonth(),
-                                                    now.getDate()
+                                                    now.getDate(),
                                                 );
                                                 const dateA = new Date(a.date);
                                                 const dateB = new Date(b.date);
 
                                                 // Priority: 1=Overdue, 2=Upcoming, 3=Missing grade, 4=Graded
                                                 const getPriority = (
-                                                    exam: typeof a
+                                                    exam: typeof a,
                                                 ) => {
                                                     const examDate = new Date(
-                                                        exam.date
+                                                        exam.date,
                                                     );
                                                     const isPast =
                                                         examDate < today;
@@ -872,11 +872,11 @@ export const SubjectDetails = () => {
                                                 .sort(
                                                     (a, b) =>
                                                         new Date(
-                                                            b.date
+                                                            b.date,
                                                         ).getTime() -
                                                         new Date(
-                                                            a.date
-                                                        ).getTime()
+                                                            a.date,
+                                                        ).getTime(),
                                                 )
                                                 .map((entry) => (
                                                     <div
@@ -897,7 +897,7 @@ export const SubjectDetails = () => {
                                                             </div>
                                                             <div className="text-sm text-muted-foreground">
                                                                 {formatDate(
-                                                                    entry.date
+                                                                    entry.date,
                                                                 )}
                                                                 {entry.description &&
                                                                     ` • ${entry.description}`}
@@ -912,7 +912,7 @@ export const SubjectDetails = () => {
                                                                         "text-green-600 dark:text-green-400",
                                                                     entry.type ===
                                                                         "deduction" &&
-                                                                        "text-red-600 dark:text-red-400"
+                                                                        "text-red-600 dark:text-red-400",
                                                                 )}>
                                                                 {entry.type ===
                                                                     "bonus" &&
@@ -932,10 +932,10 @@ export const SubjectDetails = () => {
                                                                     size="sm"
                                                                     onClick={() => {
                                                                         setEditingGradeEntry(
-                                                                            entry
+                                                                            entry,
                                                                         );
                                                                         setGradeEntryModalOpen(
-                                                                            true
+                                                                            true,
                                                                         );
                                                                     }}>
                                                                     <Edit className="w-4 h-4" />
@@ -945,7 +945,7 @@ export const SubjectDetails = () => {
                                                                     size="sm"
                                                                     onClick={() =>
                                                                         handleDeleteGradeEntry(
-                                                                            entry.id
+                                                                            entry.id,
                                                                         )
                                                                     }>
                                                                     <Trash2 className="w-4 h-4 text-red-500" />
@@ -1063,7 +1063,7 @@ export const SubjectDetails = () => {
                                                 newColumnId as
                                                     | "todo"
                                                     | "in-progress"
-                                                    | "done"
+                                                    | "done",
                                             );
                                         }}
                                         getItemId={(task) => task.id}
@@ -1081,11 +1081,11 @@ export const SubjectDetails = () => {
                                             // Due date badge
                                             if (task.dueDate) {
                                                 const daysLeft = getDaysUntil(
-                                                    task.dueDate
+                                                    task.dueDate,
                                                 );
                                                 badges.push({
                                                     label: formatDate(
-                                                        task.dueDate
+                                                        task.dueDate,
                                                     ),
                                                     variant:
                                                         task.status !==
@@ -1108,10 +1108,10 @@ export const SubjectDetails = () => {
                                                         ),
                                                         onClick: () => {
                                                             setEditingTask(
-                                                                task
+                                                                task,
                                                             );
                                                             setTaskModalOpen(
-                                                                true
+                                                                true,
                                                             );
                                                         },
                                                     },
@@ -1126,7 +1126,7 @@ export const SubjectDetails = () => {
                                                         ),
                                                         onClick: () =>
                                                             handleTaskComplete(
-                                                                task.id
+                                                                task.id,
                                                             ),
                                                         separator: true,
                                                     },
@@ -1137,7 +1137,7 @@ export const SubjectDetails = () => {
                                                         ),
                                                         onClick: () =>
                                                             handleTaskDelete(
-                                                                task.id
+                                                                task.id,
                                                             ),
                                                         variant: "destructive",
                                                     },
@@ -1169,7 +1169,7 @@ export const SubjectDetails = () => {
                                                         ? [
                                                               {
                                                                   label: formatDate(
-                                                                      task.dueDate
+                                                                      task.dueDate,
                                                                   ),
                                                                   variant:
                                                                       "secondary" as const,
@@ -1196,14 +1196,14 @@ export const SubjectDetails = () => {
                                                 <button
                                                     onClick={() =>
                                                         handleTaskComplete(
-                                                            task.id
+                                                            task.id,
                                                         )
                                                     }
                                                     className={cn(
                                                         "w-5 h-5 rounded border-2 flex items-center justify-center transition-colors",
                                                         task.status === "done"
                                                             ? "bg-primary border-primary"
-                                                            : "border-muted-foreground"
+                                                            : "border-muted-foreground",
                                                     )}>
                                                     {task.status === "done" && (
                                                         <CheckCircle2 className="w-3 h-3 text-primary-foreground" />
@@ -1215,7 +1215,7 @@ export const SubjectDetails = () => {
                                                             "font-medium",
                                                             task.status ===
                                                                 "done" &&
-                                                                "line-through text-muted-foreground"
+                                                                "line-through text-muted-foreground",
                                                         )}>
                                                         {task.title}
                                                     </div>
@@ -1229,17 +1229,17 @@ export const SubjectDetails = () => {
                                                             <div className="text-xs text-muted-foreground flex items-center gap-1">
                                                                 <Calendar className="w-3 h-3" />
                                                                 {formatDate(
-                                                                    task.dueDate
+                                                                    task.dueDate,
                                                                 )}
                                                                 {task.status !==
                                                                     "done" &&
                                                                     getDaysUntil(
-                                                                        task.dueDate
+                                                                        task.dueDate,
                                                                     ) <= 3 && (
                                                                         <span className="text-red-500 font-medium">
                                                                             (
                                                                             {getDaysUntil(
-                                                                                task.dueDate
+                                                                                task.dueDate,
                                                                             )}{" "}
                                                                             days
                                                                             left)
@@ -1252,10 +1252,10 @@ export const SubjectDetails = () => {
                                                             style={{
                                                                 borderColor:
                                                                     getPriorityColor(
-                                                                        task.priority
+                                                                        task.priority,
                                                                     ),
                                                                 color: getPriorityColor(
-                                                                    task.priority
+                                                                    task.priority,
                                                                 ),
                                                             }}>
                                                             {task.priority}
@@ -1278,7 +1278,7 @@ export const SubjectDetails = () => {
                                                     size="sm"
                                                     onClick={() =>
                                                         handleTaskDelete(
-                                                            task.id
+                                                            task.id,
                                                         )
                                                     }>
                                                     <Trash2 className="w-4 h-4 text-red-500" />
@@ -1365,7 +1365,7 @@ export const SubjectDetails = () => {
                                                             </div>
                                                         </CardContent>
                                                     </Card>
-                                                )
+                                                ),
                                             )}
                                         </div>
                                     </div>
@@ -1418,7 +1418,7 @@ export const SubjectDetails = () => {
                                                             </div>
                                                         </CardContent>
                                                     </Card>
-                                                )
+                                                ),
                                             )}
                                         </div>
                                     </div>
@@ -1454,7 +1454,7 @@ export const SubjectDetails = () => {
                                     size="sm"
                                     onClick={() =>
                                         setIsEditingDescription(
-                                            !isEditingDescription
+                                            !isEditingDescription,
                                         )
                                     }>
                                     {isEditingDescription ? "Cancel" : "Edit"}
@@ -1571,10 +1571,10 @@ export const SubjectDetails = () => {
                                                             size="sm"
                                                             onClick={() => {
                                                                 setEditingResource(
-                                                                    resource
+                                                                    resource,
                                                                 );
                                                                 setResourceModalOpen(
-                                                                    true
+                                                                    true,
                                                                 );
                                                             }}>
                                                             <Edit className="w-4 h-4" />
@@ -1584,7 +1584,7 @@ export const SubjectDetails = () => {
                                                             size="sm"
                                                             onClick={() =>
                                                                 handleDeleteResource(
-                                                                    resource.id
+                                                                    resource.id,
                                                                 )
                                                             }>
                                                             <Trash2 className="w-4 h-4 text-red-500" />
@@ -1620,6 +1620,9 @@ export const SubjectDetails = () => {
                     setEditingTask(undefined);
                 }}
                 task={editingTask}
+                availableSubjects={subject ? [subject] : []}
+                defaultSubjectId={subjectId}
+                lockSubject={!editingTask}
             />
 
             {/* Subject Modal */}
@@ -1650,6 +1653,9 @@ export const SubjectDetails = () => {
                     setEditingExam(undefined);
                 }}
                 exam={editingExam}
+                availableSubjects={subject ? [subject] : []}
+                defaultSubjectId={subjectId}
+                lockSubject={!editingExam}
             />
 
             {/* Mark Exam Modal */}
