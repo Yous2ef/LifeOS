@@ -27,6 +27,7 @@ export default function FinanceInstallments() {
         formatCurrency,
         addInstallment,
         updateInstallment,
+        deleteInstallment,
         addInstallmentPayment,
         addInstallmentRefund,
         calculateAccountBalance,
@@ -50,18 +51,70 @@ export default function FinanceInstallments() {
 
     // Separate active and completed installments
     const activeInstallments = installments.filter(
-        (i) => i.status === "active"
+        (i) => i.status === "active",
     );
     const completedInstallments = installments.filter(
-        (i) => i.status === "completed"
+        (i) => i.status === "completed",
     );
 
     // Calculate totals
     const totalRemaining = activeInstallments.reduce(
         (sum, i) => sum + (i.totalAmount - i.paidAmount),
-        0
+        0,
     );
     const totalPaid = installments.reduce((sum, i) => sum + i.paidAmount, 0);
+
+    const handleDeleteInstallment = (installment: Installment) => {
+        const amountToTransfer = Math.max(0, installment.paidAmount);
+        let transferToInstallmentId: string | undefined;
+
+        if (amountToTransfer > 0) {
+            const targetInstallments = installments.filter(
+                (i) => i.id !== installment.id,
+            );
+            if (targetInstallments.length === 0) {
+                window.alert(
+                    "You need another installment to transfer this paid amount before deleting.",
+                );
+                return;
+            }
+
+            const choices = targetInstallments
+                .map((i, index) => `${index + 1}. ${i.title}`)
+                .join("\n");
+            const selection = window.prompt(
+                `\"${installment.title}\" has ${formatCurrency(
+                    amountToTransfer,
+                )} paid.\nChoose where to transfer it before deleting (enter number):\n\n${choices}`,
+            );
+
+            if (!selection) return;
+
+            const selectedIndex = Number(selection) - 1;
+            if (
+                !Number.isInteger(selectedIndex) ||
+                selectedIndex < 0 ||
+                selectedIndex >= targetInstallments.length
+            ) {
+                window.alert("Invalid selection.");
+                return;
+            }
+
+            transferToInstallmentId = targetInstallments[selectedIndex].id;
+        }
+
+        const didDelete = deleteInstallment(
+            installment.id,
+            transferToInstallmentId,
+        );
+        if (!didDelete) {
+            window.alert("Could not delete installment. Please try again.");
+            return;
+        }
+
+        setShowInstallmentDetailsModal(false);
+        setViewingInstallment(null);
+    };
 
     return (
         <div className="min-h-screen bg-background text-primary pb-24">
@@ -185,7 +238,7 @@ export default function FinanceInstallments() {
                             }}
                             onPay={(installmentId) => {
                                 const inst = installments.find(
-                                    (i) => i.id === installmentId
+                                    (i) => i.id === installmentId,
                                 );
                                 if (inst) {
                                     setPayingInstallment(inst);
@@ -253,7 +306,7 @@ export default function FinanceInstallments() {
                     if (editingInstallment) {
                         updateInstallment(
                             editingInstallment.id,
-                            installmentData
+                            installmentData,
                         );
                     } else {
                         addInstallment(installmentData);
@@ -286,7 +339,7 @@ export default function FinanceInstallments() {
                             {
                                 accountId: data.accountId,
                                 paymentMethod: data.paymentMethod,
-                            }
+                            },
                         );
                         setShowPaymentModal(false);
                         setPayingInstallment(null);
@@ -329,6 +382,11 @@ export default function FinanceInstallments() {
                         setShowInstallmentRefundModal(true);
                     }
                 }}
+                onDelete={() => {
+                    if (viewingInstallment) {
+                        handleDeleteInstallment(viewingInstallment);
+                    }
+                }}
             />
 
             {/* Installment Refund Modal */}
@@ -348,7 +406,7 @@ export default function FinanceInstallments() {
                             refundingInstallment.id,
                             data.amount,
                             data.reason,
-                            accountId ? { accountId } : undefined
+                            accountId ? { accountId } : undefined,
                         );
                         setShowInstallmentRefundModal(false);
                         setRefundingInstallment(null);

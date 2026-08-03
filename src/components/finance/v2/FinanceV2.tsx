@@ -121,11 +121,13 @@ export const FinanceV2 = () => {
         deleteIncome,
         addInstallment,
         updateInstallment,
+        deleteInstallment,
         addInstallmentPayment,
         addInstallmentRefund,
         transferBetweenAccounts,
         addGoal,
         updateGoal,
+        deleteGoal,
         addGoalContribution,
         addAccount,
         updateAccount,
@@ -152,7 +154,7 @@ export const FinanceV2 = () => {
 
     // Date range for filtering (Smart Date Picker)
     const [dateRange, setDateRange] = useState<DateRange>(() =>
-        getDateRangeFromPreset("this-month")
+        getDateRangeFromPreset("this-month"),
     );
 
     // Modal states
@@ -192,7 +194,7 @@ export const FinanceV2 = () => {
     const [selectedTransaction, setSelectedTransaction] =
         useState<Transaction | null>(null);
     const [selectedAccount, setSelectedAccount] = useState<Account | null>(
-        null
+        null,
     );
 
     // Loading state (for skeleton display)
@@ -214,7 +216,7 @@ export const FinanceV2 = () => {
     const allTransactions: Transaction[] = useMemo(() => {
         const incomeTransactions: Transaction[] = incomes.map((inc) => {
             const incomeCategory = incomeCategories.find(
-                (c) => c.id === inc.categoryId
+                (c) => c.id === inc.categoryId,
             );
             return {
                 id: inc.id,
@@ -283,7 +285,7 @@ export const FinanceV2 = () => {
             ...expenseTransactions,
             ...transferTransactions,
         ].sort(
-            (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+            (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
         );
     }, [incomes, expenses, transfers, categories, accounts]);
 
@@ -297,7 +299,7 @@ export const FinanceV2 = () => {
                 .filter((a) => a.isActive)
                 .reduce(
                     (sum, account) => sum + calculateAccountBalance(account.id),
-                    0
+                    0,
                 );
         },
         // Include transfers, incomes, expenses to ensure recalculation when balances change
@@ -308,7 +310,7 @@ export const FinanceV2 = () => {
             incomes,
             expenses,
             selectedAccount,
-        ]
+        ],
     );
 
     // Get current month for budget
@@ -331,24 +333,24 @@ export const FinanceV2 = () => {
     // Check for newly completed goals and celebrate
     useEffect(() => {
         const completedGoals = goals.filter(
-            (g) => g.currentAmount >= g.targetAmount
+            (g) => g.currentAmount >= g.targetAmount,
         );
         const newlyCompleted = completedGoals.find(
-            (g) => !celebratedGoals.has(g.id)
+            (g) => !celebratedGoals.has(g.id),
         );
 
         if (newlyCompleted) {
             celebrate(
                 "Goal Achieved! 🎯",
                 `You reached your "${newlyCompleted.title}" goal!`,
-                "🏆"
+                "🏆",
             );
             const newCelebrated = new Set(celebratedGoals);
             newCelebrated.add(newlyCompleted.id);
             setCelebratedGoals(newCelebrated);
             localStorage.setItem(
                 "lifeos-celebrated-goals",
-                JSON.stringify([...newCelebrated])
+                JSON.stringify([...newCelebrated]),
             );
         }
     }, [goals, celebratedGoals, celebrate]);
@@ -357,6 +359,105 @@ export const FinanceV2 = () => {
 
     const hasTransactions = (accountId: string) => {
         return allTransactions.some((t) => t.accountId === accountId);
+    };
+
+    const handleDeleteGoal = (goal: FinancialGoal) => {
+        const amountToTransfer = Math.max(0, goal.currentAmount);
+        let transferToGoalId: string | undefined;
+
+        if (amountToTransfer > 0) {
+            const targetGoals = goals.filter((g) => g.id !== goal.id);
+            if (targetGoals.length === 0) {
+                window.alert(
+                    "You need another goal to transfer this money before deleting.",
+                );
+                return;
+            }
+
+            const choices = targetGoals
+                .map((g, index) => `${index + 1}. ${g.title}`)
+                .join("\n");
+            const selection = window.prompt(
+                `\"${goal.title}\" has ${formatCurrency(
+                    amountToTransfer,
+                )}.\nChoose where to transfer it before deleting (enter number):\n\n${choices}`,
+            );
+
+            if (!selection) return;
+
+            const selectedIndex = Number(selection) - 1;
+            if (
+                !Number.isInteger(selectedIndex) ||
+                selectedIndex < 0 ||
+                selectedIndex >= targetGoals.length
+            ) {
+                window.alert("Invalid selection.");
+                return;
+            }
+
+            transferToGoalId = targetGoals[selectedIndex].id;
+        }
+
+        const didDelete = deleteGoal(goal.id, transferToGoalId);
+        if (!didDelete) {
+            window.alert("Could not delete goal. Please try again.");
+            return;
+        }
+
+        setShowGoalDetailsModal(false);
+        setViewingGoal(null);
+    };
+
+    const handleDeleteInstallment = (installment: Installment) => {
+        const amountToTransfer = Math.max(0, installment.paidAmount);
+        let transferToInstallmentId: string | undefined;
+
+        if (amountToTransfer > 0) {
+            const targetInstallments = installments.filter(
+                (i) => i.id !== installment.id,
+            );
+            if (targetInstallments.length === 0) {
+                window.alert(
+                    "You need another installment to transfer this paid amount before deleting.",
+                );
+                return;
+            }
+
+            const choices = targetInstallments
+                .map((i, index) => `${index + 1}. ${i.title}`)
+                .join("\n");
+            const selection = window.prompt(
+                `\"${installment.title}\" has ${formatCurrency(
+                    amountToTransfer,
+                )} paid.\nChoose where to transfer it before deleting (enter number):\n\n${choices}`,
+            );
+
+            if (!selection) return;
+
+            const selectedIndex = Number(selection) - 1;
+            if (
+                !Number.isInteger(selectedIndex) ||
+                selectedIndex < 0 ||
+                selectedIndex >= targetInstallments.length
+            ) {
+                window.alert("Invalid selection.");
+                return;
+            }
+
+            transferToInstallmentId = targetInstallments[selectedIndex].id;
+        }
+
+        const didDelete = deleteInstallment(
+            installment.id,
+            transferToInstallmentId,
+        );
+        if (!didDelete) {
+            window.alert("Could not delete installment. Please try again.");
+            return;
+        }
+
+        setShowInstallmentDetailsModal(false);
+        setViewingInstallment(null);
     };
 
     // ==================== Render ====================
@@ -393,7 +494,7 @@ export const FinanceV2 = () => {
                             setSelectedAccount(
                                 selectedAccount?.id === account.id
                                     ? null
-                                    : account
+                                    : account,
                             )
                         }
                         onAddAccount={() => setShowAccountManager(true)}
@@ -507,7 +608,7 @@ export const FinanceV2 = () => {
                         }}
                         onPay={(installmentId) => {
                             const inst = installments.find(
-                                (i) => i.id === installmentId
+                                (i) => i.id === installmentId,
                             );
                             if (inst) {
                                 setPayingInstallment(inst);
@@ -580,7 +681,7 @@ export const FinanceV2 = () => {
                     formatCurrency={formatCurrency}
                     onAccountClick={(account) =>
                         setSelectedAccount(
-                            selectedAccount?.id === account.id ? null : account
+                            selectedAccount?.id === account.id ? null : account,
                         )
                     }
                     onAddAccount={() => setShowAccountManager(true)}
@@ -610,8 +711,11 @@ export const FinanceV2 = () => {
                 isOpen={showExpenseModal}
                 onClose={() => setShowExpenseModal(false)}
                 onSubmit={(data) => {
+                    const fallbackTitle =
+                        categories.find((c) => c.id === data.categoryId)
+                            ?.name || "Expense";
                     addExpense({
-                        title: data.title,
+                        title: data.title?.trim() || fallbackTitle,
                         amount: data.amount,
                         currency: data.currency,
                         categoryId: data.categoryId,
@@ -635,8 +739,11 @@ export const FinanceV2 = () => {
                 isOpen={showIncomeModal}
                 onClose={() => setShowIncomeModal(false)}
                 onSubmit={(data) => {
+                    const fallbackTitle =
+                        incomeCategories.find((c) => c.id === data.categoryId)
+                            ?.name || "Income";
                     addIncome({
-                        title: data.title,
+                        title: data.title?.trim() || fallbackTitle,
                         amount: data.amount,
                         currency: data.currency,
                         type: data.type,
@@ -687,7 +794,7 @@ export const FinanceV2 = () => {
                     if (editingInstallment) {
                         updateInstallment(
                             editingInstallment.id,
-                            installmentData
+                            installmentData,
                         );
                     } else {
                         addInstallment(installmentData);
@@ -751,7 +858,7 @@ export const FinanceV2 = () => {
                         addGoalContribution(
                             contributingGoal.id,
                             data.amount,
-                            data.notes
+                            data.notes,
                         );
                         setShowContributionModal(false);
                         setContributingGoal(null);
@@ -791,6 +898,11 @@ export const FinanceV2 = () => {
                         setShowWithdrawalModal(true);
                     }
                 }}
+                onDelete={() => {
+                    if (viewingGoal) {
+                        handleDeleteGoal(viewingGoal);
+                    }
+                }}
             />
 
             {/* Goal Withdrawal Modal */}
@@ -806,7 +918,7 @@ export const FinanceV2 = () => {
                         addGoalContribution(
                             withdrawingGoal.id,
                             -data.amount,
-                            data.reason
+                            data.reason,
                         );
                         setShowWithdrawalModal(false);
                         setWithdrawingGoal(null);
@@ -825,7 +937,7 @@ export const FinanceV2 = () => {
                         data.fromAccountId,
                         data.toAccountId,
                         data.amount,
-                        data.notes
+                        data.notes,
                     );
                     setShowTransferModal(false);
                 }}
@@ -854,7 +966,7 @@ export const FinanceV2 = () => {
                         {
                             accountId: data.accountId,
                             paymentMethod: data.paymentMethod,
-                        }
+                        },
                     );
                     setShowPaymentModal(false);
                     setPayingInstallment(null);
@@ -893,6 +1005,11 @@ export const FinanceV2 = () => {
                         setShowInstallmentRefundModal(true);
                     }
                 }}
+                onDelete={() => {
+                    if (viewingInstallment) {
+                        handleDeleteInstallment(viewingInstallment);
+                    }
+                }}
             />
 
             {/* Installment Refund Modal */}
@@ -912,7 +1029,7 @@ export const FinanceV2 = () => {
                             refundingInstallment.id,
                             data.amount,
                             data.reason,
-                            accountId ? { accountId } : undefined
+                            accountId ? { accountId } : undefined,
                         );
                         setShowInstallmentRefundModal(false);
                         setRefundingInstallment(null);
@@ -957,7 +1074,7 @@ export const FinanceV2 = () => {
                                 onDeleteExpenseCategory={deleteCategory}
                                 onReorderExpenseCategories={(cats) =>
                                     cats.forEach((c, i) =>
-                                        updateCategory(c.id, { order: i })
+                                        updateCategory(c.id, { order: i }),
                                     )
                                 }
                                 onAddIncomeCategory={addIncomeCategory}
@@ -965,12 +1082,14 @@ export const FinanceV2 = () => {
                                 onDeleteIncomeCategory={deleteIncomeCategory}
                                 onReorderIncomeCategories={(cats) =>
                                     cats.forEach((c, i) =>
-                                        updateIncomeCategory(c.id, { order: i })
+                                        updateIncomeCategory(c.id, {
+                                            order: i,
+                                        }),
                                     )
                                 }
                                 getCategoryUsage={(id) => {
                                     const expenseCount = expenses.filter(
-                                        (e) => e.categoryId === id
+                                        (e) => e.categoryId === id,
                                     ).length;
                                     const expenseTotal = expenses
                                         .filter((e) => e.categoryId === id)
@@ -978,15 +1097,35 @@ export const FinanceV2 = () => {
 
                                     // Check income categories too
                                     const incomeCount = incomes.filter(
-                                        (i) => i.categoryId === id
+                                        (i) => i.categoryId === id,
                                     ).length;
                                     const incomeTotal = incomes
                                         .filter((i) => i.categoryId === id)
                                         .reduce((sum, i) => sum + i.amount, 0);
 
+                                    const installmentCount =
+                                        installments.filter(
+                                            (inst) => inst.categoryId === id,
+                                        ).length;
+                                    const installmentTotal = installments
+                                        .filter(
+                                            (inst) => inst.categoryId === id,
+                                        )
+                                        .reduce(
+                                            (sum, inst) =>
+                                                sum + inst.paidAmount,
+                                            0,
+                                        );
+
                                     return {
-                                        count: expenseCount + incomeCount,
-                                        total: expenseTotal + incomeTotal,
+                                        count:
+                                            expenseCount +
+                                            incomeCount +
+                                            installmentCount,
+                                        total:
+                                            expenseTotal +
+                                            incomeTotal +
+                                            installmentTotal,
                                     };
                                 }}
                                 formatCurrency={formatCurrency}
@@ -1023,8 +1162,8 @@ export const FinanceV2 = () => {
                     selectedTransaction?.type === "income"
                         ? "Income Details"
                         : selectedTransaction?.type === "transfer"
-                        ? "Transfer Details"
-                        : "Expense Details"
+                          ? "Transfer Details"
+                          : "Expense Details"
                 }>
                 {selectedTransaction && (
                     <div className="space-y-4">
@@ -1046,8 +1185,9 @@ export const FinanceV2 = () => {
                                 {selectedTransaction.type === "income"
                                     ? "💰"
                                     : selectedTransaction.type === "transfer"
-                                    ? "🔄"
-                                    : selectedTransaction.categoryIcon || "💸"}
+                                      ? "🔄"
+                                      : selectedTransaction.categoryIcon ||
+                                        "💸"}
                             </div>
                             <h3 className="text-xl font-bold">
                                 {selectedTransaction.title}
@@ -1064,8 +1204,8 @@ export const FinanceV2 = () => {
                                 {selectedTransaction.type === "income"
                                     ? "+"
                                     : selectedTransaction.type === "transfer"
-                                    ? ""
-                                    : "-"}
+                                      ? ""
+                                      : "-"}
                                 {formatCurrency(selectedTransaction.amount)}
                             </p>
                         </div>
@@ -1078,7 +1218,7 @@ export const FinanceV2 = () => {
                                     const account = accounts.find(
                                         (a) =>
                                             a.id ===
-                                            selectedTransaction.accountId
+                                            selectedTransaction.accountId,
                                     );
                                     return account ? (
                                         <div className="flex justify-between py-2 border-b border-border/50">
@@ -1110,7 +1250,7 @@ export const FinanceV2 = () => {
                                             ? selectedTransaction.accountId
                                             : selectedTransaction.toAccountId;
                                     const account = accounts.find(
-                                        (a) => a.id === accountId
+                                        (a) => a.id === accountId,
                                     );
                                     return account ? (
                                         <div className="flex justify-between py-2 border-b border-border/50">
@@ -1164,7 +1304,7 @@ export const FinanceV2 = () => {
                                 </span>
                                 <span className="font-medium">
                                     {new Date(
-                                        selectedTransaction.date
+                                        selectedTransaction.date,
                                     ).toLocaleDateString("en-US", {
                                         weekday: "long",
                                         year: "numeric",
@@ -1184,7 +1324,7 @@ export const FinanceV2 = () => {
                                         <span className="font-medium capitalize">
                                             {selectedTransaction.frequency.replace(
                                                 "-",
-                                                " "
+                                                " ",
                                             )}
                                         </span>
                                     </div>
@@ -1217,7 +1357,7 @@ export const FinanceV2 = () => {
                                                         className="px-2 py-1 rounded-lg text-xs bg-muted">
                                                         #{tag}
                                                     </span>
-                                                )
+                                                ),
                                             )}
                                         </div>
                                     </div>
@@ -1268,7 +1408,7 @@ export const FinanceV2 = () => {
                                     budgetOverview.categoryBudgets.find(
                                         (existing) =>
                                             existing.categoryId ===
-                                            cb.categoryId
+                                            cb.categoryId,
                                     )?.spent || 0,
                             })),
                         });

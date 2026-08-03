@@ -176,19 +176,27 @@ export const IncomeModal = ({
     }, [incomeCategories, isOpen]);
 
     const handleSubmit = () => {
-        if (!formData.title || formData.amount <= 0 || !formData.accountId) {
+        if (formData.amount <= 0 || !formData.accountId) {
             return;
         }
-        onSubmit(formData);
+
+        const fallbackTitle =
+            incomeCategories.find((c) => c.id === formData.categoryId)?.name ||
+            "Income";
+
+        onSubmit({
+            ...formData,
+            title: formData.title.trim() || fallbackTitle,
+        });
         onClose();
     };
 
     const selectedAccount = accounts.find((a) => a.id === formData.accountId);
     const selectedType = TRANSACTION_NATURES.find(
-        (t) => t.value === formData.type
+        (t) => t.value === formData.type,
     );
     const selectedCategory = incomeCategories.find(
-        (c) => c.id === formData.categoryId
+        (c) => c.id === formData.categoryId,
     );
 
     return (
@@ -263,7 +271,7 @@ export const IncomeModal = ({
                                                             amount:
                                                                 parseFloat(
                                                                     e.target
-                                                                        .value
+                                                                        .value,
                                                                 ) || 0,
                                                         }))
                                                     }
@@ -274,8 +282,8 @@ export const IncomeModal = ({
                                                             3,
                                                             String(
                                                                 formData.amount ||
-                                                                    "0.00"
-                                                            ).length + 1
+                                                                    "0.00",
+                                                            ).length + 1,
                                                         )}ch`,
                                                     }}
                                                     autoFocus
@@ -299,7 +307,7 @@ export const IncomeModal = ({
                                                             type="button"
                                                             onClick={() =>
                                                                 scrollCategories(
-                                                                    "left"
+                                                                    "left",
                                                                 )
                                                             }
                                                             className="absolute left-0 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center hover:bg-emerald-600 transition-colors shadow-lg">
@@ -312,7 +320,7 @@ export const IncomeModal = ({
                                                             type="button"
                                                             onClick={() =>
                                                                 scrollCategories(
-                                                                    "right"
+                                                                    "right",
                                                                 )
                                                             }
                                                             className="absolute right-0 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center hover:bg-emerald-600 transition-colors shadow-lg">
@@ -345,12 +353,12 @@ export const IncomeModal = ({
                                                                     onClick={() =>
                                                                         setFormData(
                                                                             (
-                                                                                prev
+                                                                                prev,
                                                                             ) => ({
                                                                                 ...prev,
                                                                                 categoryId:
                                                                                     cat.id,
-                                                                            })
+                                                                            }),
                                                                         )
                                                                     }
                                                                     className={cn(
@@ -358,7 +366,7 @@ export const IncomeModal = ({
                                                                         formData.categoryId ===
                                                                             cat.id
                                                                             ? "bg-emerald-500/20 ring-2 ring-emerald-500"
-                                                                            : "bg-muted/50 hover:bg-muted"
+                                                                            : "bg-muted/50 hover:bg-muted",
                                                                     )}>
                                                                     <span className="text-xl">
                                                                         {
@@ -371,7 +379,7 @@ export const IncomeModal = ({
                                                                         }
                                                                     </span>
                                                                 </button>
-                                                            )
+                                                            ),
                                                         )}
                                                     </div>
                                                 </div>
@@ -395,7 +403,7 @@ export const IncomeModal = ({
                                                                         ...prev,
                                                                         accountId:
                                                                             acc.id,
-                                                                    })
+                                                                    }),
                                                                 )
                                                             }
                                                             className={cn(
@@ -403,7 +411,7 @@ export const IncomeModal = ({
                                                                 formData.accountId ===
                                                                     acc.id
                                                                     ? "bg-emerald-500/20 ring-2 ring-emerald-500"
-                                                                    : "bg-muted/50 hover:bg-muted"
+                                                                    : "bg-muted/50 hover:bg-muted",
                                                             )}>
                                                             <div
                                                                 className="w-3 h-3 rounded-full"
@@ -426,7 +434,7 @@ export const IncomeModal = ({
                                         <div>
                                             <Label className="text-xs text-muted-foreground mb-2 flex items-center gap-2">
                                                 <Tag className="w-3 h-3" />
-                                                Title
+                                                Title (optional)
                                             </Label>
                                             <Input
                                                 value={formData.title}
@@ -455,7 +463,7 @@ export const IncomeModal = ({
                                                                 (prev) => ({
                                                                     ...prev,
                                                                     status: status.value,
-                                                                })
+                                                                }),
                                                             )
                                                         }
                                                         className={cn(
@@ -463,7 +471,7 @@ export const IncomeModal = ({
                                                             formData.status ===
                                                                 status.value
                                                                 ? "bg-emerald-500 text-white"
-                                                                : "bg-muted/50 hover:bg-muted"
+                                                                : "bg-muted/50 hover:bg-muted",
                                                         )}>
                                                         {status.label}
                                                     </button>
@@ -486,7 +494,7 @@ export const IncomeModal = ({
                                                                     (prev) => ({
                                                                         ...prev,
                                                                         type: nature.value,
-                                                                    })
+                                                                    }),
                                                                 )
                                                             }
                                                             className={cn(
@@ -494,14 +502,14 @@ export const IncomeModal = ({
                                                                 formData.type ===
                                                                     nature.value
                                                                     ? "bg-emerald-500 text-white"
-                                                                    : "bg-muted/50 hover:bg-muted"
+                                                                    : "bg-muted/50 hover:bg-muted",
                                                             )}>
                                                             <span>
                                                                 {nature.icon}
                                                             </span>
                                                             {nature.label}
                                                         </button>
-                                                    )
+                                                    ),
                                                 )}
                                             </div>
                                         </div>
@@ -562,14 +570,14 @@ export const IncomeModal = ({
                                                     "w-12 h-6 rounded-full transition-all",
                                                     formData.isRecurring
                                                         ? "bg-emerald-500"
-                                                        : "bg-muted"
+                                                        : "bg-muted",
                                                 )}>
                                                 <div
                                                     className={cn(
                                                         "w-5 h-5 rounded-full bg-white shadow-md transition-transform",
                                                         formData.isRecurring
                                                             ? "translate-x-6"
-                                                            : "translate-x-0.5"
+                                                            : "translate-x-0.5",
                                                     )}
                                                 />
                                             </button>
@@ -591,7 +599,7 @@ export const IncomeModal = ({
                                                                         ...prev,
                                                                         frequency:
                                                                             freq.value,
-                                                                    })
+                                                                    }),
                                                                 )
                                                             }
                                                             className={cn(
@@ -599,7 +607,7 @@ export const IncomeModal = ({
                                                                 formData.frequency ===
                                                                     freq.value
                                                                     ? "bg-emerald-500 text-white"
-                                                                    : "bg-muted/50 hover:bg-muted"
+                                                                    : "bg-muted/50 hover:bg-muted",
                                                             )}>
                                                             {freq.label}
                                                         </button>
@@ -664,7 +672,6 @@ export const IncomeModal = ({
                                         </Button>
                                         <Button
                                             onClick={handleSubmit}
-                                            disabled={!formData.title}
                                             className="flex-1 rounded-xl bg-emerald-500 hover:bg-emerald-600">
                                             Add Income
                                         </Button>

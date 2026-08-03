@@ -163,19 +163,26 @@ export const ExpenseModal = ({
 
     const handleSubmit = () => {
         if (
-            !formData.title ||
             formData.amount <= 0 ||
             !formData.categoryId ||
             !formData.accountId
         ) {
             return;
         }
-        onSubmit(formData);
+
+        const fallbackTitle =
+            categories.find((c) => c.id === formData.categoryId)?.name ||
+            "Expense";
+
+        onSubmit({
+            ...formData,
+            title: formData.title.trim() || fallbackTitle,
+        });
         onClose();
     };
 
     const selectedCategory = categories.find(
-        (c) => c.id === formData.categoryId
+        (c) => c.id === formData.categoryId,
     );
     const selectedAccount = accounts.find((a) => a.id === formData.accountId);
 
@@ -251,7 +258,7 @@ export const ExpenseModal = ({
                                                             amount:
                                                                 parseFloat(
                                                                     e.target
-                                                                        .value
+                                                                        .value,
                                                                 ) || 0,
                                                         }))
                                                     }
@@ -262,8 +269,8 @@ export const ExpenseModal = ({
                                                             3,
                                                             String(
                                                                 formData.amount ||
-                                                                    "0.00"
-                                                            ).length + 1
+                                                                    "0.00",
+                                                            ).length + 1,
                                                         )}ch`,
                                                     }}
                                                     autoFocus
@@ -286,7 +293,7 @@ export const ExpenseModal = ({
                                                         type="button"
                                                         onClick={() =>
                                                             scrollCategories(
-                                                                "left"
+                                                                "left",
                                                             )
                                                         }
                                                         className="absolute left-0 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/80 transition-colors shadow-lg">
@@ -299,7 +306,7 @@ export const ExpenseModal = ({
                                                         type="button"
                                                         onClick={() =>
                                                             scrollCategories(
-                                                                "right"
+                                                                "right",
                                                             )
                                                         }
                                                         className="absolute right-0 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/80 transition-colors shadow-lg">
@@ -332,7 +339,7 @@ export const ExpenseModal = ({
                                                                         ...prev,
                                                                         categoryId:
                                                                             cat.id,
-                                                                    })
+                                                                    }),
                                                                 )
                                                             }
                                                             className={cn(
@@ -340,7 +347,7 @@ export const ExpenseModal = ({
                                                                 formData.categoryId ===
                                                                     cat.id
                                                                     ? "bg-red-300/20 ring-2 ring-red-500"
-                                                                    : "bg-muted/50 hover:bg-muted"
+                                                                    : "bg-muted/50 hover:bg-muted",
                                                             )}>
                                                             <span className="text-xl">
                                                                 {cat.icon}
@@ -371,7 +378,7 @@ export const ExpenseModal = ({
                                                                         ...prev,
                                                                         accountId:
                                                                             acc.id,
-                                                                    })
+                                                                    }),
                                                                 )
                                                             }
                                                             className={cn(
@@ -379,7 +386,7 @@ export const ExpenseModal = ({
                                                                 formData.accountId ===
                                                                     acc.id
                                                                     ? "bg-red-300/20 ring-2 ring-red-500"
-                                                                    : "bg-muted/50 hover:bg-muted"
+                                                                    : "bg-muted/50 hover:bg-muted",
                                                             )}>
                                                             <div
                                                                 className="w-3 h-3 rounded-full"
@@ -402,7 +409,7 @@ export const ExpenseModal = ({
                                         <div>
                                             <Label className="text-xs text-muted-foreground mb-2 flex items-center gap-2">
                                                 <Tag className="w-3 h-3" />
-                                                Title
+                                                Title (optional)
                                             </Label>
                                             <Input
                                                 value={formData.title}
@@ -450,7 +457,7 @@ export const ExpenseModal = ({
                                                                 (prev) => ({
                                                                     ...prev,
                                                                     type: type.value,
-                                                                })
+                                                                }),
                                                             )
                                                         }
                                                         className={cn(
@@ -458,7 +465,7 @@ export const ExpenseModal = ({
                                                             formData.type ===
                                                                 type.value
                                                                 ? "bg-red-500 text-white"
-                                                                : "bg-muted/50 hover:bg-muted"
+                                                                : "bg-muted/50 hover:bg-muted",
                                                         )}>
                                                         {type.label}
                                                     </button>
@@ -486,14 +493,14 @@ export const ExpenseModal = ({
                                                     "w-12 h-6 rounded-full transition-all",
                                                     formData.isRecurring
                                                         ? "bg-red-500"
-                                                        : "bg-muted"
+                                                        : "bg-muted",
                                                 )}>
                                                 <div
                                                     className={cn(
                                                         "w-5 h-5 rounded-full bg-white shadow-md transition-transform",
                                                         formData.isRecurring
                                                             ? "translate-x-6"
-                                                            : "translate-x-0.5"
+                                                            : "translate-x-0.5",
                                                     )}
                                                 />
                                             </button>
@@ -515,7 +522,7 @@ export const ExpenseModal = ({
                                                                         ...prev,
                                                                         recurringFrequency:
                                                                             freq.value,
-                                                                    })
+                                                                    }),
                                                                 )
                                                             }
                                                             className={cn(
@@ -523,7 +530,7 @@ export const ExpenseModal = ({
                                                                 formData.recurringFrequency ===
                                                                     freq.value
                                                                     ? "bg-red-500 text-white"
-                                                                    : "bg-muted/50 hover:bg-muted"
+                                                                    : "bg-muted/50 hover:bg-muted",
                                                             )}>
                                                             {freq.label}
                                                         </button>
@@ -584,7 +591,6 @@ export const ExpenseModal = ({
                                         </Button>
                                         <Button
                                             onClick={handleSubmit}
-                                            disabled={!formData.title}
                                             className="flex-1 rounded-xl bg-red-500 hover:bg-red-600">
                                             Add Expense
                                         </Button>

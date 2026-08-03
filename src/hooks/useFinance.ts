@@ -33,7 +33,7 @@ const getCurrentMonth = (): string => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(
         2,
-        "0"
+        "0",
     )}`;
 };
 
@@ -52,7 +52,7 @@ const getMonthEnd = (month: string, startDay: number = 1): Date => {
 const isInMonth = (
     dateStr: string,
     month: string,
-    startDay: number = 1
+    startDay: number = 1,
 ): boolean => {
     const date = new Date(dateStr);
     const start = getMonthStart(month, startDay);
@@ -443,7 +443,7 @@ export const useFinance = () => {
                 updateData({ finance: updater });
             }
         },
-        [data, updateData]
+        [data, updateData],
     );
 
     // ==================== Recurring & Automation Logic ====================
@@ -475,7 +475,7 @@ export const useFinance = () => {
             }
             return date.toISOString().split("T")[0];
         },
-        []
+        [],
     );
 
     // Process recurring incomes - runs on app load
@@ -489,7 +489,7 @@ export const useFinance = () => {
                     inc.isRecurring &&
                     inc.frequency !== "one-time" &&
                     (!inc.recurringEndDate ||
-                        new Date(inc.recurringEndDate) >= today)
+                        new Date(inc.recurringEndDate) >= today),
             );
 
             const newIncomes: Income[] = [];
@@ -499,13 +499,13 @@ export const useFinance = () => {
                 let nextDate = income.nextOccurrence
                     ? new Date(income.nextOccurrence)
                     : income.actualDate
-                    ? new Date(income.actualDate)
-                    : new Date(income.createdAt);
+                      ? new Date(income.actualDate)
+                      : new Date(income.createdAt);
 
                 if (!income.nextOccurrence) {
                     const baseDate = income.actualDate || income.createdAt;
                     nextDate = new Date(
-                        calculateNextOccurrence(baseDate, income.frequency)
+                        calculateNextOccurrence(baseDate, income.frequency),
                     );
                 }
 
@@ -515,7 +515,7 @@ export const useFinance = () => {
                         (inc) =>
                             inc.title === income.title &&
                             inc.amount === income.amount &&
-                            inc.actualDate === nextDateStr
+                            inc.actualDate === nextDateStr,
                     );
 
                     if (!existingEntry) {
@@ -537,7 +537,7 @@ export const useFinance = () => {
                     }
                     const newNextDate = calculateNextOccurrence(
                         nextDateStr,
-                        income.frequency
+                        income.frequency,
                     );
                     nextDate = new Date(newNextDate);
                 }
@@ -561,7 +561,7 @@ export const useFinance = () => {
                     incomes: [
                         ...prev.incomes.map((inc) => {
                             const update = updatedIncomes.find(
-                                (u) => u.id === inc.id
+                                (u) => u.id === inc.id,
                             );
                             if (update) {
                                 return {
@@ -593,7 +593,7 @@ export const useFinance = () => {
                     exp.isRecurring &&
                     exp.recurringFrequency &&
                     (!exp.recurringEndDate ||
-                        new Date(exp.recurringEndDate) >= today)
+                        new Date(exp.recurringEndDate) >= today),
             );
 
             const newExpenses: Expense[] = [];
@@ -609,8 +609,8 @@ export const useFinance = () => {
                     nextDate = new Date(
                         calculateNextOccurrence(
                             expense.date,
-                            expense.recurringFrequency || "monthly"
-                        )
+                            expense.recurringFrequency || "monthly",
+                        ),
                     );
                 }
 
@@ -621,7 +621,7 @@ export const useFinance = () => {
                             exp.title === expense.title &&
                             exp.amount === expense.amount &&
                             exp.categoryId === expense.categoryId &&
-                            exp.date === nextDateStr
+                            exp.date === nextDateStr,
                     );
 
                     if (!existingEntry) {
@@ -642,7 +642,7 @@ export const useFinance = () => {
                     }
                     const newNextDate = calculateNextOccurrence(
                         nextDateStr,
-                        expense.recurringFrequency || "monthly"
+                        expense.recurringFrequency || "monthly",
                     );
                     nextDate = new Date(newNextDate);
                 }
@@ -666,7 +666,7 @@ export const useFinance = () => {
                     expenses: [
                         ...prev.expenses.map((exp) => {
                             const update = updatedExpenses.find(
-                                (u) => u.id === exp.id
+                                (u) => u.id === exp.id,
                             );
                             if (update) {
                                 return {
@@ -704,7 +704,7 @@ export const useFinance = () => {
             }));
             return newIncome;
         },
-        [setData]
+        [setData],
     );
 
     const updateIncome = useCallback(
@@ -718,11 +718,11 @@ export const useFinance = () => {
                               ...updates,
                               updatedAt: new Date().toISOString(),
                           }
-                        : income
+                        : income,
                 ),
             }));
         },
-        [setData]
+        [setData],
     );
 
     const deleteIncome = useCallback(
@@ -732,12 +732,12 @@ export const useFinance = () => {
                 incomes: prev.incomes.filter((income) => income.id !== id),
             }));
         },
-        [setData]
+        [setData],
     );
 
     const getIncomeById = useCallback(
         (id: string) => data.incomes.find((income) => income.id === id),
-        [data.incomes]
+        [data.incomes],
     );
 
     // ==================== Expense Operations ====================
@@ -757,7 +757,7 @@ export const useFinance = () => {
             }));
             return newExpense;
         },
-        [setData]
+        [setData],
     );
 
     const updateExpense = useCallback(
@@ -771,11 +771,11 @@ export const useFinance = () => {
                               ...updates,
                               updatedAt: new Date().toISOString(),
                           }
-                        : expense
+                        : expense,
                 ),
             }));
         },
-        [setData]
+        [setData],
     );
 
     const deleteExpense = useCallback(
@@ -785,12 +785,12 @@ export const useFinance = () => {
                 expenses: prev.expenses.filter((expense) => expense.id !== id),
             }));
         },
-        [setData]
+        [setData],
     );
 
     const getExpenseById = useCallback(
         (id: string) => data.expenses.find((expense) => expense.id === id),
-        [data.expenses]
+        [data.expenses],
     );
 
     // ==================== Category Operations ====================
@@ -808,7 +808,7 @@ export const useFinance = () => {
             }));
             return newCategory;
         },
-        [setData]
+        [setData],
     );
 
     const updateCategory = useCallback(
@@ -816,29 +816,122 @@ export const useFinance = () => {
             setData((prev) => ({
                 ...prev,
                 categories: prev.categories.map((cat) =>
-                    cat.id === id ? { ...cat, ...updates } : cat
+                    cat.id === id ? { ...cat, ...updates } : cat,
                 ),
             }));
         },
-        [setData]
+        [setData],
     );
 
     const deleteCategory = useCallback(
-        (id: string) => {
+        (id: string, transferToCategoryId?: string) => {
             const category = data.categories.find((c) => c.id === id);
-            if (category?.isDefault) return false;
-            setData((prev) => ({
-                ...prev,
-                categories: prev.categories.filter((cat) => cat.id !== id),
-            }));
+            if (!category) return false;
+
+            if (transferToCategoryId === id) return false;
+
+            const hasExpenseRefs = data.expenses.some(
+                (e) => e.categoryId === id,
+            );
+            const hasInstallmentRefs = data.installments.some(
+                (inst) => inst.categoryId === id,
+            );
+            const hasReferences = hasExpenseRefs || hasInstallmentRefs;
+
+            if (hasReferences && !transferToCategoryId) return false;
+
+            if (
+                transferToCategoryId &&
+                !data.categories.some((c) => c.id === transferToCategoryId)
+            ) {
+                return false;
+            }
+
+            setData((prev) => {
+                const updatedExpenses = transferToCategoryId
+                    ? prev.expenses.map((expense) =>
+                          expense.categoryId === id
+                              ? { ...expense, categoryId: transferToCategoryId }
+                              : expense,
+                      )
+                    : prev.expenses;
+
+                const updatedInstallments = transferToCategoryId
+                    ? prev.installments.map((inst) =>
+                          inst.categoryId === id
+                              ? {
+                                    ...inst,
+                                    categoryId: transferToCategoryId,
+                                    updatedAt: new Date().toISOString(),
+                                }
+                              : inst,
+                      )
+                    : prev.installments;
+
+                const updatedBudgets = prev.budgets.map((budget) => {
+                    const sourceBudget = budget.categoryBudgets.find(
+                        (cb) => cb.categoryId === id,
+                    );
+
+                    if (!sourceBudget) return budget;
+
+                    if (!transferToCategoryId) {
+                        return {
+                            ...budget,
+                            categoryBudgets: budget.categoryBudgets.filter(
+                                (cb) => cb.categoryId !== id,
+                            ),
+                        };
+                    }
+
+                    const nextCategoryBudgets = budget.categoryBudgets.filter(
+                        (cb) => cb.categoryId !== id,
+                    );
+                    const targetIndex = nextCategoryBudgets.findIndex(
+                        (cb) => cb.categoryId === transferToCategoryId,
+                    );
+
+                    if (targetIndex >= 0) {
+                        nextCategoryBudgets[targetIndex] = {
+                            ...nextCategoryBudgets[targetIndex],
+                            planned:
+                                nextCategoryBudgets[targetIndex].planned +
+                                sourceBudget.planned,
+                            spent:
+                                nextCategoryBudgets[targetIndex].spent +
+                                sourceBudget.spent,
+                        };
+                    } else {
+                        nextCategoryBudgets.push({
+                            categoryId: transferToCategoryId,
+                            planned: sourceBudget.planned,
+                            spent: sourceBudget.spent,
+                        });
+                    }
+
+                    return {
+                        ...budget,
+                        categoryBudgets: nextCategoryBudgets,
+                    };
+                });
+
+                return {
+                    ...prev,
+                    expenses: updatedExpenses,
+                    installments: updatedInstallments,
+                    budgets: updatedBudgets,
+                    categories: prev.categories.filter((cat) => cat.id !== id),
+                };
+            });
+
             return true;
         },
-        [data.categories, setData]
+        [data.categories, data.expenses, data.installments, setData],
     );
 
     const getCategoryById = useCallback(
         (id: string) => data.categories.find((cat) => cat.id === id),
-        [data.categories]
+        [data.categories],
     );
 
     // ==================== Income Category Operations ====================
@@ -859,7 +952,7 @@ export const useFinance = () => {
             }));
             return newCategory;
         },
-        [setData]
+        [setData],
     );
 
     const updateIncomeCategory = useCallback(
@@ -867,34 +960,63 @@ export const useFinance = () => {
             setData((prev) => ({
                 ...prev,
                 incomeCategories: (prev.incomeCategories || []).map((cat) =>
-                    cat.id === id ? { ...cat, ...updates } : cat
+                    cat.id === id ? { ...cat, ...updates } : cat,
                 ),
             }));
         },
-        [setData]
+        [setData],
     );
 
     const deleteIncomeCategory = useCallback(
-        (id: string) => {
+        (id: string, transferToCategoryId?: string) => {
             const category = (data.incomeCategories || []).find(
-                (c) => c.id === id
+                (c) => c.id === id,
             );
-            if (category?.isDefault) return false;
+            if (!category) return false;
+
+            if (transferToCategoryId === id) return false;
+
+            const hasReferences = data.incomes.some(
+                (income) => income.categoryId === id,
+            );
+            if (hasReferences && !transferToCategoryId) return false;
+
+            if (
+                transferToCategoryId &&
+                !(data.incomeCategories || []).some(
+                    (c) => c.id === transferToCategoryId,
+                )
+            ) {
+                return false;
+            }
+
             setData((prev) => ({
                 ...prev,
+                incomes: transferToCategoryId
+                    ? prev.incomes.map((income) =>
+                          income.categoryId === id
+                              ? {
+                                    ...income,
+                                    categoryId: transferToCategoryId,
+                                    updatedAt: new Date().toISOString(),
+                                }
+                              : income,
+                      )
+                    : prev.incomes,
                 incomeCategories: (prev.incomeCategories || []).filter(
-                    (cat) => cat.id !== id
+                    (cat) => cat.id !== id,
                 ),
             }));
+
             return true;
         },
-        [data.incomeCategories, setData]
+        [data.incomeCategories, data.incomes, setData],
     );
 
     const getIncomeCategoryById = useCallback(
         (id: string) =>
             (data.incomeCategories || []).find((cat) => cat.id === id),
-        [data.incomeCategories]
+        [data.incomeCategories],
     );
 
     // ==================== Account Operations ====================
@@ -904,7 +1026,7 @@ export const useFinance = () => {
             accountData: Omit<
                 Account,
                 "id" | "createdAt" | "updatedAt" | "balance"
-            >
+            >,
         ) => {
             const now = new Date().toISOString();
             const newAccount: Account = {
@@ -920,7 +1042,7 @@ export const useFinance = () => {
             }));
             return newAccount;
         },
-        [setData]
+        [setData],
     );
 
     const updateAccount = useCallback(
@@ -934,11 +1056,11 @@ export const useFinance = () => {
                               ...updates,
                               updatedAt: new Date().toISOString(),
                           }
-                        : account
+                        : account,
                 ),
             }));
         },
-        [setData]
+        [setData],
     );
 
     const deleteAccount = useCallback(
@@ -958,7 +1080,7 @@ export const useFinance = () => {
 
             // Check if it's the last active account
             const activeAccounts = data.accounts.filter(
-                (a) => a.isActive && a.id !== id
+                (a) => a.isActive && a.id !== id,
             );
             if (activeAccounts.length === 0) {
                 return {
@@ -975,12 +1097,18 @@ export const useFinance = () => {
 
             return { success: true };
         },
-        [data.accounts, data.expenses, data.incomes, data.installments, setData]
+        [
+            data.accounts,
+            data.expenses,
+            data.incomes,
+            data.installments,
+            setData,
+        ],
     );
 
     const getAccountById = useCallback(
         (id: string) => data.accounts.find((account) => account.id === id),
-        [data.accounts]
+        [data.accounts],
     );
 
     // Calculate real-time balance for an account
@@ -995,34 +1123,34 @@ export const useFinance = () => {
             // Add all incomes to this account
             const accountIncomes = data.incomes.filter(
                 (inc) =>
-                    inc.accountId === accountId && inc.status === "received"
+                    inc.accountId === accountId && inc.status === "received",
             );
             balance += accountIncomes.reduce((sum, inc) => sum + inc.amount, 0);
 
             // Subtract all expenses from this account
             const accountExpenses = data.expenses.filter(
-                (exp) => exp.accountId === accountId
+                (exp) => exp.accountId === accountId,
             );
             balance -= accountExpenses.reduce(
                 (sum, exp) => sum + exp.amount,
-                0
+                0,
             );
 
             // Subtract installment payments
             const accountInstallments = data.installments.filter(
-                (inst) => inst.linkedAccountId === accountId
+                (inst) => inst.linkedAccountId === accountId,
             );
             balance -= accountInstallments.reduce(
                 (sum, inst) => sum + inst.paidAmount,
-                0
+                0,
             );
 
             // Account for transfers
             const transfersFrom = (data.transfers || []).filter(
-                (t) => t.fromAccountId === accountId
+                (t) => t.fromAccountId === accountId,
             );
             const transfersTo = (data.transfers || []).filter(
-                (t) => t.toAccountId === accountId
+                (t) => t.toAccountId === accountId,
             );
 
             balance -= transfersFrom.reduce((sum, t) => sum + t.amount, 0);
@@ -1036,7 +1164,7 @@ export const useFinance = () => {
             data.expenses,
             data.installments,
             data.transfers,
-        ]
+        ],
     );
 
     // Transfer money between accounts
@@ -1045,10 +1173,10 @@ export const useFinance = () => {
             fromAccountId: string,
             toAccountId: string,
             amount: number,
-            notes?: string
+            notes?: string,
         ) => {
             const fromAccount = data.accounts.find(
-                (a) => a.id === fromAccountId
+                (a) => a.id === fromAccountId,
             );
             const toAccount = data.accounts.find((a) => a.id === toAccountId);
 
@@ -1095,7 +1223,7 @@ export const useFinance = () => {
 
             return transfer;
         },
-        [data.accounts, setData]
+        [data.accounts, setData],
     );
 
     // ==================== Installment Operations ====================
@@ -1110,7 +1238,7 @@ export const useFinance = () => {
                 | "payments"
                 | "paidAmount"
                 | "paidInstallments"
-            >
+            >,
         ) => {
             const now = new Date().toISOString();
             const newInstallment: Installment = {
@@ -1128,7 +1256,7 @@ export const useFinance = () => {
             }));
             return newInstallment;
         },
-        [setData]
+        [setData],
     );
 
     const updateInstallment = useCallback(
@@ -1142,23 +1270,96 @@ export const useFinance = () => {
                               ...updates,
                               updatedAt: new Date().toISOString(),
                           }
-                        : inst
+                        : inst,
                 ),
             }));
         },
-        [setData]
+        [setData],
     );
 
     const deleteInstallment = useCallback(
-        (id: string) => {
-            setData((prev) => ({
-                ...prev,
-                installments: prev.installments.filter(
-                    (inst) => inst.id !== id
-                ),
-            }));
+        (id: string, transferToInstallmentId?: string) => {
+            const sourceInstallment = data.installments.find(
+                (inst) => inst.id === id,
+            );
+            if (!sourceInstallment) return false;
+
+            if (transferToInstallmentId === id) return false;
+
+            const amountToTransfer = Math.max(0, sourceInstallment.paidAmount);
+            if (amountToTransfer > 0 && !transferToInstallmentId) return false;
+
+            if (
+                transferToInstallmentId &&
+                !data.installments.some(
+                    (inst) => inst.id === transferToInstallmentId,
+                )
+            ) {
+                return false;
+            }
+
+            setData((prev) => {
+                const now = new Date().toISOString();
+
+                let nextInstallments = prev.installments;
+
+                if (transferToInstallmentId && amountToTransfer > 0) {
+                    nextInstallments = prev.installments.map((inst) => {
+                        if (inst.id !== transferToInstallmentId) return inst;
+
+                        const transferPayment: InstallmentPayment = {
+                            id: generateId(),
+                            installmentId: inst.id,
+                            date: now.split("T")[0],
+                            amount: amountToTransfer,
+                            status: "paid",
+                            notes: `Transferred from deleted installment: ${sourceInstallment.title}`,
+                            createdAt: now,
+                        };
+
+                        const updatedPayments = [
+                            ...inst.payments,
+                            transferPayment,
+                        ];
+                        const paidAmount = Math.max(
+                            0,
+                            updatedPayments
+                                .filter(
+                                    (p) =>
+                                        p.status === "paid" ||
+                                        p.status === "late",
+                                )
+                                .reduce((sum, p) => sum + p.amount, 0),
+                        );
+                        const paidInstallments = Math.min(
+                            inst.totalInstallments,
+                            Math.floor(paidAmount / inst.installmentAmount),
+                        );
+                        const isCompleted =
+                            paidInstallments >= inst.totalInstallments;
+
+                        return {
+                            ...inst,
+                            payments: updatedPayments,
+                            paidAmount,
+                            paidInstallments,
+                            status: isCompleted ? "completed" : inst.status,
+                            updatedAt: now,
+                        };
+                    });
+                }
+
+                return {
+                    ...prev,
+                    installments: nextInstallments.filter(
+                        (inst) => inst.id !== id,
+                    ),
+                };
+            });
+
+            return true;
         },
-        [setData]
+        [data.installments, setData],
     );
 
     const addInstallmentPayment = useCallback(
@@ -1171,7 +1372,7 @@ export const useFinance = () => {
             expenseInfo?: {
                 accountId: string;
                 paymentMethod: PaymentMethod;
-            }
+            },
         ) => {
             const now = new Date().toISOString();
             const paymentId = generateId();
@@ -1184,7 +1385,7 @@ export const useFinance = () => {
 
             setData((prev) => {
                 const installment = prev.installments.find(
-                    (i) => i.id === installmentId
+                    (i) => i.id === installmentId,
                 );
                 if (!installment) return prev;
 
@@ -1193,7 +1394,7 @@ export const useFinance = () => {
                     .filter((p) => p.status === "paid" || p.status === "late")
                     .reduce((sum, p) => sum + p.amount, 0);
                 const paidInstallments = updatedPayments.filter(
-                    (p) => p.status === "paid" || p.status === "late"
+                    (p) => p.status === "paid" || p.status === "late",
                 ).length;
 
                 let nextPaymentDate = installment.nextPaymentDate;
@@ -1260,14 +1461,14 @@ export const useFinance = () => {
                                       : inst.status,
                                   updatedAt: now,
                               }
-                            : inst
+                            : inst,
                     ),
                 };
             });
 
             return newPayment;
         },
-        [setData]
+        [setData],
     );
 
     // Add refund to installment (negative payment) - creates income transaction
@@ -1278,7 +1479,7 @@ export const useFinance = () => {
             reason?: string,
             incomeInfo?: {
                 accountId: string;
-            }
+            },
         ) => {
             const now = new Date().toISOString();
             const refundPayment: InstallmentPayment = {
@@ -1293,7 +1494,7 @@ export const useFinance = () => {
 
             setData((prev) => {
                 const installment = prev.installments.find(
-                    (i) => i.id === installmentId
+                    (i) => i.id === installmentId,
                 );
                 if (!installment) return prev;
 
@@ -1306,15 +1507,15 @@ export const useFinance = () => {
                     0,
                     updatedPayments
                         .filter(
-                            (p) => p.status === "paid" || p.status === "late"
+                            (p) => p.status === "paid" || p.status === "late",
                         )
-                        .reduce((sum, p) => sum + p.amount, 0)
+                        .reduce((sum, p) => sum + p.amount, 0),
                 );
 
                 // Recalculate paid installments (only positive payments)
                 const paidInstallments = Math.max(
                     0,
-                    Math.floor(paidAmount / installment.installmentAmount)
+                    Math.floor(paidAmount / installment.installmentAmount),
                 );
 
                 const isCompleted =
@@ -1325,7 +1526,7 @@ export const useFinance = () => {
                 if (incomeInfo?.accountId) {
                     // Find refund category or use first available
                     const refundCategory = prev.incomeCategories.find(
-                        (c) => c.name.toLowerCase() === "refund"
+                        (c) => c.name.toLowerCase() === "refund",
                     );
                     const refundIncome: Income = {
                         id: generateId(),
@@ -1365,18 +1566,18 @@ export const useFinance = () => {
                                   status: isCompleted
                                       ? "completed"
                                       : inst.status === "completed"
-                                      ? "active"
-                                      : inst.status,
+                                        ? "active"
+                                        : inst.status,
                                   updatedAt: now,
                               }
-                            : inst
+                            : inst,
                     ),
                 };
             });
 
             return refundPayment;
         },
-        [setData]
+        [setData],
     );
 
     // ==================== Goal Operations ====================
@@ -1386,7 +1587,7 @@ export const useFinance = () => {
             goalData: Omit<
                 FinancialGoal,
                 "id" | "createdAt" | "updatedAt" | "contributions"
-            > & { currentAmount?: number }
+            > & { currentAmount?: number },
         ) => {
             const now = new Date().toISOString();
             const initialAmount = goalData.currentAmount || 0;
@@ -1417,7 +1618,7 @@ export const useFinance = () => {
             setData((prev) => ({ ...prev, goals: [...prev.goals, newGoal] }));
             return newGoal;
         },
-        [setData]
+        [setData],
     );
 
     const updateGoal = useCallback(
@@ -1431,21 +1632,85 @@ export const useFinance = () => {
                               ...updates,
                               updatedAt: new Date().toISOString(),
                           }
-                        : goal
+                        : goal,
                 ),
             }));
         },
-        [setData]
+        [setData],
     );
 
     const deleteGoal = useCallback(
-        (id: string) => {
-            setData((prev) => ({
-                ...prev,
-                goals: prev.goals.filter((goal) => goal.id !== id),
-            }));
+        (id: string, transferToGoalId?: string) => {
+            const sourceGoal = data.goals.find((goal) => goal.id === id);
+            if (!sourceGoal) return false;
+
+            if (transferToGoalId === id) return false;
+
+            const amountToTransfer = Math.max(0, sourceGoal.currentAmount);
+            if (amountToTransfer > 0 && !transferToGoalId) return false;
+
+            if (
+                transferToGoalId &&
+                !data.goals.some((goal) => goal.id === transferToGoalId)
+            ) {
+                return false;
+            }
+
+            setData((prev) => {
+                const now = new Date().toISOString();
+                let nextGoals = prev.goals;
+
+                if (transferToGoalId && amountToTransfer > 0) {
+                    nextGoals = prev.goals.map((goal) => {
+                        if (goal.id !== transferToGoalId) return goal;
+
+                        const transferContribution: GoalContribution = {
+                            id: generateId(),
+                            goalId: goal.id,
+                            amount: amountToTransfer,
+                            date: now.split("T")[0],
+                            notes: `Transferred from deleted goal: ${sourceGoal.title}`,
+                            createdAt: now,
+                        };
+
+                        const updatedContributions = [
+                            ...(goal.contributions || []),
+                            transferContribution,
+                        ];
+                        const currentAmount = updatedContributions.reduce(
+                            (sum, contribution) => sum + contribution.amount,
+                            0,
+                        );
+                        const updatedMilestones = goal.milestones.map((m) => {
+                            if (!m.reached && currentAmount >= m.targetAmount) {
+                                return { ...m, reached: true, reachedAt: now };
+                            }
+                            return m;
+                        });
+
+                        return {
+                            ...goal,
+                            contributions: updatedContributions,
+                            currentAmount,
+                            milestones: updatedMilestones,
+                            status:
+                                currentAmount >= goal.targetAmount
+                                    ? "completed"
+                                    : goal.status,
+                            updatedAt: now,
+                        };
+                    });
+                }
+
+                return {
+                    ...prev,
+                    goals: nextGoals.filter((goal) => goal.id !== id),
+                };
+            });
+
+            return true;
         },
-        [setData]
+        [data.goals, setData],
     );
 
     const addGoalContribution = useCallback(
@@ -1470,7 +1735,7 @@ export const useFinance = () => {
                 ];
                 const currentAmount = updatedContributions.reduce(
                     (sum, c) => sum + c.amount,
-                    0
+                    0,
                 );
                 const isCompleted = currentAmount >= goal.targetAmount;
 
@@ -1493,14 +1758,14 @@ export const useFinance = () => {
                                   status: isCompleted ? "completed" : g.status,
                                   updatedAt: now,
                               }
-                            : g
+                            : g,
                     ),
                 };
             });
 
             return newContribution;
         },
-        [setData]
+        [setData],
     );
 
     // ==================== Budget Operations ====================
@@ -1509,7 +1774,7 @@ export const useFinance = () => {
         (month: string = getCurrentMonth()) => {
             const startDay = data.settings.monthStartDay;
             const monthExpenses = data.expenses.filter((e) =>
-                isInMonth(e.date, month, startDay)
+                isInMonth(e.date, month, startDay),
             );
             const monthIncomes = data.incomes.filter((inc) => {
                 const date = inc.actualDate || inc.expectedDate;
@@ -1521,24 +1786,24 @@ export const useFinance = () => {
             });
             const totalActualIncome = monthIncomes.reduce(
                 (sum, inc) => sum + inc.amount,
-                0
+                0,
             );
             const totalActualExpenses = monthExpenses.reduce(
                 (sum, exp) => sum + exp.amount,
-                0
+                0,
             );
 
             const categoryBudgets = data.categories.map((cat) => {
                 const categoryExpenses = monthExpenses.filter(
-                    (e) => e.categoryId === cat.id
+                    (e) => e.categoryId === cat.id,
                 );
                 const spent = categoryExpenses.reduce(
                     (sum, e) => sum + e.amount,
-                    0
+                    0,
                 );
                 const existing = data.budgets.find((b) => b.month === month);
                 const existingCatBudget = existing?.categoryBudgets.find(
-                    (cb) => cb.categoryId === cat.id
+                    (cb) => cb.categoryId === cat.id,
                 );
                 const planned =
                     existingCatBudget?.planned ?? (cat.monthlyBudget || 0);
@@ -1547,7 +1812,7 @@ export const useFinance = () => {
 
             const totalPlanned = categoryBudgets.reduce(
                 (sum, cb) => sum + cb.planned,
-                0
+                0,
             );
             const existing = data.budgets.find((b) => b.month === month);
 
@@ -1585,7 +1850,7 @@ export const useFinance = () => {
             data.expenses,
             data.incomes,
             data.settings.monthStartDay,
-        ]
+        ],
     );
 
     const createBudget = useCallback(
@@ -1609,7 +1874,7 @@ export const useFinance = () => {
             }));
             return newBudget;
         },
-        [data.budgets, getBudgetOverview, setData]
+        [data.budgets, getBudgetOverview, setData],
     );
 
     // Backward compatibility wrapper (but safe for useEffect)
@@ -1631,7 +1896,7 @@ export const useFinance = () => {
             }
             return overview;
         },
-        [getBudgetOverview, createBudget, data.budgets]
+        [getBudgetOverview, createBudget, data.budgets],
     );
 
     const updateBudget = useCallback(
@@ -1645,11 +1910,11 @@ export const useFinance = () => {
                               ...updates,
                               updatedAt: new Date().toISOString(),
                           }
-                        : budget
+                        : budget,
                 ),
             }));
         },
-        [setData]
+        [setData],
     );
 
     // ==================== Alert Operations ====================
@@ -1668,7 +1933,7 @@ export const useFinance = () => {
             }));
             return newAlert;
         },
-        [setData]
+        [setData],
     );
 
     const dismissAlert = useCallback(
@@ -1682,11 +1947,11 @@ export const useFinance = () => {
                               dismissed: true,
                               dismissedAt: new Date().toISOString(),
                           }
-                        : alert
+                        : alert,
                 ),
             }));
         },
-        [setData]
+        [setData],
     );
 
     const clearExpiredAlerts = useCallback(() => {
@@ -1710,7 +1975,7 @@ export const useFinance = () => {
                 settings: { ...prev.settings, ...updates },
             }));
         },
-        [setData]
+        [setData],
     );
 
     // ==================== Statistics & Analytics ====================
@@ -1722,19 +1987,19 @@ export const useFinance = () => {
                 (i) =>
                     i.status === "received" &&
                     i.actualDate &&
-                    isInMonth(i.actualDate, month, startDay)
+                    isInMonth(i.actualDate, month, startDay),
             );
             const totalIncomeThisMonth = monthIncomes.reduce(
                 (sum, i) => sum + i.amount,
-                0
+                0,
             );
 
             const monthExpenses = data.expenses.filter((e) =>
-                isInMonth(e.date, month, startDay)
+                isInMonth(e.date, month, startDay),
             );
             const totalExpensesThisMonth = monthExpenses.reduce(
                 (sum, e) => sum + e.amount,
-                0
+                0,
             );
 
             const [year, monthNum] = month.split("-").map(Number);
@@ -1747,19 +2012,19 @@ export const useFinance = () => {
                 (i) =>
                     i.status === "received" &&
                     i.actualDate &&
-                    isInMonth(i.actualDate, lastMonth, startDay)
+                    isInMonth(i.actualDate, lastMonth, startDay),
             );
             const lastMonthIncome = lastMonthIncomes.reduce(
                 (sum, i) => sum + i.amount,
-                0
+                0,
             );
 
             const lastMonthExpenses = data.expenses.filter((e) =>
-                isInMonth(e.date, lastMonth, startDay)
+                isInMonth(e.date, lastMonth, startDay),
             );
             const lastMonthExpense = lastMonthExpenses.reduce(
                 (sum, e) => sum + e.amount,
-                0
+                0,
             );
 
             const incomeVsLastMonth =
@@ -1776,11 +2041,11 @@ export const useFinance = () => {
                     : 0;
 
             const activeInstallments = data.installments.filter(
-                (i) => i.status === "active"
+                (i) => i.status === "active",
             );
             const totalInstallmentDebt = activeInstallments.reduce(
                 (sum, i) => sum + (i.totalAmount - i.paidAmount),
-                0
+                0,
             );
 
             const activeGoals = data.goals.filter((g) => g.status === "active");
@@ -1789,7 +2054,7 @@ export const useFinance = () => {
                     ? activeGoals.reduce(
                           (sum, g) =>
                               sum + (g.currentAmount / g.targetAmount) * 100,
-                          0
+                          0,
                       ) / activeGoals.length
                     : 0;
 
@@ -1809,11 +2074,11 @@ export const useFinance = () => {
             });
 
             const topCategory = data.categories.find(
-                (c) => c.id === topCategoryId
+                (c) => c.id === topCategoryId,
             );
             const activeAlerts = data.alerts.filter((a) => !a.dismissed);
             const criticalAlerts = activeAlerts.filter(
-                (a) => a.severity === "critical"
+                (a) => a.severity === "critical",
             );
 
             const netBalance = totalIncomeThisMonth - totalExpensesThisMonth;
@@ -1838,24 +2103,24 @@ export const useFinance = () => {
                 criticalAlertsCount: criticalAlerts.length,
             };
         },
-        [data]
+        [data],
     );
 
     const getCategorySpending = useCallback(
         (month: string = getCurrentMonth()): CategorySpending[] => {
             const startDay = data.settings.monthStartDay;
             const monthExpenses = data.expenses.filter((e) =>
-                isInMonth(e.date, month, startDay)
+                isInMonth(e.date, month, startDay),
             );
 
             return data.categories
                 .map((cat) => {
                     const categoryExpenses = monthExpenses.filter(
-                        (e) => e.categoryId === cat.id
+                        (e) => e.categoryId === cat.id,
                     );
                     const spent = categoryExpenses.reduce(
                         (sum, e) => sum + e.amount,
-                        0
+                        0,
                     );
                     const budget = cat.monthlyBudget || 0;
                     const percentage = budget > 0 ? (spent / budget) * 100 : 0;
@@ -1873,7 +2138,7 @@ export const useFinance = () => {
                 })
                 .sort((a, b) => b.spent - a.spent);
         },
-        [data.categories, data.expenses, data.settings.monthStartDay]
+        [data.categories, data.expenses, data.settings.monthStartDay],
     );
 
     const getDailySpending = useCallback(
@@ -1886,7 +2151,7 @@ export const useFinance = () => {
             while (current <= end) {
                 const dateStr = current.toISOString().split("T")[0];
                 const dayExpenses = data.expenses.filter(
-                    (e) => e.date === dateStr
+                    (e) => e.date === dateStr,
                 );
 
                 result.push({
@@ -1900,7 +2165,7 @@ export const useFinance = () => {
 
             return result;
         },
-        [data.expenses]
+        [data.expenses],
     );
 
     const getRecentTransactions = useCallback(
@@ -1922,7 +2187,7 @@ export const useFinance = () => {
 
             data.expenses.forEach((expense) => {
                 const category = data.categories.find(
-                    (c) => c.id === expense.categoryId
+                    (c) => c.id === expense.categoryId,
                 );
                 transactions.push({
                     id: expense.id,
@@ -1941,11 +2206,11 @@ export const useFinance = () => {
             return transactions
                 .sort(
                     (a, b) =>
-                        new Date(b.date).getTime() - new Date(a.date).getTime()
+                        new Date(b.date).getTime() - new Date(a.date).getTime(),
                 )
                 .slice(0, limit);
         },
-        [data.incomes, data.expenses, data.categories]
+        [data.incomes, data.expenses, data.categories],
     );
 
     // ==================== Quick Actions ====================
@@ -1955,7 +2220,7 @@ export const useFinance = () => {
             amount: number,
             categoryId: string,
             title?: string,
-            notes?: string
+            notes?: string,
         ) => {
             const category = data.categories.find((c) => c.id === categoryId);
             // Get default account or first available account
@@ -1986,7 +2251,7 @@ export const useFinance = () => {
             data.accounts,
             data.categories,
             data.settings.defaultCurrency,
-        ]
+        ],
     );
 
     // ==================== Format Helpers ====================
@@ -2000,7 +2265,7 @@ export const useFinance = () => {
             }).format(amount);
             return `${formatted} ${curr}`;
         },
-        [data.settings.defaultCurrency, data.settings.showCents]
+        [data.settings.defaultCurrency, data.settings.showCents],
     );
 
     // ==================== Export/Import Functions ====================
@@ -2052,7 +2317,7 @@ export const useFinance = () => {
                 version: migratedData.version || "2.0.0",
             });
         },
-        [data.categories, data.settings, setData]
+        [data.categories, data.settings, setData],
     );
 
     const resetData = useCallback(() => {

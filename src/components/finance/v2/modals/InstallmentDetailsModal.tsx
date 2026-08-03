@@ -19,6 +19,7 @@ import {
     Minus,
     ArrowDownLeft,
     CheckCircle2,
+    Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import type { Installment } from "@/types/modules/finance";
@@ -31,6 +32,7 @@ interface InstallmentDetailsModalProps {
     onEdit?: () => void;
     onPay?: () => void;
     onRefund?: () => void;
+    onDelete?: () => void;
 }
 
 export const InstallmentDetailsModal = ({
@@ -41,19 +43,20 @@ export const InstallmentDetailsModal = ({
     onEdit,
     onPay,
     onRefund,
+    onDelete,
 }: InstallmentDetailsModalProps) => {
     if (!installment) return null;
 
     const progress = Math.min(
         (installment.paidAmount / installment.totalAmount) * 100,
-        100
+        100,
     );
     const remaining = installment.totalAmount - installment.paidAmount;
     const isComplete = installment.status === "completed" || progress >= 100;
 
     // Sort payments by date (newest first)
     const sortedPayments = [...(installment.payments || [])].sort(
-        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
     );
 
     // Format date
@@ -218,7 +221,7 @@ export const InstallmentDetailsModal = ({
                                                     className="font-semibold"
                                                     style={{ color }}>
                                                     {formatCurrency(
-                                                        installment.paidAmount
+                                                        installment.paidAmount,
                                                     )}
                                                 </span>
                                             </div>
@@ -236,7 +239,7 @@ export const InstallmentDetailsModal = ({
                                                 </span>
                                                 <span className="font-medium text-muted-foreground">
                                                     {formatCurrency(
-                                                        installment.totalAmount
+                                                        installment.totalAmount,
                                                     )}
                                                 </span>
                                             </div>
@@ -261,7 +264,7 @@ export const InstallmentDetailsModal = ({
                                                         <span>
                                                             Next:{" "}
                                                             {formatDate(
-                                                                installment.nextPaymentDate
+                                                                installment.nextPaymentDate,
                                                             )}
                                                         </span>
                                                     </div>
@@ -301,11 +304,11 @@ export const InstallmentDetailsModal = ({
                                     ) : (
                                         sortedPayments.map((payment, index) => {
                                             const statusInfo = getStatusInfo(
-                                                payment.status
+                                                payment.status,
                                             );
                                             const isRefund = payment.amount < 0;
                                             const displayAmount = Math.abs(
-                                                payment.amount
+                                                payment.amount,
                                             );
 
                                             return (
@@ -361,12 +364,12 @@ export const InstallmentDetailsModal = ({
                                                                     ? "-"
                                                                     : "+"}
                                                                 {formatCurrency(
-                                                                    displayAmount
+                                                                    displayAmount,
                                                                 )}
                                                             </span>
                                                             <span className="text-xs text-muted-foreground">
                                                                 {formatDate(
-                                                                    payment.date
+                                                                    payment.date,
                                                                 )}
                                                             </span>
                                                         </div>
@@ -437,6 +440,18 @@ export const InstallmentDetailsModal = ({
                                         className="w-full gap-2 text-muted-foreground hover:text-foreground">
                                         <Edit2 className="w-4 h-4" />
                                         Edit Installment
+                                    </Button>
+                                )}
+                                {onDelete && (
+                                    <Button
+                                        variant="ghost"
+                                        onClick={() => {
+                                            onClose();
+                                            onDelete();
+                                        }}
+                                        className="w-full gap-2 text-red-500 hover:text-red-400 hover:bg-red-500/10">
+                                        <Trash2 className="w-4 h-4" />
+                                        Delete Installment
                                     </Button>
                                 )}
                             </div>

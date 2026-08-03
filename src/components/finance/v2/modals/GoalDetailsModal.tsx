@@ -18,6 +18,7 @@ import {
     Calendar,
     Minus,
     ArrowDownLeft,
+    Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import type { FinancialGoal } from "@/types/modules/finance";
@@ -30,6 +31,7 @@ interface GoalDetailsModalProps {
     onEdit?: () => void;
     onContribute?: () => void;
     onWithdraw?: () => void;
+    onDelete?: () => void;
 }
 
 export const GoalDetailsModal = ({
@@ -40,19 +42,20 @@ export const GoalDetailsModal = ({
     onEdit,
     onContribute,
     onWithdraw,
+    onDelete,
 }: GoalDetailsModalProps) => {
     if (!goal) return null;
 
     const progress = Math.min(
         (goal.currentAmount / goal.targetAmount) * 100,
-        100
+        100,
     );
     const remaining = goal.targetAmount - goal.currentAmount;
     const isComplete = progress >= 100;
 
     // Sort contributions by date (newest first)
     const sortedContributions = [...(goal.contributions || [])].sort(
-        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
     );
 
     // Format date
@@ -116,7 +119,7 @@ export const GoalDetailsModal = ({
                                             <p className="text-xs text-muted-foreground capitalize">
                                                 {goal.category.replace(
                                                     "-",
-                                                    " "
+                                                    " ",
                                                 )}{" "}
                                                 • {goal.priority} priority
                                             </p>
@@ -200,7 +203,7 @@ export const GoalDetailsModal = ({
                                                     className="text-xl font-bold"
                                                     style={{ color }}>
                                                     {formatCurrency(
-                                                        goal.currentAmount
+                                                        goal.currentAmount,
                                                     )}
                                                 </div>
                                             </div>
@@ -210,7 +213,7 @@ export const GoalDetailsModal = ({
                                                 </div>
                                                 <div className="text-lg font-semibold">
                                                     {formatCurrency(
-                                                        goal.targetAmount
+                                                        goal.targetAmount,
                                                     )}
                                                 </div>
                                             </div>
@@ -239,13 +242,13 @@ export const GoalDetailsModal = ({
                                                     <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400">
                                                         {Math.ceil(
                                                             (new Date(
-                                                                goal.deadline
+                                                                goal.deadline,
                                                             ).getTime() -
                                                                 Date.now()) /
                                                                 (1000 *
                                                                     60 *
                                                                     60 *
-                                                                    24)
+                                                                    24),
                                                         )}{" "}
                                                         days left
                                                     </span>
@@ -292,7 +295,7 @@ export const GoalDetailsModal = ({
                                                 const isWithdrawal =
                                                     contribution.amount < 0;
                                                 const displayAmount = Math.abs(
-                                                    contribution.amount
+                                                    contribution.amount,
                                                 );
                                                 return (
                                                     <motion.div
@@ -347,12 +350,12 @@ export const GoalDetailsModal = ({
                                                                         ? "-"
                                                                         : "+"}
                                                                     {formatCurrency(
-                                                                        displayAmount
+                                                                        displayAmount,
                                                                     )}
                                                                 </span>
                                                                 <span className="text-xs text-muted-foreground">
                                                                     {formatDate(
-                                                                        contribution.date
+                                                                        contribution.date,
                                                                     )}
                                                                 </span>
                                                             </div>
@@ -366,7 +369,7 @@ export const GoalDetailsModal = ({
                                                         </div>
                                                     </motion.div>
                                                 );
-                                            }
+                                            },
                                         )
                                     )}
                                 </div>
@@ -412,6 +415,18 @@ export const GoalDetailsModal = ({
                                         className="w-full gap-2 text-muted-foreground hover:text-foreground">
                                         <Edit2 className="w-4 h-4" />
                                         Edit Goal
+                                    </Button>
+                                )}
+                                {onDelete && (
+                                    <Button
+                                        variant="ghost"
+                                        onClick={() => {
+                                            onClose();
+                                            onDelete();
+                                        }}
+                                        className="w-full gap-2 text-red-500 hover:text-red-400 hover:bg-red-500/10">
+                                        <Trash2 className="w-4 h-4" />
+                                        Delete Goal
                                     </Button>
                                 )}
                             </div>

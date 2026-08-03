@@ -5,7 +5,7 @@
  * and trends for the selected date range.
  */
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     X,
@@ -39,6 +39,8 @@ interface CategorySpendingData {
     percentage: number;
 }
 
+type ModalFilterMode = "preset" | "from-only" | "from-to";
+
 export const ReportsModal = ({
     isOpen,
     onClose,
@@ -48,25 +50,61 @@ export const ReportsModal = ({
     dateRange,
     formatCurrency,
 }: ReportsModalProps) => {
+    const [filterMode, setFilterMode] = useState<ModalFilterMode>("preset");
+    const [fromDate, setFromDate] = useState<string>("");
+    const [toDate, setToDate] = useState<string>("");
+    const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(
+        null,
+    );
+
+    const effectiveRange = useMemo(() => {
+        if (filterMode === "preset") {
+            return dateRange;
+        }
+
+        const start = fromDate ? new Date(fromDate) : new Date(2020, 0, 1);
+        start.setHours(0, 0, 0, 0);
+
+        const end =
+            filterMode === "from-to" && toDate ? new Date(toDate) : new Date();
+        end.setHours(23, 59, 59, 999);
+
+        if (end < start) {
+            return {
+                ...dateRange,
+                start,
+                end: new Date(start),
+                label: "Custom",
+            };
+        }
+
+        return {
+            ...dateRange,
+            start,
+            end,
+            label: filterMode === "from-only" ? "From date" : "Custom range",
+        };
+    }, [dateRange, filterMode, fromDate, toDate]);
+
     // Calculate filtered data
     const data = useMemo(() => {
         const filteredIncomes = incomes.filter((i) => {
             const date = new Date(i.actualDate || i.createdAt);
-            return date >= dateRange.start && date <= dateRange.end;
+            return date >= effectiveRange.start && date <= effectiveRange.end;
         });
 
         const filteredExpenses = expenses.filter((e) => {
             const date = new Date(e.date);
-            return date >= dateRange.start && date <= dateRange.end;
+            return date >= effectiveRange.start && date <= effectiveRange.end;
         });
 
         const totalIncome = filteredIncomes.reduce(
             (sum, i) => sum + i.amount,
-            0
+            0,
         );
         const totalExpense = filteredExpenses.reduce(
             (sum, e) => sum + e.amount,
-            0
+            0,
         );
 
         // Calculate spending by category
@@ -101,7 +139,6 @@ export const ReportsModal = ({
                             : 0,
                 };
             })
-            .filter((c) => c.amount > 0)
             .sort((a, b) => b.amount - a.amount);
 
         // Calculate income by type
@@ -132,14 +169,35 @@ export const ReportsModal = ({
                       Math.max(
                           1,
                           Math.ceil(
-                              (dateRange.end.getTime() -
-                                  dateRange.start.getTime()) /
-                                  (1000 * 60 * 60 * 24)
-                          )
+                              (effectiveRange.end.getTime() -
+                                  effectiveRange.start.getTime()) /
+                                  (1000 * 60 * 60 * 24),
+                          ),
                       )
                     : 0,
+            filteredExpenses,
         };
-    }, [incomes, expenses, categories, dateRange]);
+    }, [incomes, expenses, categories, effectiveRange]);
+
+    const selectedCategoryTransactions = useMemo(() => {
+        if (!selectedCategoryId) return [];
+        return data.filteredExpenses
+            .filter((expense) => expense.categoryId === selectedCategoryId)
+            .sort(
+                (a, b) =>
+                    new Date(b.date).getTime() - new Date(a.date).getTime(),
+            );
+    }, [data.filteredExpenses, selectedCategoryId]);
+
+    const formatDisplayDate = (dateStr: string) => {
+        const date = new Date(dateStr);
+        if (Number.isNaN(date.getTime())) return dateStr;
+        return new Intl.DateTimeFormat("en-GB", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+        }).format(date);
+    };
 
     if (!isOpen) return null;
 
@@ -168,7 +226,7 @@ export const ReportsModal = ({
                                     Financial Report
                                 </h2>
                                 <p className="text-sm text-muted-foreground">
-                                    {dateRange.label}
+                                    {effectiveRange.label}
                                 </p>
                             </div>
                         </div>
@@ -182,6 +240,67 @@ export const ReportsModal = ({
                     </div>
 
                     <div className="p-6 space-y-6">
+                        <div className="space-y-2">
+                            <div className="flex gap-2">
+                                <Button
+                                    size="sm"
+                                    variant={
+                                        filterMode === "preset"
+                                            ? "default"
+                                            : "outline"
+                                    }
+                                    onClick={() => setFilterMode("preset")}
+                                    className="rounded-xl">
+                                    Preset
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    variant={
+                                        filterMode === "from-only"
+                                            ? "default"
+                                            : "outline"
+                                    }
+                                    onClick={() => setFilterMode("from-only")}
+                                    className="rounded-xl">
+                                    From
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    variant={
+                                        filterMode === "from-to"
+                                            ? "default"
+                                            : "outline"
+                                    }
+                                    onClick={() => setFilterMode("from-to")}
+                                    className="rounded-xl">
+                                    From To
+                                </Button>
+                            </div>
+
+                            {filterMode !== "preset" && (
+                                <div className="flex gap-2">
+                                    <input
+                                        type="date"
+                                        value={fromDate}
+                                        onChange={(e) =>
+                                            setFromDate(e.target.value)
+                                        }
+                                        className="h-9 px-3 rounded-lg bg-background border border-border text-sm flex-1"
+                                    />
+                                    {filterMode === "from-to" && (
+                                        <input
+                                            type="date"
+                                            value={toDate}
+                                            onChange={(e) =>
+                                                setToDate(e.target.value)
+                                            }
+                                            className="h-9 px-3 rounded-lg bg-background border border-border text-sm flex-1"
+                                        />
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
                         {/* Summary Cards */}
                         <div className="grid grid-cols-2 gap-3">
                             <GlassCard
@@ -236,14 +355,14 @@ export const ReportsModal = ({
                                     "space-y-1",
                                     data.netFlow >= 0
                                         ? "ring-1 ring-emerald-500/20"
-                                        : "ring-1 ring-red-500/20"
+                                        : "ring-1 ring-red-500/20",
                                 )}>
                                 <div
                                     className={cn(
                                         "flex items-center gap-2",
                                         data.netFlow >= 0
                                             ? "text-emerald-500"
-                                            : "text-red-500"
+                                            : "text-red-500",
                                     )}>
                                     {data.netFlow >= 0 ? (
                                         <TrendingUp className="w-4 h-4" />
@@ -278,7 +397,7 @@ export const ReportsModal = ({
                                     </p>
                                     <p className="text-lg font-semibold tabular-nums text-muted-foreground">
                                         {formatCurrency(
-                                            data.avgDailyExpense * 30
+                                            data.avgDailyExpense * 30,
                                         )}
                                     </p>
                                 </div>
@@ -303,7 +422,24 @@ export const ReportsModal = ({
                                                 }}>
                                                 <GlassCard
                                                     intensity="light"
-                                                    padding="sm">
+                                                    padding="sm"
+                                                    className={cn(
+                                                        "cursor-pointer transition-all",
+                                                        selectedCategoryId ===
+                                                            item.category.id &&
+                                                            "ring-1 ring-primary/40",
+                                                    )}
+                                                    onClick={() =>
+                                                        setSelectedCategoryId(
+                                                            (prev) =>
+                                                                prev ===
+                                                                item.category.id
+                                                                    ? null
+                                                                    : item
+                                                                          .category
+                                                                          .id,
+                                                        )
+                                                    }>
                                                     <div className="flex items-center gap-3">
                                                         <div
                                                             className="w-10 h-10 rounded-xl flex items-center justify-center text-lg"
@@ -323,7 +459,7 @@ export const ReportsModal = ({
                                                                 </span>
                                                                 <span className="font-bold tabular-nums">
                                                                     {formatCurrency(
-                                                                        item.amount
+                                                                        item.amount,
                                                                     )}
                                                                 </span>
                                                             </div>
@@ -354,16 +490,68 @@ export const ReportsModal = ({
                                                                 </div>
                                                                 <span className="text-xs text-muted-foreground tabular-nums w-12 text-right">
                                                                     {item.percentage.toFixed(
-                                                                        1
+                                                                        1,
                                                                     )}
                                                                     %
                                                                 </span>
                                                             </div>
                                                         </div>
                                                     </div>
+
+                                                    {selectedCategoryId ===
+                                                        item.category.id && (
+                                                        <div className="mt-3 pt-3 border-t border-border space-y-2">
+                                                            <p className="text-xs text-muted-foreground">
+                                                                Transactions
+                                                            </p>
+                                                            {selectedCategoryTransactions.length ===
+                                                            0 ? (
+                                                                <p className="text-xs text-muted-foreground">
+                                                                    No
+                                                                    transactions
+                                                                    in this
+                                                                    period.
+                                                                </p>
+                                                            ) : (
+                                                                <div className="space-y-1.5 max-h-44 overflow-y-auto">
+                                                                    {selectedCategoryTransactions.map(
+                                                                        (
+                                                                            tx,
+                                                                        ) => (
+                                                                            <div
+                                                                                key={
+                                                                                    tx.id
+                                                                                }
+                                                                                className="flex items-center justify-between rounded-lg bg-muted/40 px-2 py-1.5">
+                                                                                <div className="min-w-0">
+                                                                                    <p className="text-xs font-medium truncate">
+                                                                                        {
+                                                                                            tx.title
+                                                                                        }
+                                                                                    </p>
+                                                                                    <p className="text-[10px] text-muted-foreground">
+                                                                                        <span dir="ltr">
+                                                                                            {formatDisplayDate(
+                                                                                                tx.date,
+                                                                                            )}
+                                                                                        </span>
+                                                                                    </p>
+                                                                                </div>
+                                                                                <p className="text-xs font-semibold tabular-nums">
+                                                                                    {formatCurrency(
+                                                                                        tx.amount,
+                                                                                    )}
+                                                                                </p>
+                                                                            </div>
+                                                                        ),
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )}
                                                 </GlassCard>
                                             </motion.div>
-                                        )
+                                        ),
                                     )}
                                 </div>
                             </div>
@@ -396,12 +584,12 @@ export const ReportsModal = ({
                                                             <span className="font-medium capitalize">
                                                                 {item.type.replace(
                                                                     /-/g,
-                                                                    " "
+                                                                    " ",
                                                                 )}
                                                             </span>
                                                             <span className="font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
                                                                 {formatCurrency(
-                                                                    item.amount
+                                                                    item.amount,
                                                                 )}
                                                             </span>
                                                         </div>
@@ -426,7 +614,7 @@ export const ReportsModal = ({
                                                             </div>
                                                             <span className="text-xs text-muted-foreground tabular-nums w-12 text-right">
                                                                 {item.percentage.toFixed(
-                                                                    1
+                                                                    1,
                                                                 )}
                                                                 %
                                                             </span>
@@ -451,7 +639,7 @@ export const ReportsModal = ({
                                 </h3>
                                 <p className="text-sm text-muted-foreground">
                                     No transactions found for{" "}
-                                    {dateRange.label.toLowerCase()}
+                                    {effectiveRange.label.toLowerCase()}
                                 </p>
                             </div>
                         )}

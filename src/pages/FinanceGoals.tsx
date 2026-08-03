@@ -26,6 +26,7 @@ export default function FinanceGoals() {
         formatCurrency,
         addGoal,
         updateGoal,
+        deleteGoal,
         addGoalContribution,
         calculateAccountBalance,
     } = useFinance();
@@ -45,8 +46,55 @@ export default function FinanceGoals() {
     // Separate active and completed goals
     const activeGoals = goals.filter((g) => g.currentAmount < g.targetAmount);
     const completedGoals = goals.filter(
-        (g) => g.currentAmount >= g.targetAmount
+        (g) => g.currentAmount >= g.targetAmount,
     );
+
+    const handleDeleteGoal = (goal: FinancialGoal) => {
+        const amountToTransfer = Math.max(0, goal.currentAmount);
+        let transferToGoalId: string | undefined;
+
+        if (amountToTransfer > 0) {
+            const targetGoals = goals.filter((g) => g.id !== goal.id);
+            if (targetGoals.length === 0) {
+                window.alert(
+                    "You need another goal to transfer this money before deleting.",
+                );
+                return;
+            }
+
+            const choices = targetGoals
+                .map((g, index) => `${index + 1}. ${g.title}`)
+                .join("\n");
+            const selection = window.prompt(
+                `\"${goal.title}\" has ${formatCurrency(
+                    amountToTransfer,
+                )}.\nChoose where to transfer it before deleting (enter number):\n\n${choices}`,
+            );
+
+            if (!selection) return;
+
+            const selectedIndex = Number(selection) - 1;
+            if (
+                !Number.isInteger(selectedIndex) ||
+                selectedIndex < 0 ||
+                selectedIndex >= targetGoals.length
+            ) {
+                window.alert("Invalid selection.");
+                return;
+            }
+
+            transferToGoalId = targetGoals[selectedIndex].id;
+        }
+
+        const didDelete = deleteGoal(goal.id, transferToGoalId);
+        if (!didDelete) {
+            window.alert("Could not delete goal. Please try again.");
+            return;
+        }
+
+        setShowGoalDetailsModal(false);
+        setViewingGoal(null);
+    };
 
     return (
         <div className="min-h-screen bg-background text-primary pb-24">
@@ -245,7 +293,7 @@ export default function FinanceGoals() {
                         addGoalContribution(
                             contributingGoal.id,
                             data.amount,
-                            data.notes
+                            data.notes,
                         );
                         setShowContributionModal(false);
                         setContributingGoal(null);
@@ -288,6 +336,11 @@ export default function FinanceGoals() {
                         setShowWithdrawalModal(true);
                     }
                 }}
+                onDelete={() => {
+                    if (viewingGoal) {
+                        handleDeleteGoal(viewingGoal);
+                    }
+                }}
             />
 
             {/* Goal Withdrawal Modal */}
@@ -302,7 +355,7 @@ export default function FinanceGoals() {
                         addGoalContribution(
                             withdrawingGoal.id,
                             -data.amount,
-                            data.reason
+                            data.reason,
                         );
                         setShowWithdrawalModal(false);
                         setWithdrawingGoal(null);

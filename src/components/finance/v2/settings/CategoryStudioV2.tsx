@@ -26,22 +26,28 @@ interface CategoryStudioV2Props {
     expenseCategories: ExpenseCategory[];
     incomeCategories: IncomeCategory[];
     onAddExpenseCategory: (
-        category: Omit<ExpenseCategory, "id" | "createdAt">
+        category: Omit<ExpenseCategory, "id" | "createdAt">,
     ) => void;
     onUpdateExpenseCategory: (
         id: string,
-        updates: Partial<ExpenseCategory>
+        updates: Partial<ExpenseCategory>,
     ) => void;
-    onDeleteExpenseCategory: (id: string) => void;
+    onDeleteExpenseCategory: (
+        id: string,
+        transferToCategoryId?: string,
+    ) => boolean;
     onReorderExpenseCategories: (categories: ExpenseCategory[]) => void;
     onAddIncomeCategory: (
-        category: Omit<IncomeCategory, "id" | "createdAt">
+        category: Omit<IncomeCategory, "id" | "createdAt">,
     ) => void;
     onUpdateIncomeCategory: (
         id: string,
-        updates: Partial<IncomeCategory>
+        updates: Partial<IncomeCategory>,
     ) => void;
-    onDeleteIncomeCategory: (id: string) => void;
+    onDeleteIncomeCategory: (
+        id: string,
+        transferToCategoryId?: string,
+    ) => boolean;
     onReorderIncomeCategories: (categories: IncomeCategory[]) => void;
     getCategoryUsage: (categoryId: string) => { count: number; total: number };
     formatCurrency: (amount: number) => string;
@@ -219,6 +225,8 @@ export const CategoryStudioV2 = ({
     const [isCreating, setIsCreating] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+    const [deleteTransferTargetId, setDeleteTransferTargetId] = useState("");
+    const [deleteError, setDeleteError] = useState<string | null>(null);
     const [showColorPicker, setShowColorPicker] = useState<
         "new" | "edit" | null
     >(null);
@@ -240,7 +248,7 @@ export const CategoryStudioV2 = ({
 
     const orderedCategories = useMemo(() => {
         return [...currentCategories].sort(
-            (a, b) => (a.order || 0) - (b.order || 0)
+            (a, b) => (a.order || 0) - (b.order || 0),
         );
     }, [currentCategories]);
 
@@ -295,7 +303,7 @@ export const CategoryStudioV2 = ({
             if (activeTab === "expense") {
                 onUpdateExpenseCategory(
                     id,
-                    editForm as Partial<ExpenseCategory>
+                    editForm as Partial<ExpenseCategory>,
                 );
             } else {
                 onUpdateIncomeCategory(id, editForm as Partial<IncomeCategory>);
@@ -320,19 +328,39 @@ export const CategoryStudioV2 = ({
 
     const handleDelete = (id: string) => {
         const category = currentCategories.find((c) => c.id === id);
+        if (!category) return;
+        const usage = getCategoryUsage(id);
+        const transferTargetId = deleteTransferTargetId || undefined;
 
-        // Don't allow deleting default categories
-        if (category?.isDefault) {
-            setDeleteConfirmId(null);
+        if (transferTargetId === id) {
+            setDeleteError(
+                "Please choose a different category to transfer into.",
+            );
             return;
         }
 
-        if (activeTab === "expense") {
-            onDeleteExpenseCategory(id);
-        } else {
-            onDeleteIncomeCategory(id);
+        if (usage.count > 0 && !transferTargetId) {
+            setDeleteError(
+                "This category has transactions. Please choose a transfer category first.",
+            );
+            return;
         }
+
+        const didDelete =
+            activeTab === "expense"
+                ? onDeleteExpenseCategory(id, transferTargetId)
+                : onDeleteIncomeCategory(id, transferTargetId);
+
+        if (!didDelete) {
+            setDeleteError(
+                "Could not delete this category. Please make sure transfer target is valid.",
+            );
+            return;
+        }
+
         setDeleteConfirmId(null);
+        setDeleteTransferTargetId("");
+        setDeleteError(null);
     };
 
     return (
@@ -345,12 +373,14 @@ export const CategoryStudioV2 = ({
                         setIsCreating(false);
                         setEditingId(null);
                         setDeleteConfirmId(null);
+                        setDeleteTransferTargetId("");
+                        setDeleteError(null);
                     }}
                     className={cn(
                         "flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all",
                         activeTab === "expense"
                             ? "bg-background shadow-sm"
-                            : "text-muted-foreground hover:text-foreground"
+                            : "text-muted-foreground hover:text-foreground",
                     )}>
                     Expense Categories ({expenseCategories.length})
                 </button>
@@ -360,12 +390,14 @@ export const CategoryStudioV2 = ({
                         setIsCreating(false);
                         setEditingId(null);
                         setDeleteConfirmId(null);
+                        setDeleteTransferTargetId("");
+                        setDeleteError(null);
                     }}
                     className={cn(
                         "flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all",
                         activeTab === "income"
                             ? "bg-background shadow-sm"
-                            : "text-muted-foreground hover:text-foreground"
+                            : "text-muted-foreground hover:text-foreground",
                     )}>
                     Income Categories ({incomeCategories.length})
                 </button>
@@ -388,7 +420,7 @@ export const CategoryStudioV2 = ({
                                       (category as ExpenseCategory)
                                           .monthlyBudget!) *
                                       100,
-                                  100
+                                  100,
                               )
                             : 0;
 
@@ -431,7 +463,7 @@ export const CategoryStudioV2 = ({
                                             <div className="grid grid-cols-10 gap-1">
                                                 {EMOJI_SUGGESTIONS.slice(
                                                     0,
-                                                    30
+                                                    30,
                                                 ).map((emoji) => (
                                                     <button
                                                         key={emoji}
@@ -440,7 +472,7 @@ export const CategoryStudioV2 = ({
                                                                 (prev) => ({
                                                                     ...prev,
                                                                     icon: emoji,
-                                                                })
+                                                                }),
                                                             )
                                                         }
                                                         className={cn(
@@ -448,7 +480,7 @@ export const CategoryStudioV2 = ({
                                                             editForm.icon ===
                                                                 emoji
                                                                 ? "bg-primary/20 ring-2 ring-primary"
-                                                                : "hover:bg-muted"
+                                                                : "hover:bg-muted",
                                                         )}>
                                                         {emoji}
                                                     </button>
@@ -483,42 +515,42 @@ export const CategoryStudioV2 = ({
                                                                     (prev) => ({
                                                                         ...prev,
                                                                         color,
-                                                                    })
+                                                                    }),
                                                                 )
                                                             }
                                                             className={cn(
                                                                 "w-8 h-8 rounded-full transition-all",
                                                                 editForm.color ===
                                                                     color &&
-                                                                    "ring-2 ring-offset-2 ring-offset-background"
+                                                                    "ring-2 ring-offset-2 ring-offset-background",
                                                             )}
                                                             style={{
                                                                 backgroundColor:
                                                                     color,
                                                             }}
                                                         />
-                                                    )
+                                                    ),
                                                 )}
                                                 {/* Custom color picker button */}
                                                 <button
                                                     onClick={() =>
                                                         setShowColorPicker(
-                                                            "edit"
+                                                            "edit",
                                                         )
                                                     }
                                                     className={cn(
                                                         "w-8 h-8 rounded-full transition-all border-2 border-dashed border-muted-foreground/50 flex items-center justify-center text-muted-foreground hover:border-primary hover:text-primary",
                                                         editForm.color &&
                                                             !CATEGORY_COLORS.includes(
-                                                                editForm.color
+                                                                editForm.color,
                                                             ) &&
-                                                            "ring-2 ring-offset-2 ring-offset-background ring-primary"
+                                                            "ring-2 ring-offset-2 ring-offset-background ring-primary",
                                                     )}
                                                     style={{
                                                         backgroundColor:
                                                             editForm.color &&
                                                             !CATEGORY_COLORS.includes(
-                                                                editForm.color
+                                                                editForm.color,
                                                             )
                                                                 ? editForm.color
                                                                 : undefined,
@@ -553,7 +585,7 @@ export const CategoryStudioV2 = ({
                                                                 <button
                                                                     onClick={() =>
                                                                         setShowColorPicker(
-                                                                            null
+                                                                            null,
                                                                         )
                                                                     }
                                                                     className="p-1 hover:bg-muted rounded-lg transition-colors">
@@ -577,17 +609,17 @@ export const CategoryStudioV2 = ({
                                                                             "#3b82f6"
                                                                         }
                                                                         onChange={(
-                                                                            e
+                                                                            e,
                                                                         ) => {
                                                                             setEditForm(
                                                                                 (
-                                                                                    prev
+                                                                                    prev,
                                                                                 ) => ({
                                                                                     ...prev,
                                                                                     color: e
                                                                                         .target
                                                                                         .value,
-                                                                                })
+                                                                                }),
                                                                             );
                                                                         }}
                                                                         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
@@ -644,25 +676,25 @@ export const CategoryStudioV2 = ({
                                                                             onClick={() => {
                                                                                 setEditForm(
                                                                                     (
-                                                                                        prev
+                                                                                        prev,
                                                                                     ) => ({
                                                                                         ...prev,
                                                                                         color,
-                                                                                    })
+                                                                                    }),
                                                                                 );
                                                                             }}
                                                                             className={cn(
                                                                                 "w-full aspect-square rounded-md transition-all hover:scale-110",
                                                                                 editForm.color ===
                                                                                     color &&
-                                                                                    "ring-2 ring-offset-1 ring-offset-background ring-white"
+                                                                                    "ring-2 ring-offset-1 ring-offset-background ring-white",
                                                                             )}
                                                                             style={{
                                                                                 backgroundColor:
                                                                                     color,
                                                                             }}
                                                                         />
-                                                                    )
+                                                                    ),
                                                                 )}
                                                             </div>
                                                         </div>
@@ -696,10 +728,10 @@ export const CategoryStudioV2 = ({
                                                                             ? parseFloat(
                                                                                   e
                                                                                       .target
-                                                                                      .value
+                                                                                      .value,
                                                                               )
                                                                             : undefined,
-                                                                })
+                                                                }),
                                                             )
                                                         }
                                                         placeholder="No limit"
@@ -721,7 +753,7 @@ export const CategoryStudioV2 = ({
                                                                             prev as Partial<ExpenseCategory>
                                                                         )
                                                                             .isEssential,
-                                                                })
+                                                                }),
                                                             )
                                                         }
                                                         className={cn(
@@ -730,7 +762,7 @@ export const CategoryStudioV2 = ({
                                                                 editForm as Partial<ExpenseCategory>
                                                             ).isEssential
                                                                 ? "bg-primary text-primary-foreground"
-                                                                : "bg-muted/50"
+                                                                : "bg-muted/50",
                                                         )}>
                                                         {(
                                                             editForm as Partial<ExpenseCategory>
@@ -769,35 +801,76 @@ export const CategoryStudioV2 = ({
                                     /* Delete Confirmation */
                                     <div className="text-center py-2">
                                         <p className="text-sm mb-3">
-                                            {category.isDefault
-                                                ? "Cannot delete default categories."
-                                                : usage.count > 0
-                                                ? `This category has ${usage.count} transactions. Delete anyway?`
+                                            {usage.count > 0
+                                                ? `This category has ${usage.count} transactions. Transfer them before deleting.`
                                                 : "Delete this category?"}
                                         </p>
+                                        {usage.count > 0 && (
+                                            <div className="mb-3 text-left">
+                                                <Label className="text-xs text-muted-foreground mb-1 block">
+                                                    Transfer transactions to
+                                                </Label>
+                                                <select
+                                                    value={
+                                                        deleteTransferTargetId
+                                                    }
+                                                    onChange={(e) => {
+                                                        setDeleteTransferTargetId(
+                                                            e.target.value,
+                                                        );
+                                                        setDeleteError(null);
+                                                    }}
+                                                    className="w-full h-10 rounded-lg bg-background border border-border px-3 text-sm">
+                                                    <option value="">
+                                                        Select category...
+                                                    </option>
+                                                    {orderedCategories
+                                                        .filter(
+                                                            (c) =>
+                                                                c.id !==
+                                                                category.id,
+                                                        )
+                                                        .map((c) => (
+                                                            <option
+                                                                key={c.id}
+                                                                value={c.id}>
+                                                                {c.icon}{" "}
+                                                                {c.name}
+                                                            </option>
+                                                        ))}
+                                                </select>
+                                            </div>
+                                        )}
+
+                                        {deleteError && (
+                                            <p className="text-xs text-red-500 mb-2">
+                                                {deleteError}
+                                            </p>
+                                        )}
+
                                         <div className="flex gap-2">
                                             <Button
                                                 size="sm"
                                                 variant="ghost"
-                                                onClick={() =>
-                                                    setDeleteConfirmId(null)
-                                                }
+                                                onClick={() => {
+                                                    setDeleteConfirmId(null);
+                                                    setDeleteTransferTargetId(
+                                                        "",
+                                                    );
+                                                    setDeleteError(null);
+                                                }}
                                                 className="flex-1">
                                                 Cancel
                                             </Button>
-                                            {!category.isDefault && (
-                                                <Button
-                                                    size="sm"
-                                                    variant="destructive"
-                                                    onClick={() =>
-                                                        handleDelete(
-                                                            category.id
-                                                        )
-                                                    }
-                                                    className="flex-1">
-                                                    Delete
-                                                </Button>
-                                            )}
+                                            <Button
+                                                size="sm"
+                                                variant="destructive"
+                                                onClick={() =>
+                                                    handleDelete(category.id)
+                                                }
+                                                className="flex-1">
+                                                Delete
+                                            </Button>
                                         </div>
                                     </div>
                                 ) : (
@@ -841,14 +914,15 @@ export const CategoryStudioV2 = ({
                                                     <div className="flex justify-between text-xs text-muted-foreground mb-0.5">
                                                         <span>
                                                             {formatCurrency(
-                                                                usage.total
+                                                                usage.total,
                                                             )}
                                                         </span>
                                                         <span>
                                                             {formatCurrency(
                                                                 (
                                                                     category as ExpenseCategory
-                                                                ).monthlyBudget!
+                                                                )
+                                                                    .monthlyBudget!,
                                                             )}
                                                         </span>
                                                     </div>
@@ -879,7 +953,7 @@ export const CategoryStudioV2 = ({
                                                 <span className="text-xs text-muted-foreground">
                                                     {usage.count} transactions •{" "}
                                                     {formatCurrency(
-                                                        usage.total
+                                                        usage.total,
                                                     )}
                                                 </span>
                                             )}
@@ -894,18 +968,20 @@ export const CategoryStudioV2 = ({
                                                 className="p-1.5 rounded-lg hover:bg-muted/50 transition-colors">
                                                 <Edit2 className="w-4 h-4 text-muted-foreground" />
                                             </button>
-                                            {!category.isDefault && (
-                                                <button
-                                                    onClick={() =>
-                                                        setDeleteConfirmId(
-                                                            category.id
-                                                        )
-                                                    }
-                                                    title="Delete category"
-                                                    className="p-1.5 rounded-lg hover:bg-muted/50 transition-colors">
-                                                    <Trash2 className="w-4 h-4 text-muted-foreground" />
-                                                </button>
-                                            )}
+                                            <button
+                                                onClick={() => {
+                                                    setDeleteConfirmId(
+                                                        category.id,
+                                                    );
+                                                    setDeleteTransferTargetId(
+                                                        "",
+                                                    );
+                                                    setDeleteError(null);
+                                                }}
+                                                title="Delete category"
+                                                className="p-1.5 rounded-lg hover:bg-muted/50 transition-colors">
+                                                <Trash2 className="w-4 h-4 text-muted-foreground" />
+                                            </button>
                                         </div>
                                     </div>
                                 )}
@@ -993,11 +1069,11 @@ export const CategoryStudioV2 = ({
                                                     "p-1.5 rounded-lg text-xl transition-all hover:scale-110",
                                                     newCategory.icon === emoji
                                                         ? "bg-primary/20 ring-2 ring-primary"
-                                                        : "hover:bg-muted"
+                                                        : "hover:bg-muted",
                                                 )}>
                                                 {emoji}
                                             </button>
-                                        )
+                                        ),
                                     )}
                                 </div>
                                 <Input
@@ -1032,7 +1108,7 @@ export const CategoryStudioV2 = ({
                                             className={cn(
                                                 "w-8 h-8 rounded-full transition-all",
                                                 newCategory.color === color &&
-                                                    "ring-2 ring-offset-2 ring-offset-background"
+                                                    "ring-2 ring-offset-2 ring-offset-background",
                                             )}
                                             style={{ backgroundColor: color }}
                                         />
@@ -1045,14 +1121,14 @@ export const CategoryStudioV2 = ({
                                         className={cn(
                                             "w-8 h-8 rounded-full transition-all border-2 border-dashed border-muted-foreground/50 flex items-center justify-center text-muted-foreground hover:border-primary hover:text-primary",
                                             !CATEGORY_COLORS.includes(
-                                                newCategory.color
+                                                newCategory.color,
                                             ) &&
-                                                "ring-2 ring-offset-2 ring-offset-background ring-primary"
+                                                "ring-2 ring-offset-2 ring-offset-background ring-primary",
                                         )}
                                         style={{
                                             backgroundColor:
                                                 !CATEGORY_COLORS.includes(
-                                                    newCategory.color
+                                                    newCategory.color,
                                                 )
                                                     ? newCategory.color
                                                     : undefined,
@@ -1081,7 +1157,7 @@ export const CategoryStudioV2 = ({
                                                     <button
                                                         onClick={() =>
                                                             setShowColorPicker(
-                                                                null
+                                                                null,
                                                             )
                                                         }
                                                         className="p-1 hover:bg-muted rounded-lg transition-colors">
@@ -1109,7 +1185,7 @@ export const CategoryStudioV2 = ({
                                                                         color: e
                                                                             .target
                                                                             .value,
-                                                                    })
+                                                                    }),
                                                                 );
                                                             }}
                                                             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
@@ -1163,14 +1239,14 @@ export const CategoryStudioV2 = ({
                                                                     (prev) => ({
                                                                         ...prev,
                                                                         color,
-                                                                    })
+                                                                    }),
                                                                 );
                                                             }}
                                                             className={cn(
                                                                 "w-full aspect-square rounded-md transition-all hover:scale-110",
                                                                 newCategory.color ===
                                                                     color &&
-                                                                    "ring-2 ring-offset-1 ring-offset-background ring-white"
+                                                                    "ring-2 ring-offset-1 ring-offset-background ring-white",
                                                             )}
                                                             style={{
                                                                 backgroundColor:
@@ -1208,7 +1284,8 @@ export const CategoryStudioV2 = ({
                                                         monthlyBudget: e.target
                                                             .value
                                                             ? parseFloat(
-                                                                  e.target.value
+                                                                  e.target
+                                                                      .value,
                                                               )
                                                             : undefined,
                                                     }))
@@ -1235,14 +1312,14 @@ export const CategoryStudioV2 = ({
                                                 "w-12 h-6 rounded-full transition-all",
                                                 newCategory.isEssential
                                                     ? "bg-amber-500"
-                                                    : "bg-muted"
+                                                    : "bg-muted",
                                             )}>
                                             <div
                                                 className={cn(
                                                     "w-5 h-5 rounded-full bg-white shadow-md transition-transform",
                                                     newCategory.isEssential
                                                         ? "translate-x-6"
-                                                        : "translate-x-0.5"
+                                                        : "translate-x-0.5",
                                                 )}
                                             />
                                         </button>

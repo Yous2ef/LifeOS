@@ -55,6 +55,7 @@ import { GlassCard } from "@/components/finance/v2/layout/GlassCard";
 
 // Time range options
 type TimeRange = "1m" | "3m" | "6m" | "1y" | "all";
+type ReportFilterMode = "preset" | "from-only" | "from-to";
 
 const TIME_RANGES: { value: TimeRange; label: string }[] = [
     { value: "1m", label: "1M" },
@@ -83,12 +84,52 @@ export const FinanceReports = () => {
         useFinance();
 
     const [timeRange, setTimeRange] = useState<TimeRange>("6m");
+    const [filterMode, setFilterMode] = useState<ReportFilterMode>("preset");
+    const [fromDate, setFromDate] = useState<string>("");
+    const [toDate, setToDate] = useState<string>("");
+    const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(
+        null,
+    );
+
+    const formatDisplayDate = (dateStr: string) => {
+        const date = new Date(dateStr);
+        if (Number.isNaN(date.getTime())) return dateStr;
+        return new Intl.DateTimeFormat("en-GB", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+        }).format(date);
+    };
 
     // Get date range based on selection
     const dateRange = useMemo(() => {
         const end = new Date();
         // Set end to end of today (23:59:59.999)
         end.setHours(23, 59, 59, 999);
+
+        if (filterMode !== "preset") {
+            const parsedFrom = fromDate ? new Date(fromDate) : null;
+            const parsedTo = toDate ? new Date(toDate) : null;
+
+            const start =
+                parsedFrom && !Number.isNaN(parsedFrom.getTime())
+                    ? new Date(parsedFrom)
+                    : new Date(2020, 0, 1);
+            start.setHours(0, 0, 0, 0);
+
+            const customEnd =
+                filterMode === "from-to" &&
+                parsedTo &&
+                !Number.isNaN(parsedTo.getTime())
+                    ? new Date(parsedTo)
+                    : new Date(end);
+            customEnd.setHours(23, 59, 59, 999);
+
+            const safeEnd = customEnd < start ? new Date(start) : customEnd;
+            safeEnd.setHours(23, 59, 59, 999);
+
+            return { start, end: safeEnd };
+        }
 
         const start = new Date();
 
@@ -114,7 +155,7 @@ export const FinanceReports = () => {
         start.setHours(0, 0, 0, 0);
 
         return { start, end };
-    }, [timeRange]);
+    }, [timeRange, filterMode, fromDate, toDate]);
 
     // Filter data by date range
     const filteredData = useMemo(() => {
@@ -135,11 +176,11 @@ export const FinanceReports = () => {
     const totals = useMemo(() => {
         const income = filteredData.incomes.reduce(
             (sum, i) => sum + i.amount,
-            0
+            0,
         );
         const expense = filteredData.expenses.reduce(
             (sum, e) => sum + e.amount,
-            0
+            0,
         );
         const savings = income - expense;
         const savingsRate = income > 0 ? (savings / income) * 100 : 0;
@@ -162,7 +203,7 @@ export const FinanceReports = () => {
         const current = new Date(dateRange.start);
         while (current <= dateRange.end) {
             const key = `${current.getFullYear()}-${String(
-                current.getMonth() + 1
+                current.getMonth() + 1,
             ).padStart(2, "0")}`;
             const monthName = current.toLocaleDateString("en-US", {
                 month: "short",
@@ -180,7 +221,7 @@ export const FinanceReports = () => {
         filteredData.incomes.forEach((i) => {
             const date = new Date(i.actualDate || i.createdAt);
             const key = `${date.getFullYear()}-${String(
-                date.getMonth() + 1
+                date.getMonth() + 1,
             ).padStart(2, "0")}`;
             if (months[key]) {
                 months[key].income += i.amount;
@@ -191,7 +232,7 @@ export const FinanceReports = () => {
         filteredData.expenses.forEach((e) => {
             const date = new Date(e.date);
             const key = `${date.getFullYear()}-${String(
-                date.getMonth() + 1
+                date.getMonth() + 1,
             ).padStart(2, "0")}`;
             if (months[key]) {
                 months[key].expense += e.amount;
@@ -245,6 +286,53 @@ export const FinanceReports = () => {
 
         return result;
     }, [filteredData, categories, totals.expense]);
+
+    const allCategoryData = useMemo(() => {
+        const categoryMap = new Map<
+            string,
+            { amount: number; count: number }
+        >();
+
+        filteredData.expenses.forEach((e) => {
+            const current = categoryMap.get(e.categoryId) || {
+                amount: 0,
+                count: 0,
+            };
+            categoryMap.set(e.categoryId, {
+                amount: current.amount + e.amount,
+                count: current.count + 1,
+            });
+        });
+
+        return categories
+            .map((cat) => {
+                const spending = categoryMap.get(cat.id) || {
+                    amount: 0,
+                    count: 0,
+                };
+                return {
+                    ...cat,
+                    amount: spending.amount,
+                    count: spending.count,
+                    percentage:
+                        totals.expense > 0
+                            ? (spending.amount / totals.expense) * 100
+                            : 0,
+                };
+            })
+            .sort((a, b) => b.amount - a.amount);
+    }, [categories, filteredData.expenses, totals.expense]);
+
+    const selectedCategoryTransactions = useMemo(() => {
+        if (!selectedCategoryId) return [];
+
+        return filteredData.expenses
+            .filter((expense) => expense.categoryId === selectedCategoryId)
+            .sort(
+                (a, b) =>
+                    new Date(b.date).getTime() - new Date(a.date).getTime(),
+            );
+    }, [filteredData.expenses, selectedCategoryId]);
 
     // Cash Flow Forecast Data
     const forecastData = useMemo(() => {
@@ -328,7 +416,7 @@ export const FinanceReports = () => {
                 emoji: "🚀",
                 title: "Amazing Savings!",
                 description: `You're crushing it with ${totals.savingsRate.toFixed(
-                    0
+                    0,
                 )}% savings rate`,
                 value: formatCurrency(totals.savings),
                 trend: "up",
@@ -342,7 +430,7 @@ export const FinanceReports = () => {
                 emoji: "💪",
                 title: "Building Wealth",
                 description: `${totals.savingsRate.toFixed(
-                    0
+                    0,
                 )}% saved - push to 20%!`,
                 value: formatCurrency(totals.savings),
                 trend: "neutral",
@@ -372,7 +460,7 @@ export const FinanceReports = () => {
                 emoji: "🎯",
                 title: `Top: ${top.name}`,
                 description: `${top.percentage.toFixed(
-                    0
+                    0,
                 )}% of spending goes here`,
                 value: formatCurrency(top.amount),
                 trend: "neutral",
@@ -387,8 +475,8 @@ export const FinanceReports = () => {
             1,
             Math.ceil(
                 (dateRange.end.getTime() - dateRange.start.getTime()) /
-                    (1000 * 60 * 60 * 24)
-            )
+                    (1000 * 60 * 60 * 24),
+            ),
         );
         const dailyAvg = totals.expense / days;
         result.push({
@@ -428,7 +516,7 @@ export const FinanceReports = () => {
         const totalTransactions = totalExpenses + totalIncomes;
         const hasGoals = goals.length > 0;
         const completedGoals = goals.filter(
-            (g) => g.currentAmount >= g.targetAmount
+            (g) => g.currentAmount >= g.targetAmount,
         ).length;
 
         // Calculate streak (days without spending)
@@ -570,23 +658,89 @@ export const FinanceReports = () => {
                         </p>
                     </div>
 
-                    {/* Time Range Selector */}
-                    <div className="flex gap-1 p-1.5 bg-muted/50 rounded-2xl shadow-inner">
-                        {TIME_RANGES.map((range) => (
+                    {/* Report Filter */}
+                    <div className="space-y-2">
+                        <div className="flex gap-1 p-1.5 bg-muted/50 rounded-2xl shadow-inner">
                             <motion.button
-                                key={range.value}
-                                onClick={() => setTimeRange(range.value)}
+                                onClick={() => setFilterMode("preset")}
                                 className={cn(
-                                    "px-4 py-2 text-sm font-bold rounded-xl transition-all",
-                                    timeRange === range.value
+                                    "px-3 py-2 text-xs font-bold rounded-xl transition-all",
+                                    filterMode === "preset"
                                         ? "bg-gradient-to-r from-violet-500 to-purple-500 text-white shadow-lg shadow-violet-500/30"
-                                        : "hover:bg-muted text-muted-foreground hover:text-foreground"
+                                        : "hover:bg-muted text-muted-foreground hover:text-foreground",
                                 )}
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}>
-                                {range.label}
+                                whileHover={{ scale: 1.04 }}
+                                whileTap={{ scale: 0.96 }}>
+                                Preset
                             </motion.button>
-                        ))}
+                            <motion.button
+                                onClick={() => setFilterMode("from-only")}
+                                className={cn(
+                                    "px-3 py-2 text-xs font-bold rounded-xl transition-all",
+                                    filterMode === "from-only"
+                                        ? "bg-gradient-to-r from-cyan-500 to-blue-500 text-white shadow-lg shadow-cyan-500/30"
+                                        : "hover:bg-muted text-muted-foreground hover:text-foreground",
+                                )}
+                                whileHover={{ scale: 1.04 }}
+                                whileTap={{ scale: 0.96 }}>
+                                From
+                            </motion.button>
+                            <motion.button
+                                onClick={() => setFilterMode("from-to")}
+                                className={cn(
+                                    "px-3 py-2 text-xs font-bold rounded-xl transition-all",
+                                    filterMode === "from-to"
+                                        ? "bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg shadow-emerald-500/30"
+                                        : "hover:bg-muted text-muted-foreground hover:text-foreground",
+                                )}
+                                whileHover={{ scale: 1.04 }}
+                                whileTap={{ scale: 0.96 }}>
+                                From → To
+                            </motion.button>
+                        </div>
+
+                        {filterMode === "preset" ? (
+                            <div className="flex gap-1 p-1.5 bg-muted/50 rounded-2xl shadow-inner">
+                                {TIME_RANGES.map((range) => (
+                                    <motion.button
+                                        key={range.value}
+                                        onClick={() =>
+                                            setTimeRange(range.value)
+                                        }
+                                        className={cn(
+                                            "px-4 py-2 text-sm font-bold rounded-xl transition-all",
+                                            timeRange === range.value
+                                                ? "bg-gradient-to-r from-violet-500 to-purple-500 text-white shadow-lg shadow-violet-500/30"
+                                                : "hover:bg-muted text-muted-foreground hover:text-foreground",
+                                        )}
+                                        whileHover={{ scale: 1.05 }}
+                                        whileTap={{ scale: 0.95 }}>
+                                        {range.label}
+                                    </motion.button>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="flex flex-col sm:flex-row gap-2">
+                                <input
+                                    type="date"
+                                    value={fromDate}
+                                    onChange={(e) =>
+                                        setFromDate(e.target.value)
+                                    }
+                                    className="h-10 px-3 rounded-xl bg-background border border-border text-sm"
+                                />
+                                {filterMode === "from-to" && (
+                                    <input
+                                        type="date"
+                                        value={toDate}
+                                        onChange={(e) =>
+                                            setToDate(e.target.value)
+                                        }
+                                        className="h-10 px-3 rounded-xl bg-background border border-border text-sm"
+                                    />
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
             </motion.div>
@@ -651,7 +805,7 @@ export const FinanceReports = () => {
                         "relative overflow-hidden rounded-2xl p-5 shadow-xl",
                         totals.savings >= 0
                             ? "bg-gradient-to-br from-violet-500 via-purple-500 to-indigo-500 shadow-violet-500/25"
-                            : "bg-gradient-to-br from-orange-500 via-amber-500 to-yellow-500 shadow-orange-500/25"
+                            : "bg-gradient-to-br from-orange-500 via-amber-500 to-yellow-500 shadow-orange-500/25",
                     )}
                     whileHover={{ scale: 1.02, y: -2 }}
                     transition={{ type: "spring", stiffness: 300 }}>
@@ -704,7 +858,7 @@ export const FinanceReports = () => {
                                     key={index}
                                     className={cn(
                                         "relative overflow-hidden rounded-2xl p-4 shadow-lg",
-                                        `bg-gradient-to-r ${insight.gradient} ${insight.glow}`
+                                        `bg-gradient-to-r ${insight.gradient} ${insight.glow}`,
                                     )}
                                     initial={{
                                         opacity: 0,
@@ -725,7 +879,7 @@ export const FinanceReports = () => {
                                             className={cn(
                                                 "p-2.5 rounded-xl",
                                                 insight.iconBg,
-                                                "backdrop-blur-sm text-white"
+                                                "backdrop-blur-sm text-white",
                                             )}>
                                             {insight.icon}
                                         </div>
@@ -783,7 +937,7 @@ export const FinanceReports = () => {
                                 <p className="text-xs text-muted-foreground">
                                     {
                                         achievements.badges.filter(
-                                            (b) => b.unlocked
+                                            (b) => b.unlocked,
                                         ).length
                                     }
                                     /{achievements.badges.length} unlocked
@@ -838,7 +992,7 @@ export const FinanceReports = () => {
                                         "relative p-4 rounded-2xl text-center transition-all overflow-hidden",
                                         badge.unlocked
                                             ? `bg-gradient-to-br ${badge.gradient} shadow-xl ${badge.bgGlow}`
-                                            : "bg-muted/30 border-2 border-dashed border-muted-foreground/20"
+                                            : "bg-muted/30 border-2 border-dashed border-muted-foreground/20",
                                     )}
                                     initial={{ opacity: 0, y: 20 }}
                                     animate={{ opacity: 1, y: 0 }}
@@ -863,7 +1017,7 @@ export const FinanceReports = () => {
                                             "mx-auto mb-3 w-12 h-12 rounded-xl flex items-center justify-center shadow-lg",
                                             badge.unlocked
                                                 ? "bg-white/30 backdrop-blur-sm text-white"
-                                                : "bg-muted text-muted-foreground"
+                                                : "bg-muted text-muted-foreground",
                                         )}
                                         animate={
                                             badge.unlocked
@@ -888,7 +1042,7 @@ export const FinanceReports = () => {
                                             "text-sm font-bold mb-1",
                                             badge.unlocked
                                                 ? "text-white"
-                                                : "text-foreground"
+                                                : "text-foreground",
                                         )}>
                                         {badge.title}
                                     </p>
@@ -897,7 +1051,7 @@ export const FinanceReports = () => {
                                             "text-[11px] mb-3",
                                             badge.unlocked
                                                 ? "text-white/80"
-                                                : "text-muted-foreground"
+                                                : "text-muted-foreground",
                                         )}>
                                         {badge.description}
                                     </p>
@@ -914,7 +1068,7 @@ export const FinanceReports = () => {
                                                     {Math.round(
                                                         (badge.progress /
                                                             badge.target) *
-                                                            100
+                                                            100,
                                                     )}
                                                     %
                                                 </span>
@@ -961,7 +1115,7 @@ export const FinanceReports = () => {
                                     .length > 0
                                     ? `${
                                           achievements.badges.filter(
-                                              (b) => !b.unlocked
+                                              (b) => !b.unlocked,
                                           ).length
                                       } more achievements to unlock!`
                                     : "🎉 Amazing! You've unlocked all achievements!"}
@@ -995,7 +1149,7 @@ export const FinanceReports = () => {
                                     "px-4 py-2 rounded-xl text-sm font-bold shadow-lg",
                                     totals.savings >= 0
                                         ? "bg-gradient-to-r from-emerald-500 to-green-500 text-white shadow-emerald-500/30"
-                                        : "bg-gradient-to-r from-red-500 to-rose-500 text-white shadow-red-500/30"
+                                        : "bg-gradient-to-r from-red-500 to-rose-500 text-white shadow-red-500/30",
                                 )}
                                 whileHover={{ scale: 1.05 }}>
                                 {totals.savings >= 0 ? "↑" : "↓"}{" "}
@@ -1225,13 +1379,13 @@ export const FinanceReports = () => {
                                     className={cn(
                                         "text-2xl font-bold text-white",
                                         forecastData.threeMonthForecast < 0 &&
-                                            "text-red-200"
+                                            "text-red-200",
                                     )}>
                                     {forecastData.threeMonthForecast >= 0
                                         ? "+"
                                         : ""}
                                     {formatCurrency(
-                                        forecastData.threeMonthForecast
+                                        forecastData.threeMonthForecast,
                                     )}
                                 </p>
                             </div>
@@ -1252,7 +1406,7 @@ export const FinanceReports = () => {
                                     className={cn(
                                         "text-2xl font-bold text-white",
                                         forecastData.avgMonthly < 0 &&
-                                            "text-red-200"
+                                            "text-red-200",
                                     )}>
                                     {forecastData.avgMonthly >= 0 ? "+" : ""}
                                     {formatCurrency(forecastData.avgMonthly)}
@@ -1378,13 +1532,23 @@ export const FinanceReports = () => {
                     </div>
 
                     <div className="space-y-4">
-                        {categoryData.slice(0, 8).map((cat, index) => (
+                        {allCategoryData.map((cat, index) => (
                             <motion.div
                                 key={cat.id}
-                                className="space-y-2 p-3 rounded-xl hover:bg-muted/50 transition-colors"
+                                className={cn(
+                                    "space-y-2 p-3 rounded-xl transition-colors cursor-pointer",
+                                    selectedCategoryId === cat.id
+                                        ? "bg-primary/10 ring-1 ring-primary/30"
+                                        : "hover:bg-muted/50",
+                                )}
                                 initial={{ opacity: 0, x: -20 }}
                                 animate={{ opacity: 1, x: 0 }}
-                                transition={{ delay: index * 0.05 }}>
+                                transition={{ delay: index * 0.05 }}
+                                onClick={() =>
+                                    setSelectedCategoryId((prev) =>
+                                        prev === cat.id ? null : cat.id,
+                                    )
+                                }>
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-3">
                                         <span className="text-2xl">
@@ -1428,10 +1592,61 @@ export const FinanceReports = () => {
                                         }}
                                     />
                                 </div>
+
+                                {selectedCategoryId === cat.id && (
+                                    <div className="mt-3 rounded-xl bg-background/60 border border-border p-3 space-y-2">
+                                        <div className="flex items-center justify-between">
+                                            <p className="text-sm font-semibold">
+                                                Transactions ({cat.count})
+                                            </p>
+                                            <p className="text-xs text-muted-foreground">
+                                                Tap again to close
+                                            </p>
+                                        </div>
+
+                                        {selectedCategoryTransactions.length ===
+                                        0 ? (
+                                            <p className="text-sm text-muted-foreground py-2">
+                                                No transactions for this
+                                                category in selected period.
+                                            </p>
+                                        ) : (
+                                            <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                                                {selectedCategoryTransactions.map(
+                                                    (expense) => (
+                                                        <div
+                                                            key={expense.id}
+                                                            className="flex items-center justify-between p-2 rounded-lg bg-muted/40">
+                                                            <div className="min-w-0">
+                                                                <p className="text-sm font-medium truncate">
+                                                                    {
+                                                                        expense.title
+                                                                    }
+                                                                </p>
+                                                                <p className="text-xs text-muted-foreground">
+                                                                    <span dir="ltr">
+                                                                        {formatDisplayDate(
+                                                                            expense.date,
+                                                                        )}
+                                                                    </span>
+                                                                </p>
+                                                            </div>
+                                                            <p className="text-sm font-bold tabular-nums">
+                                                                {formatCurrency(
+                                                                    expense.amount,
+                                                                )}
+                                                            </p>
+                                                        </div>
+                                                    ),
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </motion.div>
                         ))}
 
-                        {categoryData.length === 0 && (
+                        {allCategoryData.length === 0 && (
                             <p className="text-center text-muted-foreground py-8">
                                 No expenses in this time period
                             </p>
