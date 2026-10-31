@@ -33,6 +33,8 @@ interface FundManagerProps {
     onToggleVisibility: (id: string) => void;
     getFundBalance: (fundId: string) => number;
     formatCurrency: (amount: number) => string;
+    /** The fund charity payments go to (may be an adopted custom fund) */
+    charityFundId?: string;
 }
 
 const FUND_COLORS = [
@@ -130,6 +132,7 @@ export const FundManager = ({
     onToggleVisibility,
     getFundBalance,
     formatCurrency,
+    charityFundId = FUND_CHARITY_ID,
 }: FundManagerProps) => {
     const [editingId, setEditingId] = useState<string | null>(null);
     const [isCreating, setIsCreating] = useState(false);
@@ -234,7 +237,8 @@ export const FundManager = ({
                                 <Edit2 className="w-4 h-4" />
                             </button>
                             {fund.id !== FUND_ME_ID &&
-                                fund.id !== FUND_CHARITY_ID && (
+                                fund.id !== FUND_CHARITY_ID &&
+                                fund.id !== charityFundId && (
                                     <button
                                         onClick={() => handleDelete(fund)}
                                         title="Delete"

@@ -52,6 +52,10 @@ interface CategoryStudioV2Props {
     getCategoryUsage: (categoryId: string) => { count: number; total: number };
     formatCurrency: (amount: number) => string;
     defaultCurrency: Currency;
+    /** Charity is on: expense categories get a "work cost" default */
+    showWorkCost?: boolean;
+    /** Donation categories count as paid, so they can't be work costs */
+    donationCategoryIds?: string[];
 }
 
 type CategoryTab = "expense" | "income";
@@ -220,6 +224,8 @@ export const CategoryStudioV2 = ({
     getCategoryUsage,
     formatCurrency,
     defaultCurrency,
+    showWorkCost = false,
+    donationCategoryIds = [],
 }: CategoryStudioV2Props) => {
     const [activeTab, setActiveTab] = useState<CategoryTab>("expense");
     const [isCreating, setIsCreating] = useState(false);
@@ -294,6 +300,8 @@ export const CategoryStudioV2 = ({
             ...(activeTab === "expense" && {
                 monthlyBudget: (category as ExpenseCategory).monthlyBudget,
                 isEssential: (category as ExpenseCategory).isEssential,
+                isWorkCostDefault: (category as ExpenseCategory)
+                    .isWorkCostDefault,
             }),
         });
     };
@@ -770,6 +778,42 @@ export const CategoryStudioV2 = ({
                                                             ? "Essential ✓"
                                                             : "Mark as Essential"}
                                                     </button>
+                                                    {showWorkCost &&
+                                                        !donationCategoryIds.includes(
+                                                            category.id,
+                                                        ) && (
+                                                            <button
+                                                                onClick={() =>
+                                                                    setEditForm(
+                                                                        (
+                                                                            prev,
+                                                                        ) => ({
+                                                                            ...prev,
+                                                                            isWorkCostDefault:
+                                                                                !(
+                                                                                    prev as Partial<ExpenseCategory>
+                                                                                )
+                                                                                    .isWorkCostDefault,
+                                                                        }),
+                                                                    )
+                                                                }
+                                                                className={cn(
+                                                                    "px-3 py-1.5 rounded-lg text-sm transition-all",
+                                                                    (
+                                                                        editForm as Partial<ExpenseCategory>
+                                                                    )
+                                                                        .isWorkCostDefault
+                                                                        ? "bg-teal-500 text-white"
+                                                                        : "bg-muted/50",
+                                                                )}>
+                                                                {(
+                                                                    editForm as Partial<ExpenseCategory>
+                                                                )
+                                                                    .isWorkCostDefault
+                                                                    ? "Work cost ✓"
+                                                                    : "Mark as work cost"}
+                                                            </button>
+                                                        )}
                                                 </div>
                                             </>
                                         )}
@@ -899,6 +943,18 @@ export const CategoryStudioV2 = ({
                                                     ).isEssential && (
                                                         <span className="text-xs px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-600 dark:text-amber-400">
                                                             Essential
+                                                        </span>
+                                                    )}
+                                                {showWorkCost &&
+                                                    activeTab === "expense" &&
+                                                    (
+                                                        category as ExpenseCategory
+                                                    ).isWorkCostDefault &&
+                                                    !donationCategoryIds.includes(
+                                                        category.id,
+                                                    ) && (
+                                                        <span className="text-xs px-1.5 py-0.5 rounded bg-teal-500/20 text-teal-600 dark:text-teal-400">
+                                                            Work cost
                                                         </span>
                                                     )}
                                                 {category.isDefault && (

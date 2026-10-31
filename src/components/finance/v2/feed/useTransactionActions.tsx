@@ -13,6 +13,7 @@ import type { RestorableRecord } from "@/hooks/useFinance";
 import { isLivePaymentExpense } from "@/utils/finance/installments";
 import { showUndoToast } from "./undoToast";
 import { withRepaymentsText } from "../people/copy";
+import { COPY as CHARITY_COPY } from "../charity/copy";
 import type { IncomeFormData } from "../modals/IncomeModal";
 import type { ExpenseFormData } from "../modals/ExpenseModal";
 import type { TransferFormData } from "../modals/TransferModal";
@@ -152,7 +153,14 @@ export const useTransactionActions = ({
                 restorable.kind === "loan"
                     ? withRepaymentsText(restorable.payments.length)
                     : "";
-            if (!window.confirm(`Delete this ${label}${extra}?`)) return;
+            // "Already paid" lives on the income, so it goes with it
+            const charityNote =
+                restorable.kind === "income" &&
+                (restorable.record.charityPaidOutsideAmount ?? 0) > 0
+                    ? ` ${CHARITY_COPY.paymentRemovedWithIncome}`
+                    : "";
+            if (!window.confirm(`Delete this ${label}${extra}?${charityNote}`))
+                return;
 
             if (restorable.kind === "expense") {
                 const result = deleteExpense(transaction.id);

@@ -4,8 +4,13 @@ import {
     financeNeedsMigration,
     runMigrationIfNeeded,
 } from "@/utils/finance/migration";
-import { FUND_ME_ID, getDefaultFinanceData } from "@/utils/finance/defaults";
+import {
+    FUND_ME_ID,
+    getDefaultFinanceData,
+    nextOrder,
+} from "@/utils/finance/defaults";
 import { addTombstones, normalizeFinanceData } from "@/utils/finance/normalize";
+import { todayISO } from "@/utils/finance/dates";
 import {
     accountTotals,
     computeBalances,
@@ -30,6 +35,16 @@ import {
     netWorthWithLoans,
     paymentsByLoan,
 } from "@/utils/finance/loans";
+import {
+    charityFundHasPayments,
+    computeCharityLedger,
+    enableCharityTracking,
+    hasDonationNear,
+    hasPaidOutsideNear,
+    previewIncomeCharity,
+    withRefundCategory,
+} from "@/utils/finance/charity";
+import { getProjectDeleteBlocker, sortProjects } from "@/utils/finance/projects";
 import { maskAmount, usePrivacyMode } from "./usePrivacyMode";
 import {
     isLivePaymentExpense,
@@ -52,6 +67,8 @@ import type {
     GoalContribution,
     FinancialAlert,
     FinanceSettings,
+    CharitySettings,
+    FinanceProject,
     FinancialStats,
     CategorySpending,
     DailySpending,
@@ -239,7 +256,7 @@ export const useFinance = () => {
                         ...income,
                         ...updates,
                         ...(becameReceived && !updates.actualDate
-                            ? { actualDate: new Date().toISOString().split("T")[0] }
+                            ? { actualDate: todayISO() }
                             : {}),
                         updatedAt: new Date().toISOString(),
                     };
@@ -428,18 +445,26 @@ export const useFinance = () => {
 
     const updateCategory = useCallback(
         (id: string, updates: Partial<ExpenseCategory>) => {
-            setData((prev) => ({
-                ...prev,
-                categories: prev.categories.map((cat) =>
-                    cat.id === id
-                        ? {
-                              ...cat,
-                              ...updates,
-                              updatedAt: new Date().toISOString(),
-                          }
-                        : cat,
-                ),
-            }));
+            setData((prev) => {
+                // A donation can't also lower the charity base
+                const safe =
+                    updates.isWorkCostDefault &&
+                    prev.settings.charity.donationCategoryIds.includes(id)
+                        ? { ...updates, isWorkCostDefault: false }
+                        : updates;
+                return {
+                    ...prev,
+                    categories: prev.categories.map((cat) =>
+                        cat.id === id
+                            ? {
+                                  ...cat,
+                                  ...safe,
+                                  updatedAt: new Date().toISOString(),
+                              }
+                            : cat,
+                    ),
+                };
+            });
         },
         [setData],
     );
@@ -857,8 +882,7 @@ export const useFinance = () => {
                     ...prev.funds,
                     {
                         ...newFund,
-                        order:
-                            Math.max(0, ...prev.funds.map((f) => f.order)) + 1,
+                        order: nextOrder(prev.funds),
                     },
                 ],
             }));
@@ -969,7 +993,11 @@ export const useFinance = () => {
             amount: number,
             notes?: string,
             date?: string,
-            fundIds?: { fromFundId?: string; toFundId?: string },
+            fundIds?: {
+                fromFundId?: string;
+                toFundId?: string;
+                charityIncomeId?: string;
+            },
         ) => {
             const fromAccount = data.accounts.find(
                 (a) => a.id === fromAccountId,
@@ -998,6 +1026,7 @@ export const useFinance = () => {
                 toAccountId,
                 fromFundId: fundIds?.fromFundId,
                 toFundId: fundIds?.toFundId,
+                charityIncomeId: fundIds?.charityIncomeId,
                 amount,
                 date: date || now.split("T")[0],
                 notes,
@@ -1622,11 +1651,12 @@ export const useFinance = () => {
 
                 // Create income transaction if account info provided
                 let updatedIncomes = prev.incomes;
+                let incomeCategories = prev.incomeCategories;
                 if (incomeInfo?.accountId) {
-                    // Find refund category or use first available
-                    const refundCategory = prev.incomeCategories.find(
-                        (c) => c.name.toLowerCase() === "refund",
-                    );
+                    // Always the Refund category (created if missing): falling
+                    // back to the first category could file it as Salary
+                    const refund = withRefundCategory(prev, now);
+                    incomeCategories = refund.incomeCategories;
                     const refundIncome: Income = {
                         id: generateId(),
                         title: `Refund: ${installment.title}${
@@ -1635,10 +1665,7 @@ export const useFinance = () => {
                         amount: Math.abs(amount),
                         currency: prev.settings.defaultCurrency,
                         type: "variable",
-                        categoryId:
-                            refundCategory?.id ||
-                            prev.incomeCategories[0]?.id ||
-                            "",
+                        categoryId: refund.refundId,
                         status: "received",
                         frequency: "one-time",
                         accountId: incomeInfo.accountId,
@@ -1655,6 +1682,7 @@ export const useFinance = () => {
                 return {
                     ...prev,
                     incomes: updatedIncomes,
+                    incomeCategories,
                     installments: prev.installments.map((inst) =>
                         inst.id === installmentId
                             ? {
@@ -2354,6 +2382,138 @@ export const useFinance = () => {
         ],
     );
 
+    // ==================== Charity ====================
+    // Derived on read from incomes, expenses and transfers (charity.ts), so it
+    // stays right through any add/edit/delete/recurring with no write hooks.
+
+    const charitySettings = data.settings.charity;
+
+    const charityLedger = useMemo(
+        () =>
+            charitySettings.enabled
+                ? computeCharityLedger(data, charitySettings)
+                : null,
+        [data, charitySettings],
+    );
+
+    const enableCharity = useCallback(() => {
+        setData((prev) => enableCharityTracking(prev));
+    }, [setData]);
+
+    const updateCharitySettings = useCallback(
+        (updates: Partial<CharitySettings>): WriteResult => {
+            const isFundLocked = (state: FinanceData) =>
+                updates.fundId !== undefined &&
+                updates.fundId !== state.settings.charity.fundId &&
+                charityFundHasPayments(state, state.settings.charity.fundId);
+            if (isFundLocked(latestDataRef.current)) {
+                return {
+                    success: false,
+                    error: "The charity fund can't change once money has moved into it.",
+                };
+            }
+            setData((prev) => {
+                if (isFundLocked(prev)) return prev;
+                return {
+                    ...prev,
+                    settings: {
+                        ...prev.settings,
+                        charity: { ...prev.settings.charity, ...updates },
+                    },
+                };
+            });
+            return { success: true };
+        },
+        [setData],
+    );
+
+    const previewCharity = useCallback(
+        (draft: Income) => previewIncomeCharity(data, charitySettings, draft),
+        [data, charitySettings],
+    );
+
+    // "This may already be counted as paid" hints (same-week double count)
+    const charityDonationNear = useCallback(
+        (date: string, excludeExpenseId?: string) =>
+            charitySettings.enabled &&
+            hasDonationNear(data, charitySettings, date, excludeExpenseId),
+        [data, charitySettings],
+    );
+
+    const charityPaidOutsideNear = useCallback(
+        (date: string, excludeIncomeId?: string) =>
+            charitySettings.enabled &&
+            hasPaidOutsideNear(data, date, excludeIncomeId),
+        [data, charitySettings],
+    );
+
+    // ==================== Projects ====================
+
+    const projects = useMemo(() => sortProjects(data.projects), [data.projects]);
+
+    const addProject = useCallback(
+        (name: string, client?: string): FinanceProject => {
+            const now = new Date().toISOString();
+            const project: FinanceProject = {
+                id: `project_${generateId()}`,
+                name: name.trim(),
+                client: client?.trim() || undefined,
+                status: "active",
+                createdAt: now,
+                updatedAt: now,
+            };
+            setData((prev) => ({
+                ...prev,
+                projects: [...prev.projects, project],
+            }));
+            return project;
+        },
+        [setData],
+    );
+
+    const updateProject = useCallback(
+        (
+            id: string,
+            updates: Partial<Pick<FinanceProject, "name" | "client" | "status">>,
+        ) => {
+            setData((prev) => ({
+                ...prev,
+                projects: prev.projects.map((project) =>
+                    project.id === id
+                        ? {
+                              ...project,
+                              ...updates,
+                              updatedAt: new Date().toISOString(),
+                          }
+                        : project,
+                ),
+            }));
+        },
+        [setData],
+    );
+
+    const getProjectDeleteError = useCallback(
+        (id: string): string | null => getProjectDeleteBlocker(data, id),
+        [data],
+    );
+
+    const deleteProject = useCallback(
+        (id: string): WriteResult => {
+            const blocker = getProjectDeleteBlocker(latestDataRef.current, id);
+            if (blocker) return { success: false, error: blocker };
+            setData((prev) => {
+                if (getProjectDeleteBlocker(prev, id)) return prev;
+                return {
+                    ...prev,
+                    projects: prev.projects.filter((p) => p.id !== id),
+                    deleted: addTombstones(prev.deleted, [id]),
+                };
+            });
+            return { success: true };
+        },
+        [setData],
+    );
+
     // ==================== Format Helpers ====================
 
     // Privacy mode masks every amount at its single formatting point, so any
@@ -2506,6 +2666,22 @@ export const useFinance = () => {
         addLoanPayment,
         deleteLoanPayment,
         settleUp,
+
+        // Charity
+        charitySettings,
+        charityLedger,
+        enableCharity,
+        updateCharitySettings,
+        previewCharity,
+        charityDonationNear,
+        charityPaidOutsideNear,
+
+        // Projects
+        projects,
+        addProject,
+        updateProject,
+        deleteProject,
+        getProjectDeleteError,
 
         // Installment operations
         addInstallment,

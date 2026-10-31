@@ -26,10 +26,15 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { TextArea } from "@/components/ui/TextArea";
 import { fundOf } from "@/utils/finance/balances";
+import { todayISO } from "@/utils/finance/dates";
 import { FundBalanceWarning, FundPicker } from "../controls/FundPicker";
+import { ProjectPicker } from "../controls/ProjectPicker";
+import { WorkCostSwitch } from "../charity/WorkCostSwitch";
+import { COPY as CHARITY_COPY } from "../charity/copy";
 import type {
     Account,
     ExpenseCategory,
+    FinanceProject,
     Fund,
     TransactionNature,
     RecurringFrequency,
@@ -50,6 +55,15 @@ interface ExpenseModalProps {
     /** Balance a fund holds in an account (for the negative-balance warning) */
     getFundBalance?: (accountId: string, fundId: string) => number;
     formatCurrency?: (amount: number) => string;
+    projects?: FinanceProject[];
+    onCreateProject?: (name: string) => FinanceProject;
+    /** Charity tracking is on: show the "Work cost" switch */
+    showWorkCost?: boolean;
+    /** Donations count as paid, so they can't also be work costs */
+    donationCategoryIds?: string[];
+    charityFundId?: string;
+    /** An income marked "Already paid" within a week of this date */
+    hasPaidOutsideNear?: (date: string) => boolean;
 }
 
 export interface ExpenseFormData {
@@ -66,6 +80,9 @@ export interface ExpenseFormData {
     recurringFrequency?: RecurringFrequency;
     tags: string[];
     notes?: string;
+    projectId?: string;
+    /** Unset = follow the category's default */
+    isWorkCost?: boolean;
 }
 
 const EXPENSE_TYPES: { value: TransactionNature; label: string }[] = [
@@ -94,6 +111,12 @@ export const ExpenseModal = ({
     funds = [],
     getFundBalance,
     formatCurrency,
+    projects = [],
+    onCreateProject,
+    showWorkCost = false,
+    donationCategoryIds = [],
+    charityFundId,
+    hasPaidOutsideNear,
 }: ExpenseModalProps) => {
     const isEditing = !!initialData;
     const [formData, setFormData] = useState<ExpenseFormData>({
@@ -106,7 +129,7 @@ export const ExpenseModal = ({
         fundId: fundOf(),
         type: "variable",
         paymentMethod: "card",
-        date: new Date().toISOString().split("T")[0],
+        date: todayISO(),
         isRecurring: false,
         tags: [],
         notes: "",
@@ -131,7 +154,7 @@ export const ExpenseModal = ({
                     "",
                 type: "variable",
                 paymentMethod: "card",
-                date: new Date().toISOString().split("T")[0],
+                date: todayISO(),
                 isRecurring: false,
                 tags: [],
                 notes: "",
@@ -179,6 +202,18 @@ export const ExpenseModal = ({
         }
     }, [categories, isOpen]);
 
+    const isDonation = donationCategoryIds.includes(formData.categoryId);
+    const isWorkCost =
+        !isDonation &&
+        (formData.isWorkCost ??
+            !!categories.find((c) => c.id === formData.categoryId)
+                ?.isWorkCostDefault);
+    const showDoubleCountHint =
+        isDonation &&
+        !!charityFundId &&
+        fundOf(formData.fundId) !== charityFundId &&
+        !!hasPaidOutsideNear?.(formData.date);
+
     const handleSubmit = () => {
         if (
             formData.amount <= 0 ||
@@ -195,6 +230,9 @@ export const ExpenseModal = ({
         onSubmit({
             ...formData,
             title: formData.title.trim() || fallbackTitle,
+            // Saved explicitly once charity is on, so a later change to the
+            // category's default doesn't rewrite past charity math
+            ...(showWorkCost || isDonation ? { isWorkCost } : {}),
         });
         onClose();
     };
@@ -375,6 +413,9 @@ export const ExpenseModal = ({
                                                                         ...prev,
                                                                         categoryId:
                                                                             cat.id,
+                                                                        // Follow the new category's default
+                                                                        isWorkCost:
+                                                                            undefined,
                                                                     }),
                                                                 )
                                                             }
@@ -492,6 +533,33 @@ export const ExpenseModal = ({
                                             />
                                         </div>
 
+                                        {showWorkCost && !isDonation && (
+                                            <WorkCostSwitch
+                                                checked={isWorkCost}
+                                                onChange={(checked) =>
+                                                    setFormData((prev) => ({
+                                                        ...prev,
+                                                        isWorkCost: checked,
+                                                    }))
+                                                }
+                                            />
+                                        )}
+
+                                        {onCreateProject && (
+                                            <ProjectPicker
+                                                projects={projects}
+                                                value={formData.projectId}
+                                                onChange={(projectId) =>
+                                                    setFormData((prev) => ({
+                                                        ...prev,
+                                                        projectId,
+                                                    }))
+                                                }
+                                                onCreate={onCreateProject}
+                                                activeClassName="bg-red-300/20 ring-2 ring-red-500"
+                                            />
+                                        )}
+
                                         {/* Date */}
                                         <div>
                                             <Label className="text-xs text-muted-foreground mb-2 flex items-center gap-2">
@@ -509,6 +577,13 @@ export const ExpenseModal = ({
                                                 }
                                                 className="rounded-xl"
                                             />
+                                            {showDoubleCountHint && (
+                                                <p className="mt-2 text-xs text-amber-500">
+                                                    {
+                                                        CHARITY_COPY.doubleCountHint
+                                                    }
+                                                </p>
+                                            )}
                                         </div>
 
                                         {/* Expense Type */}

@@ -37,6 +37,8 @@ export interface AccountTransfer {
     toAccountId: string;
     fromFundId?: string; // missing = Me
     toFundId?: string; // missing = Me; same account + other fund = fund transfer
+    // Set by the income form's "Pay now": this payment covers that income first
+    charityIncomeId?: string;
     amount: number;
     date: string;
     notes?: string;
@@ -110,6 +112,41 @@ export interface LoanPayment {
     createdAt: string;
     updatedAt: string;
 }
+
+// ==================== Project Types ====================
+
+// Optional project/client label on income and expense, for per-project net
+// reports and to match a project's work costs to its earnings
+export interface FinanceProject {
+    id: string;
+    name: string;
+    client?: string;
+    status: "active" | "done";
+    createdAt: string;
+    updatedAt: string;
+}
+
+// ==================== Charity Types ====================
+
+export interface CharitySettings {
+    enabled: boolean;
+    rate: number; // 0.2 = 20% of net earnings
+    startDate: string; // YYYY-MM-DD; earlier history is covered by openingBalance
+    fundId: string; // Money moved into this fund counts as paid
+    eligibleIncomeCategoryIds: string[];
+    donationCategoryIds: string[]; // Expenses here (from other funds) count as paid
+    openingBalance: number; // + owed, − credit, as of startDate
+}
+
+export const DEFAULT_CHARITY_SETTINGS: CharitySettings = {
+    enabled: false,
+    rate: 0.2,
+    startDate: "2026-11-01",
+    fundId: FUND_CHARITY_ID,
+    eligibleIncomeCategoryIds: [],
+    donationCategoryIds: [],
+    openingBalance: 0,
+};
 
 // ==================== Enums & Constants ====================
 
@@ -199,6 +236,7 @@ export interface ExpenseCategory {
     monthlyBudget?: number;
     isEssential: boolean; // ضروري ولا لأ
     isDefault: boolean; // System default category
+    isWorkCostDefault?: boolean; // Default of the expense form's "Work cost" switch
     order: number;
     createdAt: string;
     updatedAt?: string; // Lets cloud merge pick the newer edit
@@ -237,6 +275,10 @@ export interface Income {
     notes?: string;
     tags: string[];
     linkedInstallmentId?: string; // For installment refunds
+    projectId?: string;
+    // "Already paid": charity paid outside the app for this income — the amount
+    // shown at the time, stored so later edits don't change what was paid
+    charityPaidOutsideAmount?: number;
     createdAt: string;
     updatedAt: string;
 }
@@ -263,6 +305,8 @@ export interface Expense {
     notes?: string;
     linkedInstallmentId?: string; // If this expense is an installment payment
     linkedPaymentId?: string; // The InstallmentPayment this expense pays
+    projectId?: string;
+    isWorkCost?: boolean; // Lowers the charity base; missing = category default
     createdAt: string;
     updatedAt: string;
 }
@@ -401,6 +445,7 @@ export interface FinanceSettings {
     weeklyReportEnabled: boolean;
     monthlyReportEnabled: boolean;
     focusedFundIds: string[]; // Funds the home screen shows; empty = all funds
+    charity: CharitySettings;
 }
 
 // ==================== Statistics & Analytics ====================
@@ -742,6 +787,7 @@ export const DEFAULT_FINANCE_SETTINGS: FinanceSettings = {
     weeklyReportEnabled: true,
     monthlyReportEnabled: true,
     focusedFundIds: [FUND_ME_ID],
+    charity: DEFAULT_CHARITY_SETTINGS,
 };
 
 // ==================== Helper Types ====================
@@ -819,6 +865,7 @@ export interface FinanceData {
     people: Person[];
     loans: Loan[];
     loanPayments: LoanPayment[];
+    projects: FinanceProject[];
     incomes: Income[];
     expenses: Expense[];
     categories: ExpenseCategory[];

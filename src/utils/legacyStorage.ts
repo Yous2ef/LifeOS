@@ -201,6 +201,7 @@ export function consolidateV1Data(): AppData {
             people: [],
             loans: [],
             loanPayments: [],
+            projects: [],
             incomes: [],
             expenses: [],
             categories: [],

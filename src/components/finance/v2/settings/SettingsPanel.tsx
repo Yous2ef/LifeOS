@@ -22,6 +22,8 @@ import {
     AlertTriangle,
     Shield,
     Trash2,
+    HandHeart,
+    Briefcase,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
@@ -39,6 +41,8 @@ interface SettingsPanelProps {
     accountsContent?: React.ReactNode; // AccountManager component
     fundsContent?: React.ReactNode; // FundManager component
     categoriesContent?: React.ReactNode; // CategoryStudio component
+    charityContent?: React.ReactNode; // CharitySettings component
+    projectsContent?: React.ReactNode; // ProjectManager component
 }
 
 type SettingsTab =
@@ -46,6 +50,8 @@ type SettingsTab =
     | "accounts"
     | "funds"
     | "categories"
+    | "charity"
+    | "projects"
     | "alerts"
     | "data";
 
@@ -57,6 +63,16 @@ const TABS: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
         id: "categories",
         label: "Categories",
         icon: <Tags className="w-4 h-4" />,
+    },
+    {
+        id: "charity",
+        label: "Charity",
+        icon: <HandHeart className="w-4 h-4" />,
+    },
+    {
+        id: "projects",
+        label: "Projects",
+        icon: <Briefcase className="w-4 h-4" />,
     },
     { id: "alerts", label: "Alerts", icon: <Bell className="w-4 h-4" /> },
     { id: "data", label: "Data", icon: <Shield className="w-4 h-4" /> },
@@ -80,6 +96,8 @@ export const SettingsPanel = ({
     accountsContent,
     fundsContent,
     categoriesContent,
+    charityContent,
+    projectsContent,
 }: SettingsPanelProps) => {
     const [activeTab, setActiveTab] = useState<SettingsTab>("general");
     const [showResetConfirm, setShowResetConfirm] = useState(false);
@@ -255,6 +273,24 @@ export const SettingsPanel = ({
                                     Drag to reorder.
                                 </p>
                                 {categoriesContent}
+                            </div>
+                        )}
+
+                        {activeTab === "charity" && (
+                            <div className="space-y-4">
+                                <h3 className="text-lg font-semibold">
+                                    Charity
+                                </h3>
+                                {charityContent}
+                            </div>
+                        )}
+
+                        {activeTab === "projects" && (
+                            <div className="space-y-4">
+                                <h3 className="text-lg font-semibold">
+                                    Projects
+                                </h3>
+                                {projectsContent}
                             </div>
                         )}
 

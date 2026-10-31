@@ -365,4 +365,145 @@ describe("finance writes", () => {
             expect(result.current.deletePerson(personId).success).toBe(false);
         });
     });
+    describe("charity", () => {
+        it("is off by default and enabling it twice creates the fund and categories once", () => {
+            const { result } = renderHook(() => useFinance(), { wrapper });
+            expect(result.current.charitySettings.enabled).toBe(false);
+            expect(result.current.charityLedger).toBeNull();
+
+            act(() => {
+                result.current.enableCharity();
+                result.current.enableCharity();
+            });
+            act(() => {
+                result.current.enableCharity();
+            });
+
+            const { funds, categories, incomeCategories, charitySettings } =
+                result.current;
+            expect(funds.filter((f) => f.id === "fund_charity")).toHaveLength(1);
+            expect(categories.filter((c) => c.name === "Donations")).toHaveLength(1);
+            expect(incomeCategories.filter((c) => c.name === "Refund")).toHaveLength(1);
+            expect(charitySettings.enabled).toBe(true);
+            expect(charitySettings.donationCategoryIds).toHaveLength(1);
+            const eligible = incomeCategories
+                .filter((c) => charitySettings.eligibleIncomeCategoryIds.includes(c.id))
+                .map((c) => c.name)
+                .sort();
+            expect(eligible).toEqual([
+                "Bonus",
+                "Business",
+                "Commission",
+                "Freelance",
+                "Investment",
+                "Salary",
+            ]);
+            expect(result.current.focusedFundIds).toEqual(["fund_me"]);
+            expect(result.current.charityLedger?.remaining).toBe(0);
+        });
+
+        it("locks the charity fund once money moved into it", () => {
+            const { result } = renderHook(() => useFinance(), { wrapper });
+            const accountId = result.current.accounts[0]?.id ?? "a";
+            act(() => {
+                result.current.enableCharity();
+            });
+            expect(
+                result.current.updateCharitySettings({ fundId: "fund_other" }).success,
+            ).toBe(true);
+            act(() => {
+                result.current.updateCharitySettings({ fundId: "fund_charity" });
+            });
+            act(() => {
+                result.current.transferBetweenAccounts(
+                    accountId,
+                    accountId,
+                    100,
+                    undefined,
+                    "2026-11-02",
+                    { fromFundId: "fund_me", toFundId: "fund_charity" },
+                );
+            });
+            let outcome = { success: true } as { success: boolean };
+            act(() => {
+                outcome = result.current.updateCharitySettings({ fundId: "fund_other" });
+            });
+            expect(outcome.success).toBe(false);
+            expect(result.current.charitySettings.fundId).toBe("fund_charity");
+        });
+
+        it("keeps a Pay now transfer tied to its income", () => {
+            const { result } = renderHook(() => useFinance(), { wrapper });
+            const accountId = result.current.accounts[0]?.id ?? "a";
+            act(() => {
+                result.current.enableCharity();
+            });
+            act(() => {
+                result.current.transferBetweenAccounts(
+                    accountId,
+                    accountId,
+                    100,
+                    "Charity",
+                    "2026-11-02",
+                    {
+                        fromFundId: "fund_me",
+                        toFundId: "fund_charity",
+                        charityIncomeId: "inc_x",
+                    },
+                );
+            });
+            expect(result.current.transfers.at(-1)?.charityIncomeId).toBe("inc_x");
+        });
+
+        it("won't mark a donation category as a work cost", () => {
+            const { result } = renderHook(() => useFinance(), { wrapper });
+            act(() => {
+                result.current.enableCharity();
+            });
+            const donationsId = result.current.charitySettings.donationCategoryIds[0];
+            act(() => {
+                result.current.updateCategory(donationsId, { isWorkCostDefault: true });
+            });
+            expect(
+                result.current.categories.find((c) => c.id === donationsId)
+                    ?.isWorkCostDefault,
+            ).toBe(false);
+        });
+    });
+
+    it("blocks deleting a project while a transaction uses it", () => {
+        const { result } = renderHook(() => useFinance(), { wrapper });
+        let projectId = "";
+        act(() => {
+            projectId = result.current.addProject("Logo job", "Acme").id;
+        });
+        act(() => {
+            result.current.addExpense({
+                title: "Tools",
+                amount: 10,
+                currency: "EGP",
+                categoryId: "c",
+                type: "variable",
+                paymentMethod: "cash",
+                accountId: "a",
+                date: "2026-11-02",
+                isRecurring: false,
+                tags: [],
+                projectId,
+            });
+        });
+        expect(result.current.deleteProject(projectId).success).toBe(false);
+        act(() => {
+            result.current.deleteExpense(result.current.expenses[0].id);
+        });
+        let outcome = { success: false } as { success: boolean };
+        act(() => {
+            outcome = result.current.deleteProject(projectId);
+        });
+        expect(outcome.success).toBe(true);
+        expect(result.current.projects).toHaveLength(0);
+        expect(
+            result.current.exportData().deleted?.some((d) => d.id === projectId),
+        ).toBe(true);
+    });
 });

@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, type ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, X, ChevronDown, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -21,6 +21,8 @@ interface TransactionFeedProps {
     selectedAccount?: Account | null;
     onClearAccountFilter?: () => void;
     className?: string;
+    /** Extra chip per row (e.g. an income's charity status) */
+    renderBadge?: (transaction: Transaction) => ReactNode;
 }
 
 export const TransactionFeed = ({
@@ -33,6 +35,7 @@ export const TransactionFeed = ({
     selectedAccount,
     onClearAccountFilter,
     className,
+    renderBadge,
 }: TransactionFeedProps) => {
     const [searchQuery, setSearchQuery] = useState("");
     const [showSearch, setShowSearch] = useState(false);
@@ -336,6 +339,7 @@ export const TransactionFeed = ({
                                                     : undefined
                                             }
                                             index={index}
+                                            badge={renderBadge?.(transaction)}
                                         />
                                     )
                                 )}

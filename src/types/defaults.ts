@@ -16,6 +16,7 @@ import type { UniversityData } from "./modules/university";
 import type { HomeData } from "./modules/home";
 import type { MiscData } from "./modules/misc";
 import {
+    DEFAULT_CHARITY_SETTINGS,
     FUND_ME_ID,
     type FinanceData,
     type FinanceSettings,
@@ -131,6 +132,7 @@ export const createDefaultFinanceSettings = (): FinanceSettings => ({
     weeklyReportEnabled: false,
     monthlyReportEnabled: true,
     focusedFundIds: [FUND_ME_ID],
+    charity: { ...DEFAULT_CHARITY_SETTINGS },
 });
 
 /**
@@ -143,6 +145,7 @@ export const createDefaultFinanceData = (): FinanceData => ({
     people: [],
     loans: [],
     loanPayments: [],
+    projects: [],
     incomes: [],
     expenses: [],
     categories: [],

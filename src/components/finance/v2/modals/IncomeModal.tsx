@@ -7,7 +7,7 @@
  * - Income type and frequency selection
  */
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     X,
@@ -25,9 +25,14 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { TextArea } from "@/components/ui/TextArea";
 import { fundOf } from "@/utils/finance/balances";
+import { todayISO } from "@/utils/finance/dates";
 import { FundPicker } from "../controls/FundPicker";
+import { ProjectPicker } from "../controls/ProjectPicker";
+import { CharityStep, type CharityChoice } from "../charity/CharityStep";
+import type { CharityPreview } from "@/utils/finance/charity";
 import type {
     Account,
+    FinanceProject,
     Fund,
     IncomeCategory,
     TransactionNature,
@@ -39,13 +44,21 @@ import type {
 interface IncomeModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSubmit: (income: IncomeFormData) => void;
+    onSubmit: (income: IncomeFormData, charity: CharityChoice | null) => void;
     accounts: Account[];
     incomeCategories: IncomeCategory[];
     defaultCurrency: Currency;
     /** When set, the modal edits an existing income with these values */
     initialData?: Partial<IncomeFormData>;
     funds?: Fund[];
+    projects?: FinanceProject[];
+    onCreateProject?: (name: string) => FinanceProject;
+    /** B2 charity step; null when this income owes nothing (or charity is off) */
+    getCharityPreview?: (income: IncomeFormData) => CharityPreview | null;
+    charityRate?: number;
+    /** A donation from a non-charity fund within a week of this date */
+    hasDonationNear?: (date: string) => boolean;
+    formatAmount?: (amount: number) => string;
 }
 
 export interface IncomeFormData {
@@ -63,6 +76,7 @@ export interface IncomeFormData {
     isRecurring: boolean;
     tags: string[];
     notes?: string;
+    projectId?: string;
 }
 
 const TRANSACTION_NATURES: {
@@ -99,6 +113,12 @@ export const IncomeModal = ({
     defaultCurrency,
     initialData,
     funds = [],
+    projects = [],
+    onCreateProject,
+    getCharityPreview,
+    charityRate = 0.2,
+    hasDonationNear,
+    formatAmount = (amount) => amount.toLocaleString("en-US"),
 }: IncomeModalProps) => {
     const isEditing = !!initialData;
     const [formData, setFormData] = useState<IncomeFormData>({
@@ -112,14 +132,16 @@ export const IncomeModal = ({
         type: "variable",
         status: "received",
         frequency: "one-time",
-        actualDate: new Date().toISOString().split("T")[0],
-        expectedDate: new Date().toISOString().split("T")[0],
+        actualDate: todayISO(),
+        expectedDate: todayISO(),
         isRecurring: false,
         tags: [],
         notes: "",
     });
 
-    const [step, setStep] = useState<"amount" | "details">("amount");
+    const [step, setStep] = useState<"amount" | "details" | "charity">(
+        "amount",
+    );
     const [canScrollLeft, setCanScrollLeft] = useState(false);
     const [canScrollRight, setCanScrollRight] = useState(true); // Default to true, will be corrected on mount
     const categoryScrollRef = useRef<HTMLDivElement>(null);
@@ -127,7 +149,7 @@ export const IncomeModal = ({
     // Reset form when modal opens
     useEffect(() => {
         if (isOpen) {
-            const today = new Date().toISOString().split("T")[0];
+            const today = todayISO();
             setFormData({
                 title: "",
                 amount: 0,
@@ -194,7 +216,7 @@ export const IncomeModal = ({
         }
     }, [incomeCategories, isOpen]);
 
-    const handleSubmit = () => {
+    const handleSubmit = (charity: CharityChoice | null = null) => {
         if (formData.amount <= 0 || !formData.accountId) {
             return;
         }
@@ -203,12 +225,29 @@ export const IncomeModal = ({
             incomeCategories.find((c) => c.id === formData.categoryId)?.name ||
             "Income";
 
-        onSubmit({
-            ...formData,
-            title: formData.title.trim() || fallbackTitle,
-        });
+        onSubmit(
+            {
+                ...formData,
+                title: formData.title.trim() || fallbackTitle,
+            },
+            charity,
+        );
         onClose();
     };
+
+    const charityPreview = useMemo(
+        () =>
+            step !== "amount" && getCharityPreview
+                ? getCharityPreview(formData)
+                : null,
+        [step, formData, getCharityPreview],
+    );
+    // Editing an income that owes nothing more saves straight away
+    const showCharityStep =
+        !!charityPreview &&
+        charityPreview.share > 0 &&
+        (!isEditing || charityPreview.toPay > 0);
+    const submitLabel = isEditing ? "Save changes" : "Add Income";
 
     const selectedAccount = accounts.find((a) => a.id === formData.accountId);
     const selectedType = TRANSACTION_NATURES.find(
@@ -257,7 +296,9 @@ export const IncomeModal = ({
                                         <p className="text-xs text-muted-foreground">
                                             {step === "amount"
                                                 ? "Enter amount"
-                                                : "Add details"}
+                                                : step === "details"
+                                                  ? "Add details"
+                                                  : "Charity"}
                                         </p>
                                     </div>
                                 </div>
@@ -459,6 +500,21 @@ export const IncomeModal = ({
                                             activeClassName="bg-emerald-500/20 ring-2 ring-emerald-500"
                                         />
                                     </>
+                                ) : step === "charity" && showCharityStep && charityPreview ? (
+                                    <CharityStep
+                                        preview={charityPreview}
+                                        rate={charityRate}
+                                        hasProject={!!formData.projectId}
+                                        showDoubleCountHint={
+                                            !!formData.actualDate &&
+                                            !!hasDonationNear?.(
+                                                formData.actualDate,
+                                            )
+                                        }
+                                        formatAmount={formatAmount}
+                                        onChoose={handleSubmit}
+                                        submitLabel={submitLabel}
+                                    />
                                 ) : (
                                     <>
                                         {/* Title */}
@@ -479,6 +535,21 @@ export const IncomeModal = ({
                                                 className="rounded-xl"
                                             />
                                         </div>
+
+                                        {onCreateProject && (
+                                            <ProjectPicker
+                                                projects={projects}
+                                                value={formData.projectId}
+                                                onChange={(projectId) =>
+                                                    setFormData((prev) => ({
+                                                        ...prev,
+                                                        projectId,
+                                                    }))
+                                                }
+                                                onCreate={onCreateProject}
+                                                activeClassName="bg-emerald-500/20 ring-2 ring-emerald-500"
+                                            />
+                                        )}
 
                                         {/* Status */}
                                         <div>
@@ -693,6 +764,13 @@ export const IncomeModal = ({
                                             Continue
                                         </Button>
                                     </>
+                                ) : step === "charity" ? (
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => setStep("details")}
+                                        className="flex-1 rounded-xl">
+                                        Back
+                                    </Button>
                                 ) : (
                                     <>
                                         <Button
@@ -702,9 +780,15 @@ export const IncomeModal = ({
                                             Back
                                         </Button>
                                         <Button
-                                            onClick={handleSubmit}
+                                            onClick={() =>
+                                                showCharityStep
+                                                    ? setStep("charity")
+                                                    : handleSubmit()
+                                            }
                                             className="flex-1 rounded-xl bg-emerald-500 hover:bg-emerald-600">
-                                            {isEditing ? "Save changes" : "Add Income"}
+                                            {showCharityStep
+                                                ? "Continue"
+                                                : submitLabel}
                                         </Button>
                                     </>
                                 )}

@@ -16,7 +16,10 @@
  */
 
 import type { AppData, FreelancingData } from "../types";
-import { FUND_ME_ID } from "../types/modules/finance";
+import {
+    DEFAULT_CHARITY_SETTINGS,
+    FUND_ME_ID,
+} from "../types/modules/finance";
 
 // Storage keys
 const V1_KEYS = {
@@ -276,6 +279,7 @@ export function getDefaultModuleData(): AppData {
             people: [],
             loans: [],
             loanPayments: [],
+            projects: [],
             incomes: [],
             expenses: [],
             categories: [],
@@ -296,6 +300,7 @@ export function getDefaultModuleData(): AppData {
                 weeklyReportEnabled: false,
                 monthlyReportEnabled: true,
                 focusedFundIds: [FUND_ME_ID],
+                charity: { ...DEFAULT_CHARITY_SETTINGS },
             },
         },
         home: {

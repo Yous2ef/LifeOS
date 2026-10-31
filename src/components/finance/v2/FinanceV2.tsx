@@ -66,6 +66,20 @@ import { AccountManager } from "./settings/AccountManager";
 import { SettingsPanel } from "./settings/SettingsPanel";
 import { CategoryStudioV2 } from "./settings/CategoryStudioV2";
 import { FundManager } from "./settings/FundManager";
+import { CharitySettings } from "./settings/CharitySettings";
+import { ProjectManager } from "./settings/ProjectManager";
+
+// Charity
+import { CharityStrip } from "./charity/CharityStrip";
+import { CharityBadge } from "./charity/CharityBadge";
+import { COPY as CHARITY_COPY } from "./charity/copy";
+import { CHARITY_SHARE_EPSILON } from "@/utils/finance/charity";
+import {
+    payNowFromFund,
+    paidOutsideAfter,
+    toDraftIncome,
+} from "./charity/incomeCharity";
+import type { TransferFormData } from "./modals/TransferModal";
 
 // Reports
 import { ReportsModal } from "./reports/ReportsModal";
@@ -139,6 +153,18 @@ export const FinanceV2 = () => {
         balanceOfFund,
         calculateFocusedBalance,
         netWorth: totalNetWorth,
+        charitySettings,
+        charityLedger,
+        enableCharity,
+        updateCharitySettings,
+        previewCharity,
+        charityDonationNear,
+        charityPaidOutsideNear,
+        projects,
+        addProject,
+        updateProject,
+        deleteProject,
+        getProjectDeleteError,
         people,
         loans,
         loanPayments,
@@ -196,6 +222,10 @@ export const FinanceV2 = () => {
     const [showExpenseModal, setShowExpenseModal] = useState(false);
     const [showIncomeModal, setShowIncomeModal] = useState(false);
     const [showTransferModal, setShowTransferModal] = useState(false);
+    // Starting values of a new transfer (charity "Pay": Me → Charity)
+    const [transferPrefill, setTransferPrefill] = useState<
+        Partial<TransferFormData> | undefined
+    >();
     const [showInstallmentModal, setShowInstallmentModal] = useState(false);
     const [showInstallmentDetailsModal, setShowInstallmentDetailsModal] =
         useState(false);
@@ -375,6 +405,43 @@ export const FinanceV2 = () => {
         ? calculateFocusedBalance
         : undefined;
 
+    const payCharity = (amount: number) => {
+        const account =
+            accounts.find((a) => a.isDefault && a.isActive) ??
+            accounts.find((a) => a.isActive);
+        if (!account) return;
+        setTransferPrefill({
+            fromAccountId: account.id,
+            toAccountId: account.id,
+            fromFundId: payNowFromFund(undefined, charitySettings.fundId),
+            toFundId: charitySettings.fundId,
+            amount,
+            notes: CHARITY_COPY.transferNote,
+        });
+        setShowTransferModal(true);
+    };
+
+    const editingIncome = transactionActions.editingIncome;
+    const getIncomeCharityPreview = useMemo(
+        () =>
+            charitySettings.enabled
+                ? (form: Parameters<typeof toDraftIncome>[0]) =>
+                      previewCharity(toDraftIncome(form, editingIncome))
+                : undefined,
+        [charitySettings.enabled, previewCharity, editingIncome],
+    );
+
+    const renderCharityBadge = (transaction: Transaction) => {
+        const entry =
+            transaction.type === "income"
+                ? charityLedger?.perIncome.get(transaction.id)
+                : undefined;
+        // Work costs can absorb a share entirely: nothing to show
+        return entry && entry.share > CHARITY_SHARE_EPSILON ? (
+            <CharityBadge entry={entry} formatAmount={formatAmount} />
+        ) : null;
+    };
+
     const fundManager = (
         <FundManager
             funds={funds}
@@ -386,6 +453,7 @@ export const FinanceV2 = () => {
             onToggleVisibility={toggleFundVisibility}
             getFundBalance={balanceOfFund}
             formatCurrency={formatCurrency}
+            charityFundId={charitySettings.fundId}
         />
     );
 
@@ -562,6 +630,16 @@ export const FinanceV2 = () => {
                 />
             </GlassCard>
 
+            {charityLedger && (
+                <CharityStrip
+                    ledger={charityLedger}
+                    rate={charitySettings.rate}
+                    formatAmount={formatAmount}
+                    onPay={payCharity}
+                    className="mt-3"
+                />
+            )}
+
             {/* Accounts List */}
             <FinanceSection title="Accounts" className="max-lg:hidden mt-5">
                 {isLoading ? (
@@ -726,6 +804,7 @@ export const FinanceV2 = () => {
                     onDelete={transactionActions.handleDelete}
                     selectedAccount={selectedAccount}
                     onClearAccountFilter={() => setSelectedAccount(null)}
+                    renderBadge={charityLedger ? renderCharityBadge : undefined}
                 />
             )}
         </>
@@ -824,6 +903,8 @@ export const FinanceV2 = () => {
                         recurringFrequency: data.recurringFrequency,
                         tags: data.tags,
                         notes: data.notes,
+                        projectId: data.projectId,
+                        isWorkCost: data.isWorkCost,
                     };
                     const editing = transactionActions.editingExpense;
                     if (editing) {
@@ -839,6 +920,12 @@ export const FinanceV2 = () => {
                 funds={funds}
                 getFundBalance={balanceOf}
                 formatCurrency={formatCurrency}
+                projects={projects}
+                onCreateProject={addProject}
+                showWorkCost={charitySettings.enabled}
+                donationCategoryIds={charitySettings.donationCategoryIds}
+                charityFundId={charitySettings.fundId}
+                hasPaidOutsideNear={charityPaidOutsideNear}
             />
 
             {/* Income Modal */}
@@ -849,10 +936,11 @@ export const FinanceV2 = () => {
                     transactionActions.stopEdit();
                 }}
                 initialData={transactionActions.incomeInitialData}
-                onSubmit={(data) => {
+                onSubmit={(data, charity) => {
                     const fallbackTitle =
                         incomeCategories.find((c) => c.id === data.categoryId)
                             ?.name || "Income";
+                    const editing = transactionActions.editingIncome;
                     const incomeData = {
                         title: data.title?.trim() || fallbackTitle,
                         amount: data.amount,
@@ -875,19 +963,48 @@ export const FinanceV2 = () => {
                         isRecurring: data.isRecurring,
                         tags: data.tags,
                         notes: data.notes,
+                        projectId: data.projectId,
+                        charityPaidOutsideAmount: paidOutsideAfter(
+                            charity,
+                            editing,
+                        ),
                     };
-                    const editing = transactionActions.editingIncome;
+                    let incomeId = editing?.id;
                     if (editing) {
                         updateIncome(editing.id, incomeData);
                         transactionActions.stopEdit();
                     } else {
-                        addIncome(incomeData);
+                        incomeId = addIncome(incomeData).id;
+                    }
+                    if (charity?.action === "pay-now") {
+                        transferBetweenAccounts(
+                            data.accountId,
+                            data.accountId,
+                            charity.amount,
+                            CHARITY_COPY.transferNote,
+                            data.actualDate,
+                            {
+                                fromFundId: payNowFromFund(
+                                    data.fundId,
+                                    charitySettings.fundId,
+                                ),
+                                toFundId: charitySettings.fundId,
+                                // Pays this income first, not the oldest one
+                                charityIncomeId: incomeId,
+                            },
+                        );
                     }
                 }}
                 accounts={accounts}
                 incomeCategories={incomeCategories}
                 defaultCurrency={settings.defaultCurrency}
                 funds={funds}
+                projects={projects}
+                onCreateProject={addProject}
+                getCharityPreview={getIncomeCharityPreview}
+                charityRate={charitySettings.rate}
+                hasDonationNear={charityDonationNear}
+                formatAmount={formatAmount}
             />
 
             {/* Installment Modal */}
@@ -1047,9 +1164,11 @@ export const FinanceV2 = () => {
                 }
                 onClose={() => {
                     setShowTransferModal(false);
+                    setTransferPrefill(undefined);
                     transactionActions.stopEdit();
                 }}
                 initialData={transactionActions.transferInitialData}
+                prefill={transferPrefill}
                 onSubmit={(data) => {
                     const editing = transactionActions.editingTransfer;
                     if (editing) {
@@ -1214,6 +1333,26 @@ export const FinanceV2 = () => {
                             />
                         }
                         fundsContent={fundManager}
+                        charityContent={
+                            <CharitySettings
+                                settings={charitySettings}
+                                ledger={charityLedger}
+                                incomeCategories={incomeCategories}
+                                expenseCategories={categories}
+                                onEnable={enableCharity}
+                                onUpdate={updateCharitySettings}
+                                formatAmount={formatAmount}
+                            />
+                        }
+                        projectsContent={
+                            <ProjectManager
+                                projects={projects}
+                                onAddProject={addProject}
+                                onUpdateProject={updateProject}
+                                onDeleteProject={deleteProject}
+                                getDeleteError={getProjectDeleteError}
+                            />
+                        }
                         categoriesContent={
                             <CategoryStudioV2
                                 expenseCategories={categories}
@@ -1279,6 +1418,10 @@ export const FinanceV2 = () => {
                                 }}
                                 formatCurrency={formatCurrency}
                                 defaultCurrency={settings.defaultCurrency}
+                                showWorkCost={charitySettings.enabled}
+                                donationCategoryIds={
+                                    charitySettings.donationCategoryIds
+                                }
                             />
                         }
                     />

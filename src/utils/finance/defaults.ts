@@ -1,14 +1,22 @@
 import {
+    DEFAULT_CHARITY_SETTINGS,
     DEFAULT_FINANCE_SETTINGS,
+    FUND_CHARITY_ID,
     FUND_ME_ID,
+    type CharitySettings,
     type ExpenseCategory,
     type FinanceData,
+    type FinanceSettings,
     type Fund,
     type IncomeCategory,
 } from "@/types/modules/finance";
 
 // Default records get fixed ids so two devices seeding them create the same
 // records — cloud merge unions by id, random ids would duplicate them.
+/** Order value that puts a new record after every existing one */
+export const nextOrder = (list: { order: number }[]): number =>
+    Math.max(0, ...list.map((item) => item.order)) + 1;
+
 const defaultId = (prefix: string, name: string): string =>
     `${prefix}_${name.toLowerCase().replace(/[^a-z0-9]+/g, "_")}`;
 
@@ -315,9 +323,66 @@ export const getDefaultIncomeCategories = (): IncomeCategory[] => {
     return items.map((item) => ({ ...item, id: defaultId("inc_cat", item.name) }));
 };
 
-export const getDefaultFinanceSettings = () => ({
+// Fresh arrays each call so no caller can mutate the shared defaults
+export const getDefaultCharitySettings = (): CharitySettings => ({
+    ...DEFAULT_CHARITY_SETTINGS,
+    eligibleIncomeCategoryIds: [],
+    donationCategoryIds: [],
+});
+
+export const getDefaultFinanceSettings = (): FinanceSettings => ({
     ...DEFAULT_FINANCE_SETTINGS,
     focusedFundIds: [FUND_ME_ID],
+    charity: getDefaultCharitySettings(),
+});
+
+export const getDefaultCharityFund = (now: string, order: number): Fund => ({
+    id: FUND_CHARITY_ID,
+    name: "Charity",
+    icon: "🤲",
+    color: "#14b8a6",
+    kind: "charity",
+    isVisible: true,
+    order,
+    createdAt: now,
+    updatedAt: now,
+});
+
+// Fixed ids, like the seeded categories, so two devices enabling charity
+// create the same records
+export const DONATIONS_CATEGORY_ID = defaultId("exp_cat", "Donations");
+export const REFUND_INCOME_CATEGORY_ID = defaultId("inc_cat", "Refund");
+
+export const getDonationsCategory = (
+    now: string,
+    order: number,
+): ExpenseCategory => ({
+    id: DONATIONS_CATEGORY_ID,
+    name: "Donations",
+    nameAr: "صدقات",
+    icon: "🤲",
+    color: "#14b8a6",
+    isEssential: false,
+    isDefault: false,
+    isWorkCostDefault: false,
+    order,
+    createdAt: now,
+    updatedAt: now,
+});
+
+export const getRefundIncomeCategory = (
+    now: string,
+    order: number,
+): IncomeCategory => ({
+    id: REFUND_INCOME_CATEGORY_ID,
+    name: "Refund",
+    nameAr: "استرداد",
+    icon: "🔄",
+    color: "#06b6d4",
+    isDefault: true,
+    order,
+    createdAt: now,
+    updatedAt: now,
 });
 
 export const getDefaultFinanceData = (): FinanceData => ({
@@ -327,6 +392,7 @@ export const getDefaultFinanceData = (): FinanceData => ({
     people: [],
     loans: [],
     loanPayments: [],
+    projects: [],
     incomes: [],
     expenses: [],
     categories: getDefaultExpenseCategories(),

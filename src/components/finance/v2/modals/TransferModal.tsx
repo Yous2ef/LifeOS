@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { TextArea } from "@/components/ui/TextArea";
 import { fundOf } from "@/utils/finance/balances";
+import { todayISO } from "@/utils/finance/dates";
 import { FundBalanceWarning, FundSelect } from "../controls/FundPicker";
 import type { Account, Currency, Fund } from "@/types/modules/finance";
 
@@ -32,6 +33,8 @@ interface TransferModalProps {
     getFundBalance?: (accountId: string, fundId: string) => number;
     /** When set, the modal edits an existing transfer with these values */
     initialData?: Partial<TransferFormData>;
+    /** Starting values for a new transfer (e.g. "Pay" charity: Me → Charity) */
+    prefill?: Partial<TransferFormData>;
 }
 
 export interface TransferFormData {
@@ -55,6 +58,7 @@ export const TransferModal = ({
     funds = [],
     getFundBalance,
     initialData,
+    prefill,
 }: TransferModalProps) => {
     const isEditing = !!initialData;
     const activeAccounts = accounts.filter((a) => a.isActive);
@@ -74,7 +78,7 @@ export const TransferModal = ({
         fromFundId: fundOf(),
         toFundId: fundOf(),
         amount: 0,
-        date: new Date().toISOString().split("T")[0],
+        date: todayISO(),
         notes: "",
     });
 
@@ -88,16 +92,16 @@ export const TransferModal = ({
                 fromAccountId: active[0]?.id || "",
                 toAccountId: active[1]?.id || "",
                 amount: 0,
-                date: new Date().toISOString().split("T")[0],
+                date: todayISO(),
                 notes: "",
-                ...initialData,
-                fromFundId: fundOf(initialData?.fromFundId),
-                toFundId: fundOf(initialData?.toFundId),
+                ...(initialData ?? prefill),
+                fromFundId: fundOf((initialData ?? prefill)?.fromFundId),
+                toFundId: fundOf((initialData ?? prefill)?.toFundId),
             });
             setIsTransferring(false);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isOpen, initialData]);
+    }, [isOpen, initialData, prefill]);
 
     // Same account is fine when the fund changes (a fund transfer)
     const isSamePlaceAndOwner =

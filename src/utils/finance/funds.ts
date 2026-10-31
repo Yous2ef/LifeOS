@@ -45,10 +45,15 @@ export const focusWithoutFund = (
  */
 export const getFundDeleteBlocker = (
     data: Pick<FinanceData, "incomes" | "expenses" | "transfers"> &
-        Partial<Pick<FinanceData, "loans" | "loanPayments">>,
+        Partial<Pick<FinanceData, "loans" | "loanPayments" | "settings">>,
     fundId: string,
 ): string | null => {
-    if (fundId === FUND_ME_ID || fundId === FUND_CHARITY_ID) {
+    // An adopted charity fund keeps its own id but is just as fixed
+    if (
+        fundId === FUND_ME_ID ||
+        fundId === FUND_CHARITY_ID ||
+        fundId === data.settings?.charity?.fundId
+    ) {
         return "This fund can't be deleted.";
     }
 

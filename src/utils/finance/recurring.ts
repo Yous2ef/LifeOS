@@ -131,6 +131,8 @@ export const applyRecurringIncomes = (
             expectedDate: undefined,
             isRecurring: false,
             nextOccurrence: undefined,
+            // "Already paid" was for the template's own income, not its copies
+            charityPaidOutsideAmount: undefined,
             createdAt: now,
             updatedAt: now,
             notes: withAutoNote(template.notes, "income"),

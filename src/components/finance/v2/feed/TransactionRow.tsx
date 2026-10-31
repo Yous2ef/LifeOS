@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { motion } from "framer-motion";
 import {
     ArrowUpRight,
@@ -25,6 +26,8 @@ interface TransactionRowProps {
     onEdit?: () => void;
     onDelete?: () => void;
     index?: number;
+    /** Extra status chip under the title (e.g. an income's charity status) */
+    badge?: ReactNode;
 }
 
 export const TransactionRow = ({
@@ -34,6 +37,7 @@ export const TransactionRow = ({
     onEdit,
     onDelete,
     index = 0,
+    badge,
 }: TransactionRowProps) => {
     const isIncome = transaction.type === "income";
     const isTransfer = transaction.type === "transfer";
@@ -117,6 +121,7 @@ export const TransactionRow = ({
                             {transaction.category}
                         </span>
                     )}
+                    {badge}
                     {time && <span>{time}</span>}
                     {transaction.location && (
                         <span className="truncate">
