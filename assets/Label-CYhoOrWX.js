@@ -1,0 +1,1 @@
+import{j as r,d as a}from"./radix-ui-E0nhqg54.js";import{r as t}from"./router-CMlNU3pY.js";import{c as m}from"./index-CBNHb-Dr.js";const d=t.forwardRef(({className:e,...o},s)=>r.jsx(a,{ref:s,className:m("text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70",e),...o}));d.displayName=a.displayName;export{d as L};
