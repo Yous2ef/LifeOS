@@ -1,12 +1,14 @@
 import type {
     Account,
     AccountTransfer,
+    CharityPledge,
     Expense,
     FinanceData,
     Income,
     Installment,
     Loan,
     LoanPayment,
+    OpeningBalanceEntry,
     Person,
 } from "@/types/modules/finance";
 import { normalizeFinanceData } from "../normalize";
@@ -126,6 +128,27 @@ export const loanPayment = (over: Partial<LoanPayment> = {}): LoanPayment => ({
     amount: 100,
     accountId: "acc_1",
     date: "2026-10-20",
+    createdAt: STAMP,
+    updatedAt: STAMP,
+    ...over,
+});
+
+export const openingEntry = (
+    over: Partial<OpeningBalanceEntry> = {},
+): OpeningBalanceEntry => ({
+    id: "ob_1",
+    accountId: "acc_1",
+    amount: 1000,
+    date: "2026-10-01",
+    createdAt: STAMP,
+    updatedAt: STAMP,
+    ...over,
+});
+
+export const pledge = (over: Partial<CharityPledge> = {}): CharityPledge => ({
+    id: "pledge_1",
+    amount: 500,
+    date: "2026-11-15",
     createdAt: STAMP,
     updatedAt: STAMP,
     ...over,

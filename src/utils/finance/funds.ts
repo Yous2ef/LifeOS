@@ -45,7 +45,12 @@ export const focusWithoutFund = (
  */
 export const getFundDeleteBlocker = (
     data: Pick<FinanceData, "incomes" | "expenses" | "transfers"> &
-        Partial<Pick<FinanceData, "loans" | "loanPayments" | "settings">>,
+        Partial<
+            Pick<
+                FinanceData,
+                "loans" | "loanPayments" | "openingBalances" | "settings"
+            >
+        >,
     fundId: string,
 ): string | null => {
     // An adopted charity fund keeps its own id but is just as fixed
@@ -68,6 +73,9 @@ export const getFundDeleteBlocker = (
         (data.loans ?? []).some((loan) => fundOf(loan.fundId) === fundId) ||
         (data.loanPayments ?? []).some(
             (payment) => fundOf(payment.fundId) === fundId,
+        ) ||
+        (data.openingBalances ?? []).some(
+            (entry) => fundOf(entry.fundId) === fundId,
         );
     if (isUsed) return "This fund has transactions. Hide it instead.";
 

@@ -32,6 +32,7 @@ const TYPE_LABELS: Record<TransactionType, string> = {
     expense: "Expense",
     transfer: "Transfer",
     loan: "Loan",
+    opening: "Opening balance",
 };
 
 const COPY = {

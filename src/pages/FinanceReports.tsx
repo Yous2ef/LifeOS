@@ -133,6 +133,7 @@ export const FinanceReports = () => {
         focusedFundIds,
         loans,
         loanPayments,
+        openingBalances,
         projects,
         settings,
         charitySettings,
@@ -230,8 +231,15 @@ export const FinanceReports = () => {
     // The range clipped to the first record, so "All" doesn't chart (or
     // average over) years before any money was tracked
     const firstDay = useMemo(
-        () => firstRecordDate({ incomes, expenses, transfers, loans }),
-        [incomes, expenses, transfers, loans],
+        () =>
+            firstRecordDate({
+                incomes,
+                expenses,
+                transfers,
+                loans,
+                openingBalances,
+            }),
+        [incomes, expenses, transfers, loans, openingBalances],
     );
     const activeRange = useMemo(() => {
         const firstDate = new Date(`${firstDay ?? today}T00:00:00`);
@@ -358,10 +366,21 @@ export const FinanceReports = () => {
             transfers,
             loans,
             loanPayments,
+            openingBalances,
             categories,
             incomeCategories,
         }),
-        [accounts, incomes, expenses, transfers, loans, loanPayments, categories, incomeCategories],
+        [
+            accounts,
+            incomes,
+            expenses,
+            transfers,
+            loans,
+            loanPayments,
+            openingBalances,
+            categories,
+            incomeCategories,
+        ],
     );
     const statementScope = useMemo(
         () => ({

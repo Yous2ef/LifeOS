@@ -30,6 +30,8 @@ export const normalizeFinanceData = (
         people: data.people ?? defaults.people,
         loans: data.loans ?? defaults.loans,
         loanPayments: data.loanPayments ?? defaults.loanPayments,
+        openingBalances: data.openingBalances ?? defaults.openingBalances,
+        charityPledges: data.charityPledges ?? defaults.charityPledges,
         projects: data.projects ?? defaults.projects,
         incomes: data.incomes ?? defaults.incomes,
         expenses: data.expenses ?? defaults.expenses,
@@ -45,6 +47,7 @@ export const normalizeFinanceData = (
             focusedFundIds:
                 data.settings?.focusedFundIds ??
                 defaults.settings.focusedFundIds,
+            hiddenHomeCards: data.settings?.hiddenHomeCards ?? [],
             // One level deeper than the spread above: older settings have no
             // charity, newer ones may lack fields added later
             charity: {

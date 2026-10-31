@@ -65,6 +65,12 @@ export interface StatementTransfers {
     net: number;
 }
 
+/** Opening balance entries dated in the period: money found, not earned */
+export interface StatementOpeningEntries {
+    total: number;
+    count: number;
+}
+
 export interface MonthlyStatement extends StatementPeriod {
     opening: number;
     income: StatementSection;
@@ -73,10 +79,11 @@ export interface MonthlyStatement extends StatementPeriod {
     net: number;
     loans: StatementLoans;
     transfers: StatementTransfers;
+    openingEntries: StatementOpeningEntries;
     /** Balance at the end of the period, read from computeBalances */
     closing: number;
     /**
-     * opening + net + loans + transfers − closing. Always 0 unless a record
+     * opening + net + loans + transfers + opening entries − closing. Always 0 unless a record
      * changed between reads; shown so a mismatch can never hide.
      */
     difference: number;
@@ -178,7 +185,8 @@ const section = (
 
 /**
  * What happened to the money in `scope` during `period`:
- * opening + income − expense ± loans ± transfers crossing the scope = closing.
+ * opening + income − expense ± loans ± transfers crossing the scope + opening
+ * balance entries = closing.
  *
  * Opening and closing come from computeBalances (the one balance source), so
  * the statement agrees with every balance shown elsewhere. Records are read
@@ -250,6 +258,15 @@ export const computeMonthlyStatement = (
     });
     transfers.net = transfers.in - transfers.out;
 
+    const openingEntries: StatementOpeningEntries = { total: 0, count: 0 };
+    (data.openingBalances ?? []).forEach((entry) => {
+        if (!inPeriod(entry.date) || !inScope(entry.accountId, entry.fundId)) {
+            return;
+        }
+        openingEntries.total += entry.amount;
+        openingEntries.count += 1;
+    });
+
     const net = income.total - expense.total;
     return {
         ...period,
@@ -270,7 +287,18 @@ export const computeMonthlyStatement = (
             internal: roundMoney(transfers.internal),
             net: roundMoney(transfers.net),
         },
+        openingEntries: {
+            total: roundMoney(openingEntries.total),
+            count: openingEntries.count,
+        },
         closing: roundMoney(closing),
-        difference: roundMoney(opening + net + loans.net + transfers.net - closing),
+        difference: roundMoney(
+            opening +
+                net +
+                loans.net +
+                transfers.net +
+                openingEntries.total -
+                closing,
+        ),
     };
 };

@@ -17,9 +17,15 @@ export type FeedSource = Pick<
     | "loans"
     | "loanPayments"
     | "people"
->;
+> &
+    Partial<Pick<FinanceData, "openingBalances">>;
 
-/** Every income, expense, transfer and loan movement as one feed, newest first */
+export const OPENING_BALANCE_LABEL = "Opening balance";
+
+/**
+ * Every income, expense, transfer, loan movement and opening balance entry as
+ * one feed, newest first
+ */
 export const buildFeedRows = (
     data: FeedSource,
     charity: CharitySettings,
@@ -110,7 +116,27 @@ export const buildFeedRows = (
         (row) => ({ ...row, fundId: loanFund.get(row.id) }),
     );
 
-    return [...incomeRows, ...expenseRows, ...transferRows, ...loanRows].sort(
+    const openingRows: SearchableTransaction[] = (
+        data.openingBalances ?? []
+    ).map((entry) => ({
+        id: entry.id,
+        type: "opening",
+        title: entry.notes || OPENING_BALANCE_LABEL,
+        amount: entry.amount,
+        date: entry.date,
+        accountId: entry.accountId,
+        fundId: entry.fundId,
+        category: OPENING_BALANCE_LABEL,
+        notes: entry.notes,
+    }));
+
+    return [
+        ...incomeRows,
+        ...expenseRows,
+        ...transferRows,
+        ...loanRows,
+        ...openingRows,
+    ].sort(
         (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
     );
 };

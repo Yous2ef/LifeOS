@@ -3,6 +3,7 @@ import {
     AlertTriangle,
     ArrowLeftRight,
     CheckCircle2,
+    Coins,
     ChevronLeft,
     ChevronRight,
     FileText,
@@ -277,6 +278,23 @@ export const MonthlyStatementReport = ({
                         )}
                     </div>
 
+                    {statement.openingEntries.count > 0 && (
+                        <div className="py-2">
+                            <Row
+                                strong
+                                label={
+                                    <span className="inline-flex items-center gap-2 text-amber-500">
+                                        <Coins className="w-4 h-4" /> Opening balances
+                                    </span>
+                                }
+                                value={signed(statement.openingEntries.total, format.currency)}
+                            />
+                            <p className="text-xs text-muted-foreground pb-1">
+                                Money your accounts already had. Not income.
+                            </p>
+                        </div>
+                    )}
+
                     <Row strong label="Closing balance" value={format.currency(statement.closing)} />
                 </div>
 
@@ -288,7 +306,9 @@ export const MonthlyStatementReport = ({
                     {statement.difference === 0 ? (
                         <>
                             <CheckCircle2 className="w-3.5 h-3.5" />
-                            Opening + net + loans + transfers = closing balance
+                            {statement.openingEntries.count > 0
+                                ? "Opening + net + loans + transfers + opening balances = closing balance"
+                                : "Opening + net + loans + transfers = closing balance"}
                         </>
                     ) : (
                         <>

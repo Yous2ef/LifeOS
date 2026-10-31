@@ -23,16 +23,20 @@ import { todayISO } from "./dates";
 import { loanTotals, roundMoney } from "./loans";
 import { nextMonth } from "./statements";
 
-/** Day (YYYY-MM-DD) of the oldest income, expense, transfer or loan; null when none */
+/**
+ * Day (YYYY-MM-DD) of the oldest income, expense, transfer, loan or opening
+ * balance entry; null when none
+ */
 export const firstRecordDate = (
     data: Pick<FinanceData, "incomes" | "expenses"> &
-        Partial<Pick<FinanceData, "transfers" | "loans">>,
+        Partial<Pick<FinanceData, "transfers" | "loans" | "openingBalances">>,
 ): string | null => {
     const dates = [
         ...data.incomes.map(incomeDate),
         ...data.expenses.map((expense) => expense.date),
         ...(data.transfers ?? []).map((transfer) => transfer.date),
         ...(data.loans ?? []).map((loan) => loan.date),
+        ...(data.openingBalances ?? []).map((entry) => entry.date),
     ];
     return dates.reduce<string | null>((first, date) => {
         const d = day(date);

@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import {
     ArrowUpRight,
     ArrowLeftRight,
+    Coins,
     HandCoins,
     MoreHorizontal,
     Trash2,
@@ -16,11 +17,11 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/Button";
-import type { Transaction } from "@/types/modules/finance";
+import type { SearchableTransaction } from "@/utils/finance/search";
 import { loanCashSign } from "@/utils/finance/balances";
 
 interface TransactionRowProps {
-    transaction: Transaction;
+    transaction: SearchableTransaction;
     formatCurrency: (amount: number) => string;
     onClick?: () => void;
     onEdit?: () => void;
@@ -41,6 +42,14 @@ export const TransactionRow = ({
 }: TransactionRowProps) => {
     const isIncome = transaction.type === "income";
     const isTransfer = transaction.type === "transfer";
+    const isOpening = transaction.type === "opening";
+    // Seen from the focused funds a transfer can bring money in or take it out
+    const transferSign =
+        transaction.focusDirection === "in"
+            ? "+"
+            : transaction.focusDirection === "out"
+              ? "-"
+              : "";
     const loan = transaction.loan;
     // Loans and repayments: + when money came in, − when it left
     const loanSign = loan
@@ -84,6 +93,8 @@ export const TransactionRow = ({
                         ? "rgba(34, 197, 94, 0.1)"
                         : loan
                         ? "rgba(139, 92, 246, 0.1)"
+                        : isOpening
+                        ? "rgba(245, 158, 11, 0.1)"
                         : isTransfer
                         ? "rgba(59, 130, 246, 0.1)"
                         : transaction.categoryColor
@@ -94,6 +105,8 @@ export const TransactionRow = ({
                     <ArrowUpRight className="w-5 h-5 text-emerald-500" />
                 ) : loan ? (
                     <HandCoins className="w-5 h-5 text-violet-500" />
+                ) : isOpening ? (
+                    <Coins className="w-5 h-5 text-amber-500" />
                 ) : isTransfer ? (
                     <ArrowLeftRight className="w-5 h-5 text-blue-500" />
                 ) : (
@@ -142,14 +155,16 @@ export const TransactionRow = ({
                             ? "text-emerald-500"
                             : loan
                             ? "text-violet-500"
+                            : isOpening
+                            ? "text-amber-500"
                             : isTransfer
                             ? "text-blue-500"
                             : "text-foreground"
                     )}>
-                    {isIncome || loanSign > 0
+                    {isIncome || isOpening || loanSign > 0
                         ? "+"
                         : isTransfer
-                        ? ""
+                        ? transferSign
                         : "-"}{" "}
                     {formatCurrency(transaction.amount)}
                 </motion.p>

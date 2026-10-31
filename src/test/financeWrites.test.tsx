@@ -471,6 +471,181 @@ describe("finance writes", () => {
         });
     });
 
+    describe("opening balances", () => {
+        it("moves the balance without income, blocks account delete, and undo restores it", () => {
+            const { result } = renderHook(() => useFinance(), { wrapper });
+            let accountId = "";
+            act(() => {
+                accountId = result.current.addAccount({
+                    name: "Wallet",
+                    type: "cash",
+                    initialBalance: 0,
+                    color: "#000",
+                    icon: "",
+                    currency: "EGP",
+                    isDefault: false,
+                    isActive: true,
+                    order: 9,
+                }).id;
+            });
+            let outcome = { success: false } as { success: boolean };
+            act(() => {
+                outcome = result.current.addOpeningBalance({
+                    accountId,
+                    amount: 1500,
+                    date: "2026-11-01",
+                });
+            });
+            expect(outcome.success).toBe(true);
+            expect(result.current.calculateAccountBalance(accountId)).toBe(1500);
+            expect(result.current.incomes).toHaveLength(0);
+            expect(result.current.deleteAccount(accountId).success).toBe(false);
+
+            const entry = result.current.openingBalances[0];
+            act(() => {
+                result.current.deleteOpeningBalance(entry.id);
+            });
+            expect(result.current.openingBalances).toHaveLength(0);
+            expect(result.current.calculateAccountBalance(accountId)).toBe(0);
+            expect(
+                result.current.exportData().deleted?.some((d) => d.id === entry.id),
+            ).toBe(true);
+
+            act(() => {
+                result.current.restoreRecord({ kind: "opening", record: entry });
+            });
+            expect(result.current.openingBalances.map((o) => o.id)).toEqual([
+                entry.id,
+            ]);
+            expect(result.current.calculateAccountBalance(accountId)).toBe(1500);
+            expect(
+                result.current.exportData().deleted?.some((d) => d.id === entry.id),
+            ).toBe(false);
+        });
+
+        it("won't undo onto a fund deleted since", () => {
+            const { result } = renderHook(() => useFinance(), { wrapper });
+            const accountId = result.current.accounts[0]?.id ?? "";
+            let fundId = "";
+            act(() => {
+                fundId = result.current.addFund({
+                    name: "Investment",
+                    icon: "",
+                    color: "",
+                }).id;
+            });
+            act(() => {
+                result.current.addOpeningBalance({
+                    accountId,
+                    fundId,
+                    amount: 100,
+                    date: "2026-11-01",
+                });
+            });
+            const entry = result.current.openingBalances[0];
+            act(() => {
+                result.current.deleteOpeningBalance(entry.id);
+            });
+            act(() => {
+                result.current.deleteFund(fundId);
+            });
+            let outcome = { success: true } as {
+                success: boolean;
+                error?: string;
+            };
+            act(() => {
+                outcome = result.current.restoreRecord({
+                    kind: "opening",
+                    record: entry,
+                });
+            });
+            expect(outcome.error).toBe("Couldn't undo — this fund was deleted.");
+            expect(result.current.openingBalances).toHaveLength(0);
+        });
+
+        it("refuses an amount of 0 or less", () => {
+            const { result } = renderHook(() => useFinance(), { wrapper });
+            const accountId = result.current.accounts[0]?.id ?? "a";
+            let outcome = { success: true } as { success: boolean };
+            act(() => {
+                outcome = result.current.addOpeningBalance({
+                    accountId,
+                    amount: 0,
+                    date: "2026-11-01",
+                });
+            });
+            expect(outcome.success).toBe(false);
+            expect(result.current.openingBalances).toHaveLength(0);
+        });
+    });
+
+    it("adds extra charity to what is owed, and undo brings a deleted one back", () => {
+        const { result } = renderHook(() => useFinance(), { wrapper });
+        act(() => {
+            result.current.enableCharity();
+        });
+        act(() => {
+            result.current.addCharityPledge({
+                amount: 300,
+                date: "2026-11-05",
+                notes: "Extra",
+            });
+        });
+        expect(result.current.charityLedger?.owed).toBe(300);
+        expect(result.current.charityLedger?.remaining).toBe(300);
+
+        let early = { success: true } as { success: boolean; error?: string };
+        act(() => {
+            early = result.current.addCharityPledge({
+                amount: 50,
+                date: "2026-10-31",
+            });
+        });
+        expect(early.error).toBe("Before your charity start date");
+        expect(result.current.charityPledges).toHaveLength(1);
+
+        const pledge = result.current.charityPledges[0];
+        act(() => {
+            result.current.deleteCharityPledge(pledge.id);
+        });
+        expect(result.current.charityLedger?.owed).toBe(0);
+        act(() => {
+            result.current.restoreRecord({ kind: "charityPledge", record: pledge });
+        });
+        expect(result.current.charityLedger?.owed).toBe(300);
+    });
+
+    it("pins an account and hides a home card", () => {
+        const { result } = renderHook(() => useFinance(), { wrapper });
+        let accountId = "";
+        act(() => {
+            accountId = result.current.addAccount({
+                name: "Bank",
+                type: "bank",
+                initialBalance: 0,
+                color: "#000",
+                icon: "",
+                currency: "EGP",
+                isDefault: false,
+                isActive: true,
+                order: 2,
+            }).id;
+        });
+        act(() => {
+            result.current.toggleAccountPin(accountId);
+            result.current.setHomeCardHidden("goals", true);
+            result.current.setHomeCardHidden("budget", true);
+        });
+        expect(
+            result.current.accounts.find((a) => a.id === accountId)?.isPinned,
+        ).toBe(true);
+        expect(result.current.hiddenHomeCards).toEqual(["goals", "budget"]);
+        act(() => {
+            result.current.setHomeCardHidden("goals", false);
+        });
+        expect(result.current.hiddenHomeCards).toEqual(["budget"]);
+    });
+
     it("blocks deleting a project while a transaction uses it", () => {
         const { result } = renderHook(() => useFinance(), { wrapper });
         let projectId = "";

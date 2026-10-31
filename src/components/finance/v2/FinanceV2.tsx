@@ -29,6 +29,7 @@ import { AccountCarousel } from "./wallet/AccountCarousel";
 import { AccountList } from "./wallet/AccountList";
 import { BudgetWidget } from "./wallet/BudgetWidget";
 import { FundTabs } from "./wallet/FundTabs";
+import { AccountMenu } from "./wallet/AccountMenu";
 
 // Feed Components
 import { TransactionFeed } from "./feed/TransactionFeed";
@@ -60,6 +61,10 @@ import { GoalWithdrawalModal } from "./modals/GoalWithdrawalModal";
 import { TransferModal } from "./modals/TransferModal";
 import { PaymentModal } from "./modals/PaymentModal";
 import { BudgetModal } from "./modals/BudgetModal";
+import {
+    OpeningBalanceModal,
+    type OpeningBalanceTarget,
+} from "./modals/OpeningBalanceModal";
 
 // Settings
 import { AccountManager } from "./settings/AccountManager";
@@ -68,10 +73,12 @@ import { CategoryStudioV2 } from "./settings/CategoryStudioV2";
 import { FundManager } from "./settings/FundManager";
 import { CharitySettings } from "./settings/CharitySettings";
 import { ProjectManager } from "./settings/ProjectManager";
+import { HomeCardHideButton, HomeCardsSettings } from "./settings/HomeCards";
 
 // Charity
 import { CharityStrip } from "./charity/CharityStrip";
 import { CharityBadge } from "./charity/CharityBadge";
+import { useCharityPledges } from "./charity/useCharityPledges";
 import { COPY as CHARITY_COPY } from "./charity/copy";
 import { CHARITY_SHARE_EPSILON } from "@/utils/finance/charity";
 import {
@@ -83,7 +90,6 @@ import type { TransferFormData } from "./modals/TransferModal";
 import type { ExpenseFormData } from "./modals/ExpenseModal";
 import type { IncomeFormData } from "./modals/IncomeModal";
 import type { CharityChoice } from "./charity/CharityStep";
-import { QuickAddSheet, type QuickAddDraft } from "./controls/QuickAddSheet";
 
 import type {
     Account,
@@ -91,6 +97,7 @@ import type {
     Income,
     Transaction,
     FinancialGoal,
+    HomeCardId,
     Installment,
 } from "@/types/modules/finance";
 import {
@@ -99,7 +106,7 @@ import {
 } from "@/utils/finance/installments";
 import { buildFeedRows } from "@/utils/finance/feedRows";
 import { touchesAccount } from "@/utils/finance/search";
-import { rememberQuickAdd } from "@/utils/finance/quickAdd";
+import { focusCashFlowRecords, focusFeedRows } from "@/utils/finance/fundFocus";
 import { useTransactionActions } from "./feed/useTransactionActions";
 
 // Custom hook for celebration
@@ -196,6 +203,17 @@ export const FinanceV2 = () => {
         addAccount,
         updateAccount,
         deleteAccount,
+        toggleAccountPin,
+        openingBalances,
+        addOpeningBalance,
+        updateOpeningBalance,
+        deleteOpeningBalance,
+        charityPledges,
+        addCharityPledge,
+        updateCharityPledge,
+        deleteCharityPledge,
+        hiddenHomeCards,
+        setHomeCardHidden,
         addCategory,
         updateCategory,
         deleteCategory,
@@ -243,9 +261,8 @@ export const FinanceV2 = () => {
     const [showAccountManager, setShowAccountManager] = useState(false);
     const [showFundManager, setShowFundManager] = useState(false);
     const [showBudgetModal, setShowBudgetModal] = useState(false);
-    const [showQuickAdd, setShowQuickAdd] = useState(false);
-    // What quick-add's "Full form" hands to the expense or income form
-    const [fullFormDraft, setFullFormDraft] = useState<QuickAddDraft | null>(
+    // Account whose "Add opening balance" menu item was picked
+    const [openingAccountId, setOpeningAccountId] = useState<string | null>(
         null,
     );
 
@@ -300,6 +317,7 @@ export const FinanceV2 = () => {
                     loans,
                     loanPayments,
                     people,
+                    openingBalances,
                 },
                 charitySettings,
             ),
@@ -314,8 +332,20 @@ export const FinanceV2 = () => {
             loans,
             loanPayments,
             people,
+            openingBalances,
             charitySettings,
         ],
+    );
+
+    // The home feed and cash flow show only the focused funds (All = everything)
+    const homeTransactions = useMemo(
+        () => focusFeedRows(allTransactions, focusedFundIds),
+        [allTransactions, focusedFundIds],
+    );
+    const cashFlowRecords = useMemo(
+        () =>
+            focusCashFlowRecords({ incomes, expenses, transfers }, focusedFundIds),
+        [incomes, expenses, transfers, focusedFundIds],
     );
 
     const searchOptions = useMemo(
@@ -352,14 +382,50 @@ export const FinanceV2 = () => {
         installments,
         loans,
         loanPayments,
+        openingBalances,
         deleteIncome,
         deleteExpense,
         deleteTransfer,
         deleteLoan,
         deleteLoanPayment,
+        deleteOpeningBalance,
         restoreRecord,
         onOpenLoan: openLoan,
     });
+
+    const editingOpening = transactionActions.editingOpening;
+    // Memoised: the modal resets its form whenever the target changes
+    const openingTarget = useMemo<OpeningBalanceTarget | null>(
+        () =>
+            editingOpening
+                ? { entry: editingOpening }
+                : openingAccountId
+                  ? { accountId: openingAccountId }
+                  : null,
+        [editingOpening, openingAccountId],
+    );
+
+    const renderAccountMenu = (account: Account) => (
+        <AccountMenu
+            account={account}
+            onTogglePin={() => toggleAccountPin(account.id)}
+            onAddOpeningBalance={() => setOpeningAccountId(account.id)}
+        />
+    );
+
+    const charityPledgeUi = useCharityPledges({
+        pledges: charityPledges,
+        ledger: charityLedger,
+        currency: settings.defaultCurrency,
+        startDate: charitySettings.startDate,
+        formatAmount,
+        addPledge: addCharityPledge,
+        updatePledge: updateCharityPledge,
+        deletePledge: deleteCharityPledge,
+        restoreRecord,
+    });
+
+    const isCardShown = (card: HomeCardId) => !hiddenHomeCards.includes(card);
 
     // Net worth with loans (or the selected account's focused part)
     const netWorth = selectedAccount
@@ -397,15 +463,6 @@ export const FinanceV2 = () => {
                       previewCharity(toDraftIncome(form, editingIncome))
                 : undefined,
         [charitySettings.enabled, previewCharity, editingIncome],
-    );
-    // Quick-add only ever creates
-    const getNewIncomeCharityPreview = useMemo(
-        () =>
-            charitySettings.enabled
-                ? (form: Parameters<typeof toDraftIncome>[0]) =>
-                      previewCharity(toDraftIncome(form, null))
-                : undefined,
-        [charitySettings.enabled, previewCharity],
     );
 
     const renderCharityBadge = (transaction: Transaction) => {
@@ -445,6 +502,15 @@ export const FinanceV2 = () => {
 
     // ==================== Effects ====================
 
+    // Quick-add (removed) remembered its last account here; clear it once
+    useEffect(() => {
+        try {
+            localStorage.removeItem("lifeos-finance-quick-add");
+        } catch {
+            // Storage blocked (private mode): nothing to clean
+        }
+    }, []);
+
     // Simulate loading
     useEffect(() => {
         const timer = setTimeout(() => setIsLoading(false), 500);
@@ -482,7 +548,6 @@ export const FinanceV2 = () => {
     const hasTransactions = (accountId: string) =>
         allTransactions.some((t) => touchesAccount(t, accountId));
 
-    // Shared by the expense form and quick-add
     const submitExpense = (data: ExpenseFormData, editing: Expense | null) => {
         const fallbackTitle =
             categories.find((c) => c.id === data.categoryId)?.name ||
@@ -509,14 +574,9 @@ export const FinanceV2 = () => {
             transactionActions.stopEdit();
         } else {
             addExpense(expenseData);
-            rememberQuickAdd("expense", {
-                accountId: data.accountId,
-                fundId: data.fundId,
-            });
         }
     };
 
-    // Shared by the income form and quick-add
     const submitIncome = (
         data: IncomeFormData,
         charity: CharityChoice | null,
@@ -552,10 +612,6 @@ export const FinanceV2 = () => {
             transactionActions.stopEdit();
         } else {
             incomeId = addIncome(incomeData).id;
-            rememberQuickAdd("income", {
-                accountId: data.accountId,
-                fundId: data.fundId,
-            });
         }
         if (charity?.action === "pay-now") {
             transferBetweenAccounts(
@@ -708,6 +764,8 @@ export const FinanceV2 = () => {
                     rate={charitySettings.rate}
                     formatAmount={formatAmount}
                     onPay={payCharity}
+                    onAddExtra={charityPledgeUi.openAdd}
+                    detail={charityPledgeUi.list}
                     className="mt-3"
                 />
             )}
@@ -735,28 +793,37 @@ export const FinanceV2 = () => {
                         }
                         onAddAccount={() => setShowAccountManager(true)}
                         selectedAccountId={selectedAccount?.id}
+                        renderMenu={renderAccountMenu}
                     />
                 )}
             </FinanceSection>
 
             {/* Budget Planning */}
-            <FinanceSection
-                title="Budget Planning"
-                className="mt-5"
-                action={
-                    <button
-                        onClick={() => setShowBudgetModal(true)}
-                        className="text-sm text-emerald-400 hover:text-emerald-300 transition-colors">
-                        {budgetOverview ? "Edit" : "Set Up"}
-                    </button>
-                }>
-                <BudgetWidget
-                    budgetOverview={budgetOverview}
-                    categories={categories}
-                    formatCurrency={formatCurrency}
-                    onEdit={() => setShowBudgetModal(true)}
-                />
-            </FinanceSection>
+            {isCardShown("budget") && (
+                <FinanceSection
+                    title="Budget Planning"
+                    className="mt-5"
+                    action={
+                        <div className="flex items-center gap-1">
+                            <button
+                                onClick={() => setShowBudgetModal(true)}
+                                className="text-sm text-emerald-400 hover:text-emerald-300 transition-colors">
+                                {budgetOverview ? "Edit" : "Set Up"}
+                            </button>
+                            <HomeCardHideButton
+                                card="budget"
+                                onChange={setHomeCardHidden}
+                            />
+                        </div>
+                    }>
+                    <BudgetWidget
+                        budgetOverview={budgetOverview}
+                        categories={categories}
+                        formatCurrency={formatCurrency}
+                        onEdit={() => setShowBudgetModal(true)}
+                    />
+                </FinanceSection>
+            )}
         </>
     );
 
@@ -765,9 +832,9 @@ export const FinanceV2 = () => {
         <>
             {/* Cash Flow Chart */}
             <CashFlowChart
-                incomes={incomes}
-                expenses={expenses}
-                transfers={transfers}
+                incomes={cashFlowRecords.incomes}
+                expenses={cashFlowRecords.expenses}
+                transfers={cashFlowRecords.transfers}
                 dateRange={dateRange}
                 formatCurrency={formatCurrency}
                 selectedAccount={selectedAccount}
@@ -776,88 +843,104 @@ export const FinanceV2 = () => {
             />
 
             {/* Goals Preview - Show top 2 goals */}
-            <FinanceSection
-                title="Goals"
-                action={
-                    goals.length > 0 ? (
-                        <Link
-                            to="/finance/goals"
-                            className="text-sm text-emerald-400 hover:text-emerald-300 transition-colors">
-                            See All ({goals.length})
-                        </Link>
-                    ) : undefined
-                }>
-                {isLoading ? (
-                    <div className="grid grid-cols-2 gap-3">
-                        <SkeletonCard variant="goal" />
-                        <SkeletonCard variant="goal" />
-                    </div>
-                ) : (
-                    <GoalsGrid
-                        goals={goals}
-                        maxGoals={1}
-                        formatCurrency={formatCurrency}
-                        onGoalClick={(goal) => {
-                            setViewingGoal(goal);
-                            setShowGoalDetailsModal(true);
-                        }}
-                        onContribute={(goalId) => {
-                            const goal = goals.find((g) => g.id === goalId);
-                            if (goal) {
-                                setContributingGoal(goal);
-                                setShowContributionModal(true);
-                            }
-                        }}
-                        onAddGoal={() => {
-                            setEditingGoal(null);
-                            setShowGoalModal(true);
-                        }}
-                    />
-                )}
-            </FinanceSection>
+            {isCardShown("goals") && (
+                <FinanceSection
+                    title="Goals"
+                    action={
+                        <div className="flex items-center gap-1">
+                            {goals.length > 0 && (
+                                <Link
+                                    to="/finance/goals"
+                                    className="text-sm text-emerald-400 hover:text-emerald-300 transition-colors">
+                                    See All ({goals.length})
+                                </Link>
+                            )}
+                            <HomeCardHideButton
+                                card="goals"
+                                onChange={setHomeCardHidden}
+                            />
+                        </div>
+                    }>
+                    {isLoading ? (
+                        <div className="grid grid-cols-2 gap-3">
+                            <SkeletonCard variant="goal" />
+                            <SkeletonCard variant="goal" />
+                        </div>
+                    ) : (
+                        <GoalsGrid
+                            goals={goals}
+                            maxGoals={1}
+                            formatCurrency={formatCurrency}
+                            onGoalClick={(goal) => {
+                                setViewingGoal(goal);
+                                setShowGoalDetailsModal(true);
+                            }}
+                            onContribute={(goalId) => {
+                                const goal = goals.find((g) => g.id === goalId);
+                                if (goal) {
+                                    setContributingGoal(goal);
+                                    setShowContributionModal(true);
+                                }
+                            }}
+                            onAddGoal={() => {
+                                setEditingGoal(null);
+                                setShowGoalModal(true);
+                            }}
+                        />
+                    )}
+                </FinanceSection>
+            )}
 
             {/* Installments Preview - Show limited installments */}
-            <FinanceSection
-                title="Installments"
-                action={
-                    installments.length > 0 ? (
-                        <Link
-                            to="/finance/installments"
-                            className="text-sm text-emerald-400 hover:text-emerald-300 transition-colors">
-                            See All ({installments.length})
-                        </Link>
-                    ) : undefined
-                }>
-                {isLoading ? (
-                    <div className="space-y-3">
-                        <SkeletonCard />
-                        <SkeletonCard />
-                    </div>
-                ) : (
-                    <InstallmentsTimeline
-                        installments={installments}
-                        maxInstallments={1}
-                        formatCurrency={formatCurrency}
-                        onInstallmentClick={(installment) => {
-                            setViewingInstallment(installment);
-                            setShowInstallmentDetailsModal(true);
-                        }}
-                        onPay={(installmentId) => {
-                            const inst = installments.find(
-                                (i) => i.id === installmentId,
-                            );
-                            if (inst) {
-                                setPayingInstallment(inst);
-                                setShowPaymentModal(true);
-                            }
-                        }}
-                        onAddInstallment={() => {
-                            setEditingInstallment(null);
-                            setShowInstallmentModal(true);
-                        }}
-                    />
-                )}
-            </FinanceSection>
+            {isCardShown("installments") && (
+                <FinanceSection
+                    title="Installments"
+                    action={
+                        <div className="flex items-center gap-1">
+                            {installments.length > 0 && (
+                                <Link
+                                    to="/finance/installments"
+                                    className="text-sm text-emerald-400 hover:text-emerald-300 transition-colors">
+                                    See All ({installments.length})
+                                </Link>
+                            )}
+                            <HomeCardHideButton
+                                card="installments"
+                                onChange={setHomeCardHidden}
+                            />
+                        </div>
+                    }>
+                    {isLoading ? (
+                        <div className="space-y-3">
+                            <SkeletonCard />
+                            <SkeletonCard />
+                        </div>
+                    ) : (
+                        <InstallmentsTimeline
+                            installments={installments}
+                            maxInstallments={1}
+                            formatCurrency={formatCurrency}
+                            onInstallmentClick={(installment) => {
+                                setViewingInstallment(installment);
+                                setShowInstallmentDetailsModal(true);
+                            }}
+                            onPay={(installmentId) => {
+                                const inst = installments.find(
+                                    (i) => i.id === installmentId,
+                                );
+                                if (inst) {
+                                    setPayingInstallment(inst);
+                                    setShowPaymentModal(true);
+                                }
+                            }}
+                            onAddInstallment={() => {
+                                setEditingInstallment(null);
+                                setShowInstallmentModal(true);
+                            }}
+                        />
+                    )}
+                </FinanceSection>
+            )}
 
             {/* Transaction Feed */}
             {isLoading ? (
@@ -866,11 +949,15 @@ export const FinanceV2 = () => {
                 </GlassCard>
             ) : (
                 <TransactionFeed
-                    transactions={allTransactions}
+                    transactions={homeTransactions}
                     formatCurrency={formatCurrency}
                     dateRange={dateRange}
                     onTransactionClick={(t) =>
-                        t.loan ? openLoan(t) : setSelectedTransaction(t)
+                        t.loan
+                            ? openLoan(t)
+                            : t.type === "opening"
+                              ? transactionActions.startEdit(t)
+                              : setSelectedTransaction(t)
                     }
                     onEdit={transactionActions.startEdit}
                     onDelete={transactionActions.handleDelete}
@@ -905,7 +992,7 @@ export const FinanceV2 = () => {
                 dateRange={dateRange}
                 onDateRangeChange={setDateRange}
                 onSettingsClick={() => setShowSettingsSheet(true)}
-                onAddClick={() => setShowQuickAdd(true)}
+                onAddClick={() => setShowExpenseModal(true)}
                 onReportsClick={() => navigate("/finance/reports")}
                 onPeopleClick={() => navigate("/finance/people")}
             />
@@ -927,6 +1014,7 @@ export const FinanceV2 = () => {
                     }
                     onAddAccount={() => setShowAccountManager(true)}
                     selectedAccountId={selectedAccount?.id}
+                    renderMenu={renderAccountMenu}
                 />
             </div>
 
@@ -938,65 +1026,48 @@ export const FinanceV2 = () => {
                 centerColumn={renderFeedColumn()}
             />
 
-            {/* One add button: the quick-add sheet */}
-            <QuickActions onAdd={() => setShowQuickAdd(true)} />
-
-            <QuickAddSheet
-                isOpen={showQuickAdd}
-                onClose={() => setShowQuickAdd(false)}
-                accounts={accounts}
-                funds={funds}
-                expenseCategories={categories}
-                incomeCategories={incomeCategories}
-                expenses={expenses}
-                incomes={incomes}
-                defaultCurrency={settings.defaultCurrency}
-                formatCurrency={formatCurrency}
-                formatAmount={formatAmount}
-                getFundBalance={balanceOf}
-                charityEnabled={charitySettings.enabled}
-                charityFundId={charitySettings.fundId}
-                charityRate={charitySettings.rate}
-                donationCategoryIds={charitySettings.donationCategoryIds}
-                hasPaidOutsideNear={charityPaidOutsideNear}
-                hasDonationNear={charityDonationNear}
-                getCharityPreview={getNewIncomeCharityPreview}
-                onAddExpense={(data) => submitExpense(data, null)}
-                onAddIncome={(data, charity) =>
-                    submitIncome(data, charity, null)
-                }
-                onFullForm={(draft) => {
-                    setFullFormDraft(draft);
-                    if (draft.kind === "income") setShowIncomeModal(true);
-                    else setShowExpenseModal(true);
-                }}
-                onTransfer={(prefill) => {
-                    setTransferPrefill(prefill);
-                    setShowTransferModal(true);
-                }}
-                onLoan={(amount) =>
-                    navigate("/finance/people", {
-                        state: { newLoan: true, amount },
-                    })
+            {/* Quick Actions FAB */}
+            <QuickActions
+                onAddIncome={() => setShowIncomeModal(true)}
+                onAddExpense={() => setShowExpenseModal(true)}
+                onAddTransfer={() => setShowTransferModal(true)}
+                onAddLoan={() =>
+                    navigate("/finance/people", { state: { newLoan: true } })
                 }
             />
 
             {/* ==================== Modals & Sheets ==================== */}
+
+            <OpeningBalanceModal
+                target={openingTarget}
+                onClose={() => {
+                    setOpeningAccountId(null);
+                    transactionActions.stopEdit();
+                }}
+                onSubmit={(data) => {
+                    const result = editingOpening
+                        ? updateOpeningBalance(editingOpening.id, data)
+                        : addOpeningBalance({
+                              ...data,
+                              accountId: openingAccountId ?? "",
+                          });
+                    return result.success ? null : (result.error ?? null);
+                }}
+                accounts={accounts}
+                funds={funds}
+                defaultCurrency={settings.defaultCurrency}
+            />
+
+            {charityPledgeUi.modal}
 
             {/* Expense Modal */}
             <ExpenseModal
                 isOpen={showExpenseModal || !!transactionActions.editingExpense}
                 onClose={() => {
                     setShowExpenseModal(false);
-                    setFullFormDraft(null);
                     transactionActions.stopEdit();
                 }}
                 initialData={transactionActions.expenseInitialData}
-                prefill={
-                    fullFormDraft?.kind === "expense"
-                        ? fullFormDraft.data
-                        : undefined
-                }
                 onSubmit={(data) =>
                     submitExpense(data, transactionActions.editingExpense)
                 }
@@ -1019,15 +1090,9 @@ export const FinanceV2 = () => {
                 isOpen={showIncomeModal || !!transactionActions.editingIncome}
                 onClose={() => {
                     setShowIncomeModal(false);
-                    setFullFormDraft(null);
                     transactionActions.stopEdit();
                 }}
                 initialData={transactionActions.incomeInitialData}
-                prefill={
-                    fullFormDraft?.kind === "income"
-                        ? fullFormDraft.data
-                        : undefined
-                }
                 onSubmit={(data, charity) =>
                     submitIncome(
                         data,
@@ -1234,10 +1299,6 @@ export const FinanceV2 = () => {
                                 toFundId: data.toFundId,
                             },
                         );
-                        rememberQuickAdd("transfer", {
-                            accountId: data.fromAccountId,
-                            fundId: data.fromFundId,
-                        });
                     }
                     setShowTransferModal(false);
                 }}
@@ -1364,6 +1425,12 @@ export const FinanceV2 = () => {
                             importData(data as Parameters<typeof importData>[0])
                         }
                         onResetData={resetData}
+                        homeCardsContent={
+                            <HomeCardsSettings
+                                hidden={hiddenHomeCards}
+                                onChange={setHomeCardHidden}
+                            />
+                        }
                         accountsContent={
                             <AccountManager
                                 accounts={accounts}

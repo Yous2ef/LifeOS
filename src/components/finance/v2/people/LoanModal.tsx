@@ -52,8 +52,6 @@ interface LoanModalProps {
     /** The edited loan has repayments: its direction can't change */
     hasRepayments?: boolean;
     defaultPersonId?: string;
-    /** Starting amount of a new loan (from quick-add) */
-    defaultAmount?: number;
 }
 
 const DIRECTIONS: { value: LoanDirection; label: string; help: string }[] = [
@@ -82,7 +80,6 @@ export const LoanModal = ({
     loan,
     hasRepayments = false,
     defaultPersonId,
-    defaultAmount,
 }: LoanModalProps) => {
     const isEditing = !!loan;
     const [form, setForm] = useState<LoanFormData>(() => emptyForm());
@@ -93,7 +90,7 @@ export const LoanModal = ({
             personId: defaultPersonId ?? people[0]?.id ?? NEW_PERSON,
             newPersonName: "",
             direction: "borrowed",
-            amount: defaultAmount ?? 0,
+            amount: 0,
             accountId:
                 accounts.find((a) => a.isActive && a.isDefault)?.id ??
                 accounts.find((a) => a.isActive)?.id ??

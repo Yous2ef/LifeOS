@@ -2,7 +2,7 @@ import { HandHeart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { CharityLedger } from "@/utils/finance/charity";
 import { CharityLedgerCards } from "../charity/CharityStrip";
-import { ratePercent } from "../charity/copy";
+import { COPY, ratePercent } from "../charity/copy";
 import { monthLabel, type ReportFormat } from "./chartTheme";
 import { ReportCard } from "./ReportCard";
 
@@ -20,7 +20,7 @@ const balanceText = (balance: number, formatAmount: (n: number) => string) =>
 
 /**
  * B4 ledger: the four cards, then one row per month. Every row adds up on its
- * own (opening + owed + carried − paid = balance) and opens at the previous
+ * own (opening + owed + carried + extra − paid = balance) and opens at the previous
  * row's balance, so the last balance is what's remaining.
  */
 export const CharityLedgerReport = ({
@@ -31,6 +31,7 @@ export const CharityLedgerReport = ({
     formatAmount,
 }: CharityLedgerReportProps) => {
     const hasCarried = ledger.monthly.some((row) => row.carried !== 0);
+    const hasPledged = ledger.monthly.some((row) => row.pledged !== 0);
     const rows = [...ledger.monthly].reverse();
 
     return (
@@ -60,6 +61,13 @@ export const CharityLedgerReport = ({
                                         Carried
                                     </th>
                                 )}
+                                {hasPledged && (
+                                    <th
+                                        className="font-medium px-2 py-2"
+                                        title="Extra charity added on top of the rate">
+                                        {COPY.ledgerPledged}
+                                    </th>
+                                )}
                                 <th className="font-medium px-2 py-2">Paid</th>
                                 <th className="font-medium px-2 py-2">Balance</th>
                             </tr>
@@ -77,6 +85,11 @@ export const CharityLedgerReport = ({
                                     {hasCarried && (
                                         <td className="px-2 py-2 text-muted-foreground">
                                             {formatAmount(row.carried)}
+                                        </td>
+                                    )}
+                                    {hasPledged && (
+                                        <td className="px-2 py-2">
+                                            {formatAmount(row.pledged)}
                                         </td>
                                     )}
                                     <td className="px-2 py-2 text-emerald-500">

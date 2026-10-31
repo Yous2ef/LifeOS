@@ -22,6 +22,20 @@ export interface Account {
     isDefault: boolean; // Primary account for quick transactions
     isActive: boolean; // Can be archived
     order: number; // Display order
+    isPinned?: boolean; // Listed before unpinned accounts on the finance home
+    notes?: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+// Money an account already held when tracking started (or found later):
+// moves the balance without being income, expense or charity
+export interface OpeningBalanceEntry {
+    id: string;
+    accountId: string;
+    fundId?: string; // missing = Me
+    amount: number;
+    date: string;
     notes?: string;
     createdAt: string;
     updatedAt: string;
@@ -136,6 +150,17 @@ export interface CharitySettings {
     eligibleIncomeCategoryIds: string[];
     donationCategoryIds: string[]; // Expenses here (from other funds) count as paid
     openingBalance: number; // + owed, − credit, as of startDate
+}
+
+// Extra charity the owner chooses to give on top of the rate: adds to what is
+// owed and is paid later like the rest
+export interface CharityPledge {
+    id: string;
+    amount: number;
+    date: string;
+    notes?: string;
+    createdAt: string;
+    updatedAt: string;
 }
 
 export const DEFAULT_CHARITY_SETTINGS: CharitySettings = {
@@ -432,6 +457,9 @@ export interface FinancialAlert {
     createdAt: string;
 }
 
+// Cards on the finance home the owner can hide
+export type HomeCardId = "budget" | "goals" | "installments";
+
 // Finance Settings
 export interface FinanceSettings {
     defaultCurrency: Currency;
@@ -446,6 +474,7 @@ export interface FinanceSettings {
     monthlyReportEnabled: boolean;
     focusedFundIds: string[]; // Funds the home screen shows; empty = all funds
     charity: CharitySettings;
+    hiddenHomeCards?: HomeCardId[];
 }
 
 // ==================== Statistics & Analytics ====================
@@ -788,11 +817,17 @@ export const DEFAULT_FINANCE_SETTINGS: FinanceSettings = {
     monthlyReportEnabled: true,
     focusedFundIds: [FUND_ME_ID],
     charity: DEFAULT_CHARITY_SETTINGS,
+    hiddenHomeCards: [],
 };
 
 // ==================== Helper Types ====================
 
-export type TransactionType = "income" | "expense" | "transfer" | "loan";
+export type TransactionType =
+    | "income"
+    | "expense"
+    | "transfer"
+    | "loan"
+    | "opening";
 
 export interface Transaction {
     id: string;
@@ -865,6 +900,8 @@ export interface FinanceData {
     people: Person[];
     loans: Loan[];
     loanPayments: LoanPayment[];
+    openingBalances: OpeningBalanceEntry[];
+    charityPledges: CharityPledge[];
     projects: FinanceProject[];
     incomes: Income[];
     expenses: Expense[];

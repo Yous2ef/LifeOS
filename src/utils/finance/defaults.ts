@@ -392,6 +392,8 @@ export const getDefaultFinanceData = (): FinanceData => ({
     people: [],
     loans: [],
     loanPayments: [],
+    openingBalances: [],
+    charityPledges: [],
     projects: [],
     incomes: [],
     expenses: [],

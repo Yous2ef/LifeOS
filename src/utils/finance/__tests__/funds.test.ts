@@ -15,6 +15,7 @@ import {
     income,
     loan,
     loanPayment,
+    openingEntry,
     transfer,
 } from "./fixtures";
 
@@ -118,6 +119,7 @@ describe("getFundDeleteBlocker", () => {
                 loans: [loan()],
                 loanPayments: [loanPayment({ fundId: "fund_inv" })],
             },
+            { openingBalances: [openingEntry({ fundId: "fund_inv" })] },
         ];
         cases.forEach((records) => {
             const data = financeData({ ...base, ...records });

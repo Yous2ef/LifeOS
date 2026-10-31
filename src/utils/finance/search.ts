@@ -7,6 +7,9 @@ export type SearchableTransaction = Transaction & {
     toFundId?: string; // transfers: the receiving fund
     projectId?: string;
     isWorkCost?: boolean; // expenses only, as the charity math sees it
+    // Transfers seen from the focused funds: money coming in or going out
+    // (unset when both sides, or neither, are in focus)
+    focusDirection?: "in" | "out";
 };
 
 export interface SearchFilters {
@@ -164,21 +167,25 @@ export interface SearchTotals {
     net: number; // income − expense only
     transferCount: number;
     transferAmount: number;
-    transferIn: number; // into the given account from another one
-    transferOut: number; // out of the given account to another one
+    transferIn: number; // into the focused funds or the given account
+    transferOut: number; // out of the focused funds or the given account
     loanCount: number;
     loanIn: number; // borrowed + repaid to you
     loanOut: number; // lent + you repaid
+    openingCount: number;
+    openingAmount: number; // opening balance entries: never income
 }
 
 /**
- * Totals for the current results. Loans and transfers never count as income
- * or expense, so they get their own figures and stay out of the net.
- * `accountId` splits transfers into in and out as that account sees them; a
- * fund transfer inside it is neither.
+ * Totals for the current results. Loans, transfers and opening balances never
+ * count as income or expense, so they get their own figures and stay out of
+ * the net.
+ * A row crossing the fund focus counts by its `focusDirection`; otherwise
+ * `accountId` splits transfers into in and out as that account sees them (a
+ * fund transfer inside it is neither).
  */
 export const searchTotals = (
-    transactions: Transaction[],
+    transactions: SearchableTransaction[],
     accountId?: string,
 ): SearchTotals => {
     const totals: SearchTotals = {
@@ -193,17 +200,27 @@ export const searchTotals = (
         loanCount: 0,
         loanIn: 0,
         loanOut: 0,
+        openingCount: 0,
+        openingAmount: 0,
     };
     transactions.forEach((t) => {
         if (t.type === "income") totals.income += t.amount;
         else if (t.type === "expense") totals.expense += t.amount;
+        else if (t.type === "opening") {
+            totals.openingCount += 1;
+            totals.openingAmount += t.amount;
+        }
         else if (t.type === "transfer") {
             totals.transferCount += 1;
             totals.transferAmount += t.amount;
-            const isFrom = t.accountId === accountId;
-            const isTo = t.toAccountId === accountId;
-            if (isFrom && !isTo) totals.transferOut += t.amount;
-            if (isTo && !isFrom) totals.transferIn += t.amount;
+            if (t.focusDirection === "in") totals.transferIn += t.amount;
+            else if (t.focusDirection === "out") totals.transferOut += t.amount;
+            else {
+                const isFrom = t.accountId === accountId;
+                const isTo = t.toAccountId === accountId;
+                if (isFrom && !isTo) totals.transferOut += t.amount;
+                if (isTo && !isFrom) totals.transferIn += t.amount;
+            }
         } else if (t.loan) {
             totals.loanCount += 1;
             const sign = loanCashSign(

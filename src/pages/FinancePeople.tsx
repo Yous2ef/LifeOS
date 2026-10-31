@@ -62,8 +62,6 @@ export default function FinancePeople() {
     const [showLoanModal, setShowLoanModal] = useState(false);
     const [editingLoan, setEditingLoan] = useState<Loan | null>(null);
     const [loanPersonId, setLoanPersonId] = useState<string | undefined>();
-    // Amount typed in quick-add before it handed over to this page
-    const [loanAmount, setLoanAmount] = useState<number | undefined>();
     const [settleTarget, setSettleTarget] = useState<SettleTarget | null>(
         null,
     );
@@ -74,18 +72,11 @@ export default function FinancePeople() {
     // Arriving from the feed (a loan row) or the quick "New loan" action
     useEffect(() => {
         const state = location.state as
-            | { personId?: string; newLoan?: boolean; amount?: number }
+            | { personId?: string; newLoan?: boolean }
             | null;
         if (!state) return;
         if (state.personId) setViewingPersonId(state.personId);
-        if (state.newLoan) {
-            setLoanAmount(
-                typeof state.amount === "number" && state.amount > 0
-                    ? state.amount
-                    : undefined,
-            );
-            setShowLoanModal(true);
-        }
+        if (state.newLoan) setShowLoanModal(true);
         navigate(location.pathname, { replace: true, state: null });
     }, [location.state, location.pathname, navigate]);
 
@@ -134,7 +125,6 @@ export default function FinancePeople() {
     const openNewLoan = (personId?: string) => {
         setEditingLoan(null);
         setLoanPersonId(personId);
-        setLoanAmount(undefined);
         setShowLoanModal(true);
     };
 
@@ -344,7 +334,6 @@ export default function FinancePeople() {
                     (loanPaymentsByLoan.get(editingLoan.id)?.length ?? 0) > 0
                 }
                 defaultPersonId={loanPersonId}
-                defaultAmount={loanAmount}
             />
 
             <SettleUpModal

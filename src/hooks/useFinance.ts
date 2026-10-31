@@ -39,12 +39,14 @@ import {
     charityFundHasPayments,
     computeCharityLedger,
     enableCharityTracking,
+    getCharityPledgeError,
     hasDonationNear,
     hasPaidOutsideNear,
     previewIncomeCharity,
     withRefundCategory,
 } from "@/utils/finance/charity";
 import { getProjectDeleteBlocker, sortProjects } from "@/utils/finance/projects";
+import { getAccountDeleteError } from "@/utils/finance/accounts";
 import { maskAmount, usePrivacyMode } from "./usePrivacyMode";
 import {
     isLivePaymentExpense,
@@ -75,9 +77,12 @@ import type {
     Transaction,
     Account,
     AccountTransfer,
+    CharityPledge,
     Fund,
+    HomeCardId,
     Loan,
     LoanPayment,
+    OpeningBalanceEntry,
     PaymentMethod,
     Person,
 } from "@/types/modules/finance";
@@ -126,9 +131,11 @@ export type RestorableRecord =
     | { kind: "transfer"; record: AccountTransfer }
     | { kind: "person"; record: Person }
     | { kind: "loan"; record: Loan; payments: LoanPayment[] }
-    | { kind: "loanPayment"; record: LoanPayment };
+    | { kind: "loanPayment"; record: LoanPayment }
+    | { kind: "opening"; record: OpeningBalanceEntry }
+    | { kind: "charityPledge"; record: CharityPledge };
 
-type WriteResult = { success: boolean; error?: string };
+export type WriteResult = { success: boolean; error?: string };
 
 // Undo must not create an orphan (a loan without its person, a repayment
 // without its loan) or overpay a loan repaid again since the delete
@@ -141,6 +148,15 @@ const getRestoreError = (
             ? null
             : "Couldn't undo — this person was deleted.";
     }
+    if (restored.kind === "opening") {
+        const { accountId, fundId } = restored.record;
+        if (!state.accounts.some((a) => a.id === accountId)) {
+            return "Couldn't undo — this account was deleted.";
+        }
+        return state.funds.some((f) => f.id === fundOf(fundId))
+            ? null
+            : "Couldn't undo — this fund was deleted.";
+    }
     if (restored.kind !== "loanPayment") return null;
     const { record } = restored;
     const loan = state.loans.find((l) => l.id === record.loanId);
@@ -151,6 +167,17 @@ const getRestoreError = (
     return getLoanPaymentError(loan, others, record.amount, record.date)
         ? "Couldn't undo — this loan is already repaid."
         : null;
+};
+
+// Opening balances are positive: money an account already held
+const getOpeningBalanceError = (
+    state: FinanceData,
+    entry: Pick<OpeningBalanceEntry, "accountId" | "amount">,
+): string | null => {
+    if (!(entry.amount > 0)) return "Enter an amount above 0.";
+    return state.accounts.some((a) => a.id === entry.accountId)
+        ? null
+        : "This account no longer exists.";
 };
 
 const omitPaymentFields = (
@@ -339,6 +366,24 @@ export const useFinance = () => {
                             ...prev,
                             loanPayments: putBack(
                                 prev.loanPayments,
+                                restored.record,
+                            ),
+                            deleted,
+                        };
+                    case "opening":
+                        return {
+                            ...prev,
+                            openingBalances: putBack(
+                                prev.openingBalances,
+                                restored.record,
+                            ),
+                            deleted,
+                        };
+                    case "charityPledge":
+                        return {
+                            ...prev,
+                            charityPledges: putBack(
+                                prev.charityPledges,
                                 restored.record,
                             ),
                             deleted,
@@ -721,55 +766,124 @@ export const useFinance = () => {
     );
 
     const deleteAccount = useCallback(
-        (id: string): { success: boolean; error?: string } => {
-            // Check if account has any transactions
-            const hasTransactions =
-                data.expenses.some((e) => e.accountId === id) ||
-                data.incomes.some((i) => i.accountId === id) ||
-                data.installments.some((inst) => inst.linkedAccountId === id) ||
-                data.transfers.some(
-                    (t) => t.fromAccountId === id || t.toAccountId === id,
-                ) ||
-                data.loans.some((l) => l.accountId === id) ||
-                data.loanPayments.some((p) => p.accountId === id);
+        (id: string): WriteResult => {
+            const error = getAccountDeleteError(latestDataRef.current, id);
+            if (error) return { success: false, error };
 
-            if (hasTransactions) {
+            // Re-checked on the latest state: a write may have landed since
+            setData((prev) => {
+                if (getAccountDeleteError(prev, id)) return prev;
                 return {
-                    success: false,
-                    error: "Cannot delete account with existing transactions. Archive it instead.",
+                    ...prev,
+                    accounts: prev.accounts.filter((a) => a.id !== id),
+                    deleted: addTombstones(prev.deleted, [id]),
                 };
-            }
-
-            // Check if it's the last active account
-            const activeAccounts = data.accounts.filter(
-                (a) => a.isActive && a.id !== id,
-            );
-            if (activeAccounts.length === 0) {
-                return {
-                    success: false,
-                    error: "Cannot delete the last active account. Create another account first.",
-                };
-            }
-
-            // Proceed with deletion
-            setData((prev) => ({
-                ...prev,
-                accounts: prev.accounts.filter((a) => a.id !== id),
-                deleted: addTombstones(prev.deleted, [id]),
-            }));
+            });
 
             return { success: true };
         },
-        [
-            data.accounts,
-            data.expenses,
-            data.incomes,
-            data.installments,
-            data.transfers,
-            data.loans,
-            data.loanPayments,
-            setData,
-        ],
+        [setData],
+    );
+
+    const toggleAccountPin = useCallback(
+        (id: string) => {
+            setData((prev) => ({
+                ...prev,
+                accounts: prev.accounts.map((account) =>
+                    account.id === id
+                        ? {
+                              ...account,
+                              isPinned: !account.isPinned,
+                              updatedAt: new Date().toISOString(),
+                          }
+                        : account,
+                ),
+            }));
+        },
+        [setData],
+    );
+
+    // ==================== Opening Balances ====================
+    // Money an account already held: moves balances, never income, expense or
+    // charity (balances.ts reads them; charity and reports never do)
+
+    const addOpeningBalance = useCallback(
+        (
+            entryData: Omit<
+                OpeningBalanceEntry,
+                "id" | "createdAt" | "updatedAt"
+            >,
+        ): WriteResult => {
+            const error = getOpeningBalanceError(
+                latestDataRef.current,
+                entryData,
+            );
+            if (error) return { success: false, error };
+            const now = new Date().toISOString();
+            const entry: OpeningBalanceEntry = {
+                ...entryData,
+                id: `opening_${generateId()}`,
+                createdAt: now,
+                updatedAt: now,
+            };
+            setData((prev) =>
+                getOpeningBalanceError(prev, entry)
+                    ? prev
+                    : { ...prev, openingBalances: [...prev.openingBalances, entry] },
+            );
+            return { success: true };
+        },
+        [setData],
+    );
+
+    const updateOpeningBalance = useCallback(
+        (
+            id: string,
+            updates: Partial<
+                Pick<
+                    OpeningBalanceEntry,
+                    "accountId" | "fundId" | "amount" | "date" | "notes"
+                >
+            >,
+        ): WriteResult => {
+            const current = latestDataRef.current.openingBalances.find(
+                (entry) => entry.id === id,
+            );
+            if (!current) return { success: false, error: "This entry was deleted." };
+            const error = getOpeningBalanceError(latestDataRef.current, {
+                ...current,
+                ...updates,
+            });
+            if (error) return { success: false, error };
+            setData((prev) => ({
+                ...prev,
+                openingBalances: prev.openingBalances.map((entry) =>
+                    entry.id === id &&
+                    !getOpeningBalanceError(prev, { ...entry, ...updates })
+                        ? {
+                              ...entry,
+                              ...updates,
+                              updatedAt: new Date().toISOString(),
+                          }
+                        : entry,
+                ),
+            }));
+            return { success: true };
+        },
+        [setData],
+    );
+
+    const deleteOpeningBalance = useCallback(
+        (id: string) => {
+            setData((prev) => ({
+                ...prev,
+                openingBalances: prev.openingBalances.filter(
+                    (entry) => entry.id !== id,
+                ),
+                deleted: addTombstones(prev.deleted, [id]),
+            }));
+        },
+        [setData],
     );
 
     const getAccountById = useCallback(
@@ -2106,6 +2220,28 @@ export const useFinance = () => {
         [setData],
     );
 
+    const hiddenHomeCards = data.settings.hiddenHomeCards ?? [];
+
+    // Read inside the updater so two quick toggles don't undo each other
+    const setHomeCardHidden = useCallback(
+        (card: HomeCardId, hidden: boolean) => {
+            setData((prev) => {
+                const current = prev.settings.hiddenHomeCards ?? [];
+                if (current.includes(card) === hidden) return prev;
+                return {
+                    ...prev,
+                    settings: {
+                        ...prev.settings,
+                        hiddenHomeCards: hidden
+                            ? [...current, card]
+                            : current.filter((c) => c !== card),
+                    },
+                };
+            });
+        },
+        [setData],
+    );
+
     // ==================== Statistics & Analytics ====================
 
     const getMonthlyStats = useCallback(
@@ -2447,6 +2583,79 @@ export const useFinance = () => {
         [data, charitySettings],
     );
 
+    // "+ Extra charity": adds to what is owed; paid later like the rest
+    const addCharityPledge = useCallback(
+        (
+            pledgeData: Pick<CharityPledge, "amount" | "date" | "notes">,
+        ): WriteResult => {
+            const error = getCharityPledgeError(
+                pledgeData,
+                latestDataRef.current.settings.charity,
+            );
+            if (error) return { success: false, error };
+            const now = new Date().toISOString();
+            const pledge: CharityPledge = {
+                ...pledgeData,
+                id: `pledge_${generateId()}`,
+                createdAt: now,
+                updatedAt: now,
+            };
+            setData((prev) => ({
+                ...prev,
+                charityPledges: [...prev.charityPledges, pledge],
+            }));
+            return { success: true };
+        },
+        [setData],
+    );
+
+    const updateCharityPledge = useCallback(
+        (
+            id: string,
+            updates: Partial<Pick<CharityPledge, "amount" | "date" | "notes">>,
+        ): WriteResult => {
+            const state = latestDataRef.current;
+            const current = state.charityPledges.find((p) => p.id === id);
+            if (!current) {
+                return { success: false, error: "This entry was deleted." };
+            }
+            const error = getCharityPledgeError(
+                { ...current, ...updates },
+                state.settings.charity,
+            );
+            if (error) return { success: false, error };
+            setData((prev) => ({
+                ...prev,
+                charityPledges: prev.charityPledges.map((pledge) =>
+                    pledge.id === id &&
+                    !getCharityPledgeError(
+                        { ...pledge, ...updates },
+                        prev.settings.charity,
+                    )
+                        ? {
+                              ...pledge,
+                              ...updates,
+                              updatedAt: new Date().toISOString(),
+                          }
+                        : pledge,
+                ),
+            }));
+            return { success: true };
+        },
+        [setData],
+    );
+
+    const deleteCharityPledge = useCallback(
+        (id: string) => {
+            setData((prev) => ({
+                ...prev,
+                charityPledges: prev.charityPledges.filter((p) => p.id !== id),
+                deleted: addTombstones(prev.deleted, [id]),
+            }));
+        },
+        [setData],
+    );
+
     // ==================== Projects ====================
 
     const projects = useMemo(() => sortProjects(data.projects), [data.projects]);
@@ -2631,11 +2840,18 @@ export const useFinance = () => {
         addAccount,
         updateAccount,
         deleteAccount,
+        toggleAccountPin,
         getAccountById,
         calculateAccountBalance,
         transferBetweenAccounts,
         updateTransfer,
         deleteTransfer,
+
+        // Opening balances
+        openingBalances: data.openingBalances,
+        addOpeningBalance,
+        updateOpeningBalance,
+        deleteOpeningBalance,
 
         // Fund operations
         addFund,
@@ -2675,6 +2891,10 @@ export const useFinance = () => {
         previewCharity,
         charityDonationNear,
         charityPaidOutsideNear,
+        charityPledges: data.charityPledges,
+        addCharityPledge,
+        updateCharityPledge,
+        deleteCharityPledge,
 
         // Projects
         projects,
@@ -2710,6 +2930,8 @@ export const useFinance = () => {
 
         // Settings
         updateSettings,
+        hiddenHomeCards,
+        setHomeCardHidden,
 
         // Statistics
         getMonthlyStats,

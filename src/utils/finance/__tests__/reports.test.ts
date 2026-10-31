@@ -18,6 +18,7 @@ import {
     income,
     loan,
     loanPayment,
+    openingEntry,
     transfer,
 } from "./fixtures";
 
@@ -84,6 +85,17 @@ describe("netWorthSeries", () => {
             ["2026-10-31", 1350],
             ["2026-11-15", 1350],
         ]);
+    });
+    it("includes opening balance entries from their month on", () => {
+        const withOpening = financeData({
+            accounts: [account()],
+            openingBalances: [openingEntry({ amount: 700, date: "2026-11-03" })],
+        });
+        const series = netWorthSeries(withOpening, "2026-10", "2026-11", {
+            today: "2026-11-15",
+        });
+        expect(series.map((p) => p.netWorth)).toEqual([0, 700]);
+        expect(firstRecordDate(withOpening)).toBe("2026-11-03");
     });
 });
 

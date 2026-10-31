@@ -279,6 +279,8 @@ export function getDefaultModuleData(): AppData {
             people: [],
             loans: [],
             loanPayments: [],
+            openingBalances: [],
+            charityPledges: [],
             projects: [],
             incomes: [],
             expenses: [],

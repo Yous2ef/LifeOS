@@ -43,7 +43,9 @@ const COPY = {
     moneyIn: "in",
     moneyOut: "out",
     transfers: "Transfers",
+    openingBalances: "Opening balances",
     notCounted: "Loans and transfers are not counted in income, expenses or net.",
+    openingNotCounted: "Money your accounts already had. Not counted in income or net.",
     tryAnother: "Try another search or clear the filters",
 };
 
@@ -162,7 +164,7 @@ export const TransactionFeed = ({
 
     // Group paginated transactions by date
     const groupedTransactions = useMemo(() => {
-        const groups: Record<string, Transaction[]> = {};
+        const groups: Record<string, SearchableTransaction[]> = {};
 
         paginatedTransactions.forEach((t) => {
             const dateKey = t.date;
@@ -202,6 +204,11 @@ export const TransactionFeed = ({
         () => searchTotals(filteredTransactions, effectiveFilters.accountId),
         [filteredTransactions, effectiveFilters.accountId],
     );
+    // Seen from one account or from the focused funds a transfer comes in or
+    // goes out
+    const showTransferDirection =
+        !!effectiveFilters.accountId ||
+        filteredTransactions.some((t) => t.focusDirection);
 
     const sortedDates = Object.keys(groupedTransactions).sort(
         (a, b) => new Date(b).getTime() - new Date(a).getTime()
@@ -392,13 +399,20 @@ export const TransactionFeed = ({
                 {totals.transferCount > 0 &&
                     pill(
                         COPY.transfers,
-                        // Seen from one account a transfer comes in or goes out
-                        effectiveFilters.accountId
+                        showTransferDirection
                             ? `${COPY.moneyIn} ${formatCurrency(totals.transferIn)} · ${COPY.moneyOut} ${formatCurrency(totals.transferOut)}`
                             : formatCurrency(totals.transferAmount),
                         "bg-muted text-muted-foreground",
                         0.2,
                         COPY.notCounted,
+                    )}
+                {totals.openingCount > 0 &&
+                    pill(
+                        COPY.openingBalances,
+                        `+${formatCurrency(totals.openingAmount)}`,
+                        "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+                        0.25,
+                        COPY.openingNotCounted,
                     )}
             </div>
 

@@ -4,6 +4,7 @@ import {
     charityFundHasPayments,
     computeCharityLedger,
     enableCharityTracking,
+    getCharityPledgeError,
     hasDonationNear,
     previewIncomeCharity,
     withRefundCategory,
@@ -18,6 +19,7 @@ import {
     income,
     loan,
     loanPayment,
+    pledge,
     transfer,
 } from "./fixtures";
 
@@ -541,6 +543,7 @@ describe("monthly rows", () => {
                 workCosts: 0,
                 owed: 0,
                 carried: 0,
+                pledged: 0,
                 paid: 0,
                 balance: 750,
             },
@@ -554,16 +557,165 @@ describe("monthly rows", () => {
                 incomes: [freelance({ actualDate: "2026-11-10" }), freelance({ id: "j2", actualDate: "2027-01-03" })],
                 expenses: [tools({ date: "2026-12-05" })],
                 transfers: [toCharity(1000, { date: "2026-12-20" })],
+                charityPledges: [pledge({ date: "2026-12-01", amount: 300 })],
             }),
             settings({ openingBalance: -500 }),
         );
         let previous = ledger.opening;
         ledger.monthly.forEach((row) => {
             expect(row.opening).toBe(previous);
-            expect(row.balance).toBeCloseTo(row.opening + row.owed + row.carried - row.paid);
+            expect(row.balance).toBeCloseTo(
+                row.opening + row.owed + row.carried + row.pledged - row.paid,
+            );
             previous = row.balance;
         });
         expect(previous).toBe(ledger.remaining);
+    });
+});
+
+describe("extra charity pledges", () => {
+    it("add to what you owe on their date, never to net earnings", () => {
+        const ledger = computeCharityLedger(
+            data({
+                incomes: [freelance()],
+                charityPledges: [pledge({ amount: 500 })],
+            }),
+            settings(),
+        );
+        expect(ledger.netEarnings).toBe(20000);
+        expect(ledger.pledged).toBe(500);
+        expect(ledger.owed).toBe(4500);
+        expect(ledger.remaining).toBe(4500);
+        expect(ledger.monthly[0]).toMatchObject({ owed: 4000, pledged: 500 });
+    });
+
+    it("are not reduced by work costs, even beyond earnings", () => {
+        const ledger = computeCharityLedger(
+            data({
+                expenses: [tools({ amount: 5000 })],
+                charityPledges: [pledge({ amount: 500 })],
+            }),
+            settings(),
+        );
+        expect(ledger.owed).toBe(500);
+        expect(ledger.carried).toBe(1000);
+        expect(ledger.remaining).toBe(500);
+    });
+
+    it("are skipped before the start date", () => {
+        const ledger = computeCharityLedger(
+            data({ charityPledges: [pledge({ date: "2026-10-20" })] }),
+            settings(),
+        );
+        expect(ledger.pledged).toBe(0);
+        expect(ledger.perPledge.size).toBe(0);
+    });
+
+    it("are paid oldest first alongside incomes", () => {
+        const ledger = computeCharityLedger(
+            data({
+                incomes: [freelance({ actualDate: "2026-11-20" })],
+                charityPledges: [pledge({ date: "2026-11-15", amount: 500 })],
+                transfers: [toCharity(1000, { date: "2026-11-25" })],
+            }),
+            settings(),
+        );
+        // The pledge is older than the 4,000 share: it's covered first
+        expect(ledger.perPledge.get("pledge_1")).toMatchObject({
+            covered: 500,
+            status: "paid",
+        });
+        expect(ledger.perIncome.get("job")).toMatchObject({
+            covered: 500,
+            creditUsed: 500,
+            status: "partial",
+        });
+        expect(ledger.remaining).toBe(3500);
+    });
+
+    it("a pledge made later on an income's day comes after that income", () => {
+        const ledger = computeCharityLedger(
+            data({
+                incomes: [
+                    freelance({
+                        actualDate: "2026-11-15T09:00:00.000Z",
+                        createdAt: "2026-11-15T09:00:00.000Z",
+                    }),
+                ],
+                charityPledges: [
+                    pledge({ createdAt: "2026-11-15T12:00:00.000Z" }),
+                ],
+                transfers: [toCharity(4000, { date: "2026-11-25" })],
+            }),
+            settings(),
+        );
+        expect(ledger.perIncome.get("job")?.status).toBe("paid");
+        expect(ledger.perPledge.get("pledge_1")?.status).toBe("unpaid");
+    });
+
+    it("keeps same-day incomes in their own order around a pledge", () => {
+        // By time B landed first, though A was entered first
+        const incomes = [
+            freelance({
+                id: "A",
+                actualDate: "2026-11-15T20:00:00.000Z",
+                createdAt: "2026-11-15T08:00:00.000Z",
+            }),
+            freelance({
+                id: "B",
+                actualDate: "2026-11-15T09:00:00.000Z",
+                createdAt: "2026-11-15T21:00:00.000Z",
+            }),
+        ];
+        const transfers = [toCharity(4000, { date: "2026-11-25" })];
+        const without = computeCharityLedger(data({ incomes, transfers }), settings());
+        expect(without.perIncome.get("B")?.status).toBe("paid");
+        expect(without.perIncome.get("A")?.status).toBe("unpaid");
+
+        const withPledge = computeCharityLedger(
+            data({
+                incomes,
+                transfers,
+                charityPledges: [
+                    pledge({ date: "2026-11-15", createdAt: "2026-11-15T12:00:00.000Z" }),
+                ],
+            }),
+            settings(),
+        );
+        // Entered before B: the pledge comes first, then B, then A
+        expect(withPledge.perPledge.get("pledge_1")?.status).toBe("paid");
+        expect(withPledge.perIncome.get("B")).toMatchObject({
+            covered: 3500,
+            status: "partial",
+        });
+        expect(withPledge.perIncome.get("A")?.status).toBe("unpaid");
+    });
+
+    it("refuses pledges of 0 or dated before the start date", () => {
+        const start = { startDate: "2026-11-01" };
+        expect(getCharityPledgeError({ amount: 0, date: "2026-11-02" }, start)).toMatch(
+            /above 0/,
+        );
+        expect(
+            getCharityPledgeError({ amount: 10, date: "2026-10-31" }, start),
+        ).toBe("Before your charity start date");
+        expect(getCharityPledgeError({ amount: 10, date: "2026-11-01" }, start)).toBeNull();
+    });
+
+    it("a pledge after the income waits until the income is paid", () => {
+        const ledger = computeCharityLedger(
+            data({
+                incomes: [freelance({ actualDate: "2026-11-10" })],
+                charityPledges: [pledge({ date: "2026-11-15", amount: 500 })],
+                transfers: [toCharity(4200, { date: "2026-11-25" })],
+            }),
+            settings(),
+        );
+        expect(ledger.perIncome.get("job")?.status).toBe("paid");
+        expect(ledger.perPledge.get("pledge_1")).toMatchObject({
+            covered: 200,
+            status: "partial",
+        });
     });
 });
 

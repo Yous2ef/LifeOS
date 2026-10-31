@@ -1,4 +1,5 @@
 import type {
+    CharityPledge,
     CharitySettings,
     Expense,
     ExpenseCategory,
@@ -20,7 +21,8 @@ import { roundMoney } from "./loans";
 export type CharitySource = Pick<
     FinanceData,
     "incomes" | "expenses" | "transfers" | "categories"
->;
+> &
+    Partial<Pick<FinanceData, "charityPledges">>;
 
 export type CharityIncomeStatus = "paid" | "partial" | "unpaid";
 
@@ -41,10 +43,19 @@ export interface CharityIncomeShare {
     creditUsed: number;
 }
 
+/** An extra charity pledge as the FIFO sees it */
+export interface CharityPledgeShare {
+    amount: number;
+    /** Part covered by payments and credit (oldest unpaid items first) */
+    covered: number;
+    status: CharityIncomeStatus;
+}
+
 /**
  * One month of the ledger. Each row reconciles on its own:
- * balance = opening + owed + carried − paid, and the next row opens at this
- * balance, so ledger.remaining = ledger.opening + Σ(owed + carried − paid).
+ * balance = opening + owed + carried + pledged − paid, and the next row opens
+ * at this balance, so
+ * ledger.remaining = ledger.opening + Σ(owed + carried + pledged − paid).
  */
 export interface CharityMonth {
     month: string; // YYYY-MM
@@ -59,6 +70,8 @@ export interface CharityMonth {
      * reductions used up; owed + carried is what the month adds to the balance
      */
     carried: number;
+    /** Extra charity added on top of the rate this month */
+    pledged: number;
     paid: number;
     /** Remaining at month end (opening balance included); <0 = credit */
     balance: number;
@@ -67,8 +80,10 @@ export interface CharityMonth {
 export interface CharityLedger {
     /** Eligible earnings − work costs since the start date */
     netEarnings: number;
-    /** rate × net earnings (never below 0) + opening owed */
+    /** rate × net earnings (never below 0) + extra pledges + opening owed */
     owed: number;
+    /** Extra charity pledged since the start date (part of owed) */
+    pledged: number;
     /** Payments + "Already paid" amounts + opening credit */
     paid: number;
     /** owed − paid; <0 = credit toward future earnings */
@@ -79,6 +94,7 @@ export interface CharityLedger {
     opening: number;
     monthly: CharityMonth[];
     perIncome: Map<string, CharityIncomeShare>;
+    perPledge: Map<string, CharityPledgeShare>;
 }
 
 const PAY_EPSILON = 0.005;
@@ -189,10 +205,53 @@ const charityPayments = (
     return payments;
 };
 
-const byIncomeDate = (a: Income, b: Income) =>
-    incomeDate(a).localeCompare(incomeDate(b)) ||
+interface Dated {
+    date: string;
+    createdAt: string;
+    id: string;
+}
+
+const byDate = (a: Dated, b: Dated) =>
+    a.date.localeCompare(b.date) ||
     a.createdAt.localeCompare(b.createdAt) ||
     a.id.localeCompare(b.id);
+
+/**
+ * Incomes (in their own order) and pledges (by date) as one oldest-first
+ * list. Incomes may carry a time and pledges never do, so an income and a
+ * pledge compare by day, then by when they were entered; incomes keep their
+ * order among themselves, so data without pledges is ordered as before.
+ */
+const mergeObligations = (
+    incomes: Income[],
+    pledges: CharityPledge[],
+): { id: string; isPledge: boolean }[] => {
+    const merged: { id: string; isPledge: boolean }[] = [];
+    let i = 0;
+    let p = 0;
+    while (i < incomes.length || p < pledges.length) {
+        const income = incomes[i];
+        const pledge = pledges[p];
+        const takePledge =
+            !!pledge &&
+            (!income ||
+                byDate(
+                    { ...pledge, date: day(pledge.date) },
+                    { ...income, date: day(incomeDate(income)) },
+                ) < 0);
+        if (takePledge) {
+            merged.push({ id: pledge.id, isPledge: true });
+            p += 1;
+        } else {
+            merged.push({ id: income.id, isPledge: false });
+            i += 1;
+        }
+    }
+    return merged;
+};
+
+const byIncomeDate = (a: Income, b: Income) =>
+    byDate({ ...a, date: incomeDate(a) }, { ...b, date: incomeDate(b) });
 
 /**
  * Work costs applied to each eligible income (base amounts). A project's costs
@@ -275,11 +334,14 @@ const monthsBetween = (first: string, last: string): string[] => {
  * 0 — costs beyond earnings carry forward against future earnings. Loans are
  * not incomes or expenses, so they never accrue or pay.
  *
+ * Extra pledges ("+ Extra charity") add to owed on their date; work costs
+ * never reduce them.
+ *
  * Per income: money paid for that income ("Already paid", a linked "Pay now"
  * transfer, income landing in the Charity fund) covers it first; every other
  * payment, any excess (or a payment whose income is gone) and an opening credit
- * form a pool that covers the opening owed and then the oldest unpaid incomes
- * (FIFO).
+ * form a pool that covers the opening owed and then the oldest unpaid items —
+ * incomes and pledges alike, by date (FIFO).
  */
 export const computeCharityLedger = (
     data: CharitySource,
@@ -296,6 +358,10 @@ export const computeCharityLedger = (
             isOnOrAfter(expense.date, settings.startDate) &&
             isCharityWorkCost(expense, settings, data.categories),
     );
+    const pledges: CharityPledge[] = (data.charityPledges ?? [])
+        .filter((pledge) => isOnOrAfter(pledge.date, settings.startDate))
+        .map((pledge) => ({ ...pledge, amount: Math.max(0, pledge.amount) }))
+        .sort(byDate);
     const payments = charityPayments(data, settings);
     const paidFor = new Map<string, number>();
     payments.forEach((payment) => {
@@ -309,6 +375,7 @@ export const computeCharityLedger = (
     const totalEarnings = incomes.reduce((sum, i) => sum + i.amount, 0);
     const totalCosts = costs.reduce((sum, e) => sum + e.amount, 0);
     const totalPayments = payments.reduce((sum, p) => sum + p.amount, 0);
+    const totalPledged = pledges.reduce((sum, p) => sum + p.amount, 0);
     const netEarnings = totalEarnings - totalCosts;
     const accrued = rate * Math.max(0, netEarnings);
 
@@ -333,19 +400,30 @@ export const computeCharityLedger = (
             creditUsed: 0,
         });
     });
+    const perPledge = new Map<string, CharityPledgeShare>(
+        pledges.map((pledge) => [
+            pledge.id,
+            { amount: pledge.amount, covered: 0, status: "unpaid" },
+        ]),
+    );
     // Everything else paid is one pool; it covers the oldest debt first —
-    // what was owed before the start — then the oldest unpaid incomes
+    // what was owed before the start — then the oldest unpaid items
     let pool =
         totalPayments - earmarked + Math.max(0, -opening) - Math.max(0, opening);
-    incomes.forEach((income) => {
-        const entry = perIncome.get(income.id)!;
-        const creditUsed = Math.max(
-            0,
-            Math.min(pool, entry.share - entry.covered),
-        );
-        pool -= creditUsed;
-        entry.creditUsed = creditUsed;
-        entry.covered += creditUsed;
+    const coverFromPool = (due: number, covered: number) => {
+        const take = Math.max(0, Math.min(pool, due - covered));
+        pool -= take;
+        return take;
+    };
+    mergeObligations(incomes, pledges).forEach(({ id, isPledge }) => {
+        if (isPledge) {
+            const entry = perPledge.get(id)!;
+            entry.covered += coverFromPool(entry.amount, entry.covered);
+            return;
+        }
+        const entry = perIncome.get(id)!;
+        entry.creditUsed = coverFromPool(entry.share, entry.covered);
+        entry.covered += entry.creditUsed;
     });
     // Money taken back out of the fund (pool below 0) un-pays incomes that
     // were paid for directly, newest first, so badges add up to `remaining`
@@ -367,21 +445,39 @@ export const computeCharityLedger = (
             creditUsed: roundMoney(entry.creditUsed),
         }),
     );
+    perPledge.forEach((entry, id) =>
+        perPledge.set(id, {
+            amount: roundMoney(entry.amount),
+            covered: roundMoney(entry.covered),
+            status: statusOf(entry.amount, entry.covered),
+        }),
+    );
 
-    // Monthly: owed + carried − paid adds up to the change in remaining
-    const months = new Map<
-        string,
-        { earnings: number; workCosts: number; paid: number }
-    >();
+    // Monthly: owed + carried + pledged − paid adds up to the change in
+    // remaining
+    type MonthTotals = {
+        earnings: number;
+        workCosts: number;
+        pledged: number;
+        paid: number;
+    };
+    const emptyMonth = (): MonthTotals => ({
+        earnings: 0,
+        workCosts: 0,
+        pledged: 0,
+        paid: 0,
+    });
+    const months = new Map<string, MonthTotals>();
     const monthRow = (date: string) => {
         const key = monthOf(date);
-        const row = months.get(key) ?? { earnings: 0, workCosts: 0, paid: 0 };
+        const row = months.get(key) ?? emptyMonth();
         months.set(key, row);
         return row;
     };
     incomes.forEach((income) => (monthRow(incomeDate(income)).earnings += income.amount));
     costs.forEach((cost) => (monthRow(cost.date).workCosts += cost.amount));
     payments.forEach((payment) => (monthRow(payment.date).paid += payment.amount));
+    pledges.forEach((pledge) => (monthRow(pledge.date).pledged += pledge.amount));
 
     const keys = Array.from(months.keys()).sort();
     const startMonth = monthOf(settings.startDate);
@@ -392,14 +488,14 @@ export const computeCharityLedger = (
         let balance = opening;
         const lastMonth = keys.length > 0 ? keys[keys.length - 1] : startMonth;
         monthsBetween(startMonth, lastMonth).forEach((key) => {
-            const row = months.get(key) ?? { earnings: 0, workCosts: 0, paid: 0 };
+            const row = months.get(key) ?? emptyMonth();
             const before = rate * Math.max(0, cumulativeBase);
             cumulativeBase += row.earnings - row.workCosts;
             const after = rate * Math.max(0, cumulativeBase);
             const owed = rate * (row.earnings - row.workCosts);
             const carried = after - before - owed;
             const monthOpening = balance;
-            balance += owed + carried - row.paid;
+            balance += owed + carried + row.pledged - row.paid;
             monthly.push({
                 month: key,
                 opening: roundMoney(monthOpening),
@@ -407,23 +503,26 @@ export const computeCharityLedger = (
                 workCosts: roundMoney(row.workCosts),
                 owed: roundMoney(owed),
                 carried: roundMoney(carried),
+                pledged: roundMoney(row.pledged),
                 paid: roundMoney(row.paid),
                 balance: roundMoney(balance),
             });
         });
     }
 
-    const owed = accrued + Math.max(0, opening);
+    const owed = accrued + totalPledged + Math.max(0, opening);
     const paid = totalPayments + Math.max(0, -opening);
     return {
         netEarnings: roundMoney(netEarnings),
         owed: roundMoney(owed),
+        pledged: roundMoney(totalPledged),
         paid: roundMoney(paid),
         remaining: roundMoney(owed - paid),
         carried: roundMoney(rate * Math.max(0, -netEarnings)),
         opening,
         monthly,
         perIncome,
+        perPledge,
     };
 };
 
@@ -472,6 +571,19 @@ export const previewIncomeCharity = (
         paidForThis: entry.paidForThis,
         toPay: roundMoney(Math.max(0, entry.share - entry.covered)),
     };
+};
+
+/** Why an extra charity pledge can't be saved, or null when it can */
+export const getCharityPledgeError = (
+    pledge: Pick<CharityPledge, "amount" | "date">,
+    settings: Pick<CharitySettings, "startDate">,
+): string | null => {
+    if (!(pledge.amount > 0)) return "Enter an amount above 0.";
+    // The ledger starts there: an earlier pledge would silently count for nothing
+    if (!isOnOrAfter(pledge.date, settings.startDate)) {
+        return "Before your charity start date";
+    }
+    return null;
 };
 
 /** Whether a transfer into or out of the charity fund exists (locks fundId) */

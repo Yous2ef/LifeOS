@@ -43,6 +43,7 @@ interface SettingsPanelProps {
     categoriesContent?: React.ReactNode; // CategoryStudio component
     charityContent?: React.ReactNode; // CharitySettings component
     projectsContent?: React.ReactNode; // ProjectManager component
+    homeCardsContent?: React.ReactNode; // HomeCardsSettings component
 }
 
 type SettingsTab =
@@ -98,6 +99,7 @@ export const SettingsPanel = ({
     categoriesContent,
     charityContent,
     projectsContent,
+    homeCardsContent,
 }: SettingsPanelProps) => {
     const [activeTab, setActiveTab] = useState<SettingsTab>("general");
     const [showResetConfirm, setShowResetConfirm] = useState(false);
@@ -242,6 +244,8 @@ export const SettingsPanel = ({
                                         />
                                     </div>
                                 </div>
+
+                                {homeCardsContent}
                             </div>
                         )}
 

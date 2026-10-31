@@ -1,10 +1,11 @@
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
 import { AccountCard } from "./AccountCard";
 import type { Account } from "@/types/modules/finance";
+import { sortAccountsForHome } from "@/utils/finance/accounts";
 
 interface AccountCarouselProps {
     accounts: Account[];
@@ -16,6 +17,8 @@ interface AccountCarouselProps {
     onAccountClick?: (account: Account) => void;
     onAddAccount?: () => void;
     selectedAccountId?: string;
+    /** Actions menu for each card */
+    renderMenu?: (account: Account) => ReactNode;
     className?: string;
 }
 
@@ -28,6 +31,7 @@ export const AccountCarousel = ({
     onAccountClick,
     onAddAccount,
     selectedAccountId,
+    renderMenu,
     className,
 }: AccountCarouselProps) => {
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -51,7 +55,11 @@ export const AccountCarousel = ({
         setTimeout(checkScroll, 300);
     };
 
-    const activeAccounts = accounts.filter((a) => a.isActive);
+    // Pinned first, then by the balance shown on the card, highest first
+    const activeAccounts = sortAccountsForHome(
+        accounts.filter((a) => a.isActive),
+        (id) => calculateFocusedBalance?.(id) ?? calculateBalance(id),
+    );
 
     return (
         <div className={cn("relative group", className)}>
@@ -117,6 +125,7 @@ export const AccountCarousel = ({
                             formatAmount={formatAmount}
                             onClick={() => onAccountClick?.(account)}
                             isSelected={account.id === selectedAccountId}
+                            menu={renderMenu?.(account)}
                         />
                     </motion.div>
                 ))}

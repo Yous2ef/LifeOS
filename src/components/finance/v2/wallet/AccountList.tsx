@@ -1,9 +1,11 @@
+import type { ReactNode } from "react";
 import { motion } from "framer-motion";
 import { Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
 import { AccountCard } from "./AccountCard";
 import type { Account } from "@/types/modules/finance";
+import { sortAccountsForHome } from "@/utils/finance/accounts";
 
 interface AccountListProps {
     accounts: Account[];
@@ -15,6 +17,8 @@ interface AccountListProps {
     onAccountClick?: (account: Account) => void;
     onAddAccount?: () => void;
     selectedAccountId?: string;
+    /** Actions menu for each card */
+    renderMenu?: (account: Account) => ReactNode;
     showArchived?: boolean;
     className?: string;
 }
@@ -28,6 +32,7 @@ export const AccountList = ({
     onAccountClick,
     onAddAccount,
     selectedAccountId,
+    renderMenu,
     showArchived = false,
     className,
 }: AccountListProps) => {
@@ -35,11 +40,11 @@ export const AccountList = ({
         ? accounts
         : accounts.filter((a) => a.isActive);
 
-    // Sort by order, then by balance
-    const sortedAccounts = [...filteredAccounts].sort((a, b) => {
-        if (a.order !== b.order) return a.order - b.order;
-        return calculateBalance(b.id) - calculateBalance(a.id);
-    });
+    // Pinned first, then by the balance shown on the card, highest first
+    const sortedAccounts = sortAccountsForHome(
+        filteredAccounts,
+        (id) => calculateFocusedBalance?.(id) ?? calculateBalance(id),
+    );
 
     // Calculate total balance
     // const totalBalance = sortedAccounts.reduce(
@@ -69,6 +74,7 @@ export const AccountList = ({
                                 onClick={() => onAccountClick?.(account)}
                                 isSelected={account.id === selectedAccountId}
                                 compact
+                                menu={renderMenu?.(account)}
                             />
                         </motion.div>
                     ))}

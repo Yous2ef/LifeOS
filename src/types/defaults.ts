@@ -145,6 +145,8 @@ export const createDefaultFinanceData = (): FinanceData => ({
     people: [],
     loans: [],
     loanPayments: [],
+    openingBalances: [],
+    charityPledges: [],
     projects: [],
     incomes: [],
     expenses: [],

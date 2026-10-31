@@ -208,3 +208,14 @@ Commit: `feat(finance): unified search and quick-add`.
 - `npx tsc -b` (the typecheck step of `npm run build`), `npm run lint`.
 - `npm run test:run` for the new tests: `src/utils/finance/{balances,aggregations,loans,charity}.test.ts`.
 - Manual pass in the browser with the owner's backup imported into a local dev instance (never the real data store).
+
+## Follow-ups (2026-10-31)
+
+Six owner requests after Phase 5, built on the same model:
+
+1. **Account order** — pinned accounts first, then the rest, each from the highest balance shown to the lowest (the focused funds' part when some are focused); pin/unpin from the account card's ⋮ menu (`Account.isPinned`, `utils/finance/accounts.ts`). Privacy note: privacy mode masks amounts, but card order still reveals which account holds the most.
+2. **Quick-add removed** — the header Add opens the expense form and the FAB dropdown (income / expense / transfer / loan) is back, as at 2ec30f8. Search, filters and expense hints stay.
+3. **Hide home cards** — Budget, Goals and Installments each have an eye-off button (toast with Undo); Settings → General → "Home cards" shows them again (`settings.hiddenHomeCards`, synced).
+4. **Opening balance entries** — `OpeningBalanceEntry` records (account, fund — Me by default, positive amount, date, notes) from the account card's menu. They move balances (`computeBalances`, so net worth and statements follow) but are never income, expense, charity or loans; own feed type "Opening balance" (edit / delete with undo), own statement line, counted by account and fund delete guards. `Account.initialBalance` is unchanged.
+5. **Fund-focused feed** — with funds focused, the home feed and Cash Flow show only records in those funds; transfers show when either side is focused, as money in or out of the focus (`utils/finance/fundFocus.ts`). "All" shows everything.
+6. **Extra charity** — "+ Extra charity" on the charity strip adds a `CharityPledge` (amount, date on/after the start date, note) to what is owed; it is paid later like the rest. The ledger has a `pledged` column (remaining = opening + Σ(owed + carried + pledged − paid)); in the oldest-first queue a pledge is its own item beside incomes; work costs never reduce it. Pledges are listed (edit / delete with undo) in the strip's detail.

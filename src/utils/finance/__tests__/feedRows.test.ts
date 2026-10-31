@@ -9,6 +9,7 @@ import {
     income,
     loan,
     loanPayment,
+    openingEntry,
     person,
 } from "./fixtures";
 
@@ -80,6 +81,26 @@ describe("buildFeedRows", () => {
         });
         expect(rows.find((r) => r.id === "pending")?.date).toBe("2026-11-05");
         expect(rows.find((r) => r.id === "received")?.date).toBe("2026-10-10");
+    });
+
+    it("lists opening balance entries as their own type", () => {
+        const rows = rowsOf({
+            openingBalances: [
+                openingEntry({ fundId: FUND_CHARITY_ID }),
+                openingEntry({ id: "ob_2", notes: "Found in a drawer" }),
+            ],
+        });
+        expect(rows.find((r) => r.id === "ob_1")).toMatchObject({
+            type: "opening",
+            title: "Opening balance",
+            category: "Opening balance",
+            amount: 1000,
+            accountId: "acc_1",
+            fundId: FUND_CHARITY_ID,
+        });
+        expect(rows.find((r) => r.id === "ob_2")?.title).toBe(
+            "Found in a drawer",
+        );
     });
 
     it("sorts newest first", () => {

@@ -16,6 +16,7 @@ import {
     income,
     loan,
     loanPayment,
+    openingEntry,
     transfer,
 } from "./fixtures";
 
@@ -28,7 +29,8 @@ const reconciles = (statement: MonthlyStatement) => {
             statement.income.total -
             statement.expense.total +
             statement.loans.net +
-            statement.transfers.net,
+            statement.transfers.net +
+            statement.openingEntries.total,
     ).toBeCloseTo(statement.closing, 6);
 };
 
@@ -209,6 +211,42 @@ describe("computeMonthlyStatement", () => {
             fundIds: [FUND_ME_ID],
         });
         expect(oct.opening).toBe(sep.closing);
+    });
+});
+
+describe("opening balance entries in statements", () => {
+    const data = () =>
+        financeData({
+            accounts: [account({ initialBalance: 100 })],
+            openingBalances: [
+                openingEntry({ id: "before", amount: 300, date: "2026-09-15" }),
+                openingEntry({ id: "in", amount: 1000, date: "2026-10-10" }),
+                openingEntry({
+                    id: "charity",
+                    amount: 50,
+                    fundId: FUND_CHARITY_ID,
+                    date: "2026-10-11",
+                }),
+            ],
+            incomes: [income({ amount: 200, actualDate: "2026-10-12" })],
+        });
+
+    it("get their own line and still reconcile; never income", () => {
+        const statement = computeMonthlyStatement(data(), OCT, { fundIds: [] });
+        expect(statement.opening).toBe(400);
+        expect(statement.openingEntries).toEqual({ total: 1050, count: 2 });
+        expect(statement.income.total).toBe(200);
+        expect(statement.net).toBe(200);
+        expect(statement.closing).toBe(1650);
+        reconciles(statement);
+    });
+
+    it("follow the fund scope", () => {
+        const statement = computeMonthlyStatement(data(), OCT, {
+            fundIds: [FUND_ME_ID],
+        });
+        expect(statement.openingEntries).toEqual({ total: 1000, count: 1 });
+        reconciles(statement);
     });
 });
 

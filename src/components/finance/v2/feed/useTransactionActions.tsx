@@ -7,6 +7,7 @@ import type {
     Installment,
     Loan,
     LoanPayment,
+    OpeningBalanceEntry,
     Transaction,
 } from "@/types/modules/finance";
 import type { RestorableRecord } from "@/hooks/useFinance";
@@ -25,11 +26,13 @@ interface TransactionActionsDeps {
     installments: Installment[];
     loans: Loan[];
     loanPayments: LoanPayment[];
+    openingBalances: OpeningBalanceEntry[];
     deleteIncome: (id: string) => void;
     deleteExpense: (id: string) => { success: boolean; error?: string };
     deleteTransfer: (id: string) => void;
     deleteLoan: (id: string) => void;
     deleteLoanPayment: (id: string) => void;
+    deleteOpeningBalance: (id: string) => void;
     restoreRecord: (restored: RestorableRecord) => {
         success: boolean;
         error?: string;
@@ -43,6 +46,7 @@ const LABELS: Record<Transaction["type"], string> = {
     expense: "expense",
     transfer: "transfer",
     loan: "loan",
+    opening: "opening balance",
 };
 
 const labelOf = (transaction: Transaction) =>
@@ -60,11 +64,13 @@ export const useTransactionActions = ({
     installments,
     loans,
     loanPayments,
+    openingBalances,
     deleteIncome,
     deleteExpense,
     deleteTransfer,
     deleteLoan,
     deleteLoanPayment,
+    deleteOpeningBalance,
     restoreRecord,
     onOpenLoan,
 }: TransactionActionsDeps) => {
@@ -72,6 +78,8 @@ export const useTransactionActions = ({
     const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
     const [editingTransfer, setEditingTransfer] =
         useState<AccountTransfer | null>(null);
+    const [editingOpening, setEditingOpening] =
+        useState<OpeningBalanceEntry | null>(null);
 
     const startEdit = useCallback(
         (transaction: Transaction) => {
@@ -89,19 +97,25 @@ export const useTransactionActions = ({
                 setEditingExpense(expense ?? null);
             } else if (transaction.type === "loan") {
                 onOpenLoan?.(transaction);
+            } else if (transaction.type === "opening") {
+                setEditingOpening(
+                    openingBalances.find((o) => o.id === transaction.id) ??
+                        null,
+                );
             } else {
                 setEditingTransfer(
                     transfers.find((t) => t.id === transaction.id) ?? null,
                 );
             }
         },
-        [incomes, expenses, transfers, installments, onOpenLoan],
+        [incomes, expenses, transfers, installments, openingBalances, onOpenLoan],
     );
 
     const stopEdit = useCallback(() => {
         setEditingIncome(null);
         setEditingExpense(null);
         setEditingTransfer(null);
+        setEditingOpening(null);
     }, []);
 
     // Memoised so the modal's reset effect doesn't wipe edits on every render
@@ -127,6 +141,12 @@ export const useTransactionActions = ({
                 const record = expenses.find((e) => e.id === transaction.id);
                 return record ? { kind: "expense", record } : null;
             }
+            if (transaction.type === "opening") {
+                const record = openingBalances.find(
+                    (o) => o.id === transaction.id,
+                );
+                return record ? { kind: "opening", record } : null;
+            }
             if (transaction.loan?.kind === "repayment") {
                 const record = loanPayments.find((p) => p.id === transaction.id);
                 return record ? { kind: "loanPayment", record } : null;
@@ -141,7 +161,7 @@ export const useTransactionActions = ({
             const record = transfers.find((t) => t.id === transaction.id);
             return record ? { kind: "transfer", record } : null;
         },
-        [incomes, expenses, transfers, loans, loanPayments],
+        [incomes, expenses, transfers, loans, loanPayments, openingBalances],
     );
 
     const handleDelete = useCallback(
@@ -174,6 +194,8 @@ export const useTransactionActions = ({
                 deleteLoan(transaction.id);
             } else if (restorable.kind === "loanPayment") {
                 deleteLoanPayment(transaction.id);
+            } else if (restorable.kind === "opening") {
+                deleteOpeningBalance(transaction.id);
             } else {
                 deleteTransfer(transaction.id);
             }
@@ -189,6 +211,7 @@ export const useTransactionActions = ({
             deleteTransfer,
             deleteLoan,
             deleteLoanPayment,
+            deleteOpeningBalance,
             restoreRecord,
         ],
     );
@@ -197,6 +220,7 @@ export const useTransactionActions = ({
         editingIncome,
         editingExpense,
         editingTransfer,
+        editingOpening,
         incomeInitialData,
         expenseInitialData,
         transferInitialData,

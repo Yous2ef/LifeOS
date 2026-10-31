@@ -1,5 +1,7 @@
+import type { ReactNode } from "react";
 import { motion } from "framer-motion";
 import {
+    Pin,
     Wallet,
     CreditCard,
     Landmark,
@@ -21,6 +23,8 @@ interface AccountCardProps {
     isSelected?: boolean;
     compact?: boolean;
     className?: string;
+    /** Actions menu (pin, opening balance), shown in the card's corner */
+    menu?: ReactNode;
 }
 
 const getAccountIcon = (type: AccountType) => {
@@ -77,53 +81,72 @@ export const AccountCard = ({
     isSelected = false,
     compact = false,
     className,
+    menu,
 }: AccountCardProps) => {
     const gradient = getGradient(account.color, compact);
     const isFocused = focusedBalance !== undefined;
     const shownBalance = focusedBalance ?? balance;
 
+    const pinMark = account.isPinned && (
+        <Pin
+            className="w-3 h-3 shrink-0 opacity-70"
+            role="img"
+            aria-label="Pinned"
+        />
+    );
+
     if (compact) {
         return (
-            <motion.button
-                onClick={onClick}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                className={cn(
-                    "flex items-center gap-3 p-3 rounded-2xl w-full",
-                    "transition-all duration-200",
-                    "border-2",
-                    isSelected
-                        ? "bg-primary/10 border-primary"
-                        : "bg-card border-transparent hover:border-primary/30"
-                )}>
-                <div
-                    className="w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0"
-                    style={{ background: gradient }}>
-                    {account.icon ? (
-                        <span className="text-lg">{account.icon}</span>
-                    ) : (
-                        getAccountIcon(account.type)
-                    )}
-                </div>
-                <div className="flex-1 text-left min-w-0">
-                    <p className="font-medium text-sm truncate">
-                        {account.name}
-                    </p>
-                    <p
-                        className={cn(
-                            "text-xs tabular-nums",
-                            shownBalance >= 0
-                                ? "text-muted-foreground"
-                                : "text-red-500"
-                        )}>
-                        {isFocused
-                            ? `${(formatAmount ?? formatCurrency)(
-                                  shownBalance
-                              )} of ${formatCurrency(balance)}`
-                            : formatCurrency(balance)}
-                    </p>
-                </div>
-            </motion.button>
+            // The menu sits beside the button, not inside it: no nested buttons
+            <div className="relative">
+                <motion.button
+                    onClick={onClick}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    className={cn(
+                        "flex items-center gap-3 p-3 rounded-2xl w-full",
+                        "transition-all duration-200",
+                        "border-2",
+                        menu && "pr-12",
+                        isSelected
+                            ? "bg-primary/10 border-primary"
+                            : "bg-card border-transparent hover:border-primary/30"
+                    )}>
+                    <div
+                        className="w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0"
+                        style={{ background: gradient }}>
+                        {account.icon ? (
+                            <span className="text-lg">{account.icon}</span>
+                        ) : (
+                            getAccountIcon(account.type)
+                        )}
+                    </div>
+                    <div className="flex-1 text-left min-w-0">
+                        <p className="font-medium text-sm flex items-center gap-1 min-w-0">
+                            <span className="truncate">{account.name}</span>
+                            {pinMark}
+                        </p>
+                        <p
+                            className={cn(
+                                "text-xs tabular-nums",
+                                shownBalance >= 0
+                                    ? "text-muted-foreground"
+                                    : "text-red-500"
+                            )}>
+                            {isFocused
+                                ? `${(formatAmount ?? formatCurrency)(
+                                      shownBalance
+                                  )} of ${formatCurrency(balance)}`
+                                : formatCurrency(balance)}
+                        </p>
+                    </div>
+                </motion.button>
+                {menu && (
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                        {menu}
+                    </div>
+                )}
+            </div>
         );
     }
 
@@ -171,9 +194,12 @@ export const AccountCard = ({
                         )}
                     </div>
                     <div className="flex flex-col items-end gap-1">
-                        <span className="text-xs font-medium uppercase tracking-wider opacity-80">
-                            {account.type.replace("-", " ")}
-                        </span>
+                        <div className="flex items-center gap-1">
+                            <span className="text-xs font-medium uppercase tracking-wider opacity-80">
+                                {account.type.replace("-", " ")}
+                            </span>
+                            {menu}
+                        </div>
                         {isSelected && (
                             <motion.div
                                 initial={{ scale: 0 }}
@@ -198,8 +224,9 @@ export const AccountCard = ({
 
                 {/* Bottom row - Name and Balance */}
                 <div>
-                    <p className="text-sm font-medium opacity-80 mb-1">
+                    <p className="text-sm font-medium opacity-80 mb-1 flex items-center gap-1">
                         {account.name}
+                        {pinMark}
                     </p>
                     <motion.p
                         key={shownBalance}

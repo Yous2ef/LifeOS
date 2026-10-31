@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { ChevronDown, HandHeart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
@@ -11,6 +11,10 @@ interface CharityStripProps {
     rate: number;
     formatAmount: (amount: number) => string;
     onPay: (amount: number) => void;
+    /** "+ Extra charity": add an amount on top of what's owed */
+    onAddExtra?: () => void;
+    /** Shown under the ledger cards when the strip is open (extra pledges) */
+    detail?: ReactNode;
     className?: string;
 }
 
@@ -19,11 +23,23 @@ export const CharityLedgerCards = ({
     ledger,
     rate,
     formatAmount,
-}: Omit<CharityStripProps, "onPay" | "className">) => {
+}: Pick<CharityStripProps, "ledger" | "rate" | "formatAmount">) => {
     const isCredit = ledger.remaining < 0;
-    const cards = [
+    const cards: {
+        label: string;
+        value: number;
+        accent?: string;
+        note?: string;
+    }[] = [
         { label: COPY.ledgerNet, value: ledger.netEarnings },
-        { label: COPY.ledgerOwed(rate), value: ledger.owed },
+        {
+            label: COPY.ledgerOwed(rate),
+            value: ledger.owed,
+            note:
+                ledger.pledged > 0
+                    ? COPY.extraIncluded(formatAmount(ledger.pledged))
+                    : undefined,
+        },
         { label: COPY.ledgerPaid, value: ledger.paid },
         {
             label: isCredit ? COPY.ledgerCredit : COPY.ledgerRemaining,
@@ -47,6 +63,11 @@ export const CharityLedgerCards = ({
                         )}>
                         {formatAmount(card.value)}
                     </p>
+                    {card.note && (
+                        <p className="text-[11px] text-muted-foreground tabular-nums">
+                            {card.note}
+                        </p>
+                    )}
                 </div>
             ))}
         </div>
@@ -59,6 +80,8 @@ export const CharityStrip = ({
     rate,
     formatAmount,
     onPay,
+    onAddExtra,
+    detail,
     className,
 }: CharityStripProps) => {
     const [isOpen, setIsOpen] = useState(false);
@@ -97,6 +120,15 @@ export const CharityStrip = ({
                         {COPY.pay}
                     </Button>
                 )}
+                {onAddExtra && (
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={onAddExtra}
+                        className="rounded-xl h-8 text-teal-600 dark:text-teal-400 hover:bg-teal-500/10">
+                        {COPY.addExtra}
+                    </Button>
+                )}
             </div>
             {isOpen && (
                 <div className="mt-3">
@@ -105,6 +137,7 @@ export const CharityStrip = ({
                         rate={rate}
                         formatAmount={formatAmount}
                     />
+                    {detail && <div className="mt-3">{detail}</div>}
                 </div>
             )}
         </GlassCard>

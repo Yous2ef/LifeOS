@@ -51,8 +51,6 @@ interface ExpenseModalProps {
     defaultCurrency: Currency;
     /** When set, the modal edits an existing expense with these values */
     initialData?: Partial<ExpenseFormData>;
-    /** Starting values of a new expense (e.g. from quick-add) */
-    prefill?: Partial<ExpenseFormData>;
     funds?: Fund[];
     /** Balance a fund holds in an account (for the negative-balance warning) */
     getFundBalance?: (accountId: string, fundId: string) => number;
@@ -110,7 +108,6 @@ export const ExpenseModal = ({
     categories,
     defaultCurrency,
     initialData,
-    prefill,
     funds = [],
     getFundBalance,
     formatCurrency,
@@ -161,12 +158,12 @@ export const ExpenseModal = ({
                 isRecurring: false,
                 tags: [],
                 notes: "",
-                ...(initialData ?? prefill),
-                fundId: fundOf((initialData ?? prefill)?.fundId),
+                ...initialData,
+                fundId: fundOf(initialData?.fundId),
             });
             setStep("amount");
         }
-    }, [isOpen, defaultCurrency, categories, accounts, initialData, prefill]);
+    }, [isOpen, defaultCurrency, categories, accounts, initialData]);
 
     const handleCategoryScroll = () => {
         const element = categoryScrollRef.current;

@@ -9,7 +9,7 @@ export type BalanceSource = Pick<
     FinanceData,
     "accounts" | "incomes" | "expenses" | "transfers"
 > &
-    Partial<Pick<FinanceData, "loans" | "loanPayments">>;
+    Partial<Pick<FinanceData, "loans" | "loanPayments" | "openingBalances">>;
 
 /** accountId → fundId → balance */
 export type FundBalances = Map<string, Map<string, number>>;
@@ -52,6 +52,9 @@ export const incomeDate = (income: Income): string =>
  * Loans move money (borrowed +, lent −, repayments the reverse) without being
  * income or expense. A payment whose loan is gone (deleted on another device)
  * has no direction and is skipped, and offset payments move no money.
+ *
+ * Opening balance entries add money to (account, fund) on their date without
+ * being income, expense or charity.
  */
 export const computeBalances = (
     data: BalanceSource,
@@ -87,6 +90,11 @@ export const computeBalances = (
         if (!isOnOrBefore(transfer.date, asOf)) return;
         add(transfer.fromAccountId, transfer.fromFundId, -transfer.amount);
         add(transfer.toAccountId, transfer.toFundId, transfer.amount);
+    });
+
+    (data.openingBalances ?? []).forEach((entry) => {
+        if (!isOnOrBefore(entry.date, asOf)) return;
+        add(entry.accountId, entry.fundId, entry.amount);
     });
 
     const loans = data.loans ?? [];

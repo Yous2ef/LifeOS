@@ -15,6 +15,7 @@ import {
     financeData,
     income,
     installment,
+    openingEntry,
     transfer,
 } from "./fixtures";
 
@@ -204,6 +205,26 @@ describe("balances per fund", () => {
         expect(focusedTotal(data, [FUND_ME_ID, FUND_CHARITY_ID])).toBe(250);
         // Empty focus = All funds
         expect(focusedTotal(data, [])).toBe(computeTotalBalance(data));
+    });
+
+    it("adds opening balance entries to their account and fund on their date", () => {
+        const data = financeData({
+            accounts: [account({ initialBalance: 50 })],
+            openingBalances: [
+                openingEntry({ id: "o1", amount: 1000, date: "2026-10-05" }),
+                openingEntry({
+                    id: "o2",
+                    amount: 200,
+                    fundId: FUND_CHARITY_ID,
+                    date: "2026-10-20",
+                }),
+            ],
+        });
+        expect(balanceOf(data, "acc_1", FUND_ME_ID)).toBe(1050);
+        expect(balanceOf(data, "acc_1", FUND_CHARITY_ID)).toBe(200);
+        expect(computeAccountBalance(data, "acc_1", "2026-10-04")).toBe(50);
+        expect(computeAccountBalance(data, "acc_1", "2026-10-05")).toBe(1050);
+        expect(computeAccountBalance(data, "acc_1")).toBe(1250);
     });
 
     it("respects asOf per fund", () => {
