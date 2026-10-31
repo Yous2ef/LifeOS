@@ -1,18 +1,55 @@
-import { useState, useMemo, type ReactNode } from "react";
+import { useId, useState, useMemo, type ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, X, ChevronDown, ArrowLeft } from "lucide-react";
+import { Search, X, ChevronDown, ArrowLeft, SlidersHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { GlassCard } from "../layout/GlassCard";
 import { TransactionRow } from "./TransactionRow";
+import {
+    SearchFilters,
+    type DateMode,
+    type SearchOptions,
+} from "./SearchFilters";
 import type { Transaction, Account } from "@/types/modules/finance";
 import type { DateRange } from "../controls/SmartDatePicker";
+import { todayISO } from "@/utils/finance/dates";
+import {
+    EMPTY_FILTERS,
+    countActiveFilters,
+    filterTransactions,
+    searchTotals,
+    type SearchFilters as Filters,
+    type SearchableTransaction,
+} from "@/utils/finance/search";
 
 const ITEMS_PER_PAGE = 15;
 
+const NO_OPTIONS: SearchOptions = {
+    accounts: [],
+    funds: [],
+    expenseCategories: [],
+    incomeCategories: [],
+    projects: [],
+    people: [],
+    showWorkCost: false,
+};
+
+const COPY = {
+    searchPlaceholder: "Search title, notes, person, project…",
+    filters: "Filters",
+    allTime: "All Time",
+    loans: "Loans",
+    moneyIn: "in",
+    moneyOut: "out",
+    transfers: "Transfers",
+    notCounted: "Loans and transfers are not counted in income, expenses or net.",
+    tryAnother: "Try another search or clear the filters",
+};
+
 interface TransactionFeedProps {
-    transactions: Transaction[];
+    /** Newest first */
+    transactions: SearchableTransaction[];
     formatCurrency: (amount: number) => string;
     dateRange: DateRange;
     onTransactionClick?: (transaction: Transaction) => void;
@@ -23,6 +60,8 @@ interface TransactionFeedProps {
     className?: string;
     /** Extra chip per row (e.g. an income's charity status) */
     renderBadge?: (transaction: Transaction) => ReactNode;
+    /** Lists the filter panel picks from */
+    searchOptions?: SearchOptions;
 }
 
 export const TransactionFeed = ({
@@ -36,46 +75,85 @@ export const TransactionFeed = ({
     onClearAccountFilter,
     className,
     renderBadge,
+    searchOptions = NO_OPTIONS,
 }: TransactionFeedProps) => {
-    const [searchQuery, setSearchQuery] = useState("");
+    const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
+    const [dateMode, setDateMode] = useState<DateMode>("period");
     const [showSearch, setShowSearch] = useState(false);
+    const [showFilters, setShowFilters] = useState(false);
     const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE);
 
-    // Filter transactions by date range, account, and search
-    const filteredTransactions = useMemo(() => {
-        let filtered = transactions.filter((t) => {
-            const transactionDate = new Date(t.date);
-            const inDateRange =
-                transactionDate >= dateRange.start &&
-                transactionDate <= dateRange.end;
+    const activeFilterCount = countActiveFilters(filters);
+    const isSearching =
+        !!filters.text.trim() || activeFilterCount > 0 || dateMode !== "period";
 
-            // Filter by account if selected
-            const matchesAccount =
-                !selectedAccount || t.accountId === selectedAccount.id;
+    const periodText =
+        dateMode === "period"
+            ? dateRange.label
+            : dateMode === "any"
+              ? COPY.allTime
+              : [filters.from, filters.to].filter(Boolean).join(" – ") ||
+                COPY.allTime;
 
-            return inDateRange && matchesAccount;
-        });
+    const effectiveFilters = useMemo<Filters>(
+        () => ({
+            ...filters,
+            accountId: selectedAccount?.id ?? filters.accountId,
+            ...(dateMode === "period"
+                ? {
+                      from: todayISO(dateRange.start),
+                      to: todayISO(dateRange.end),
+                  }
+                : dateMode === "any"
+                  ? { from: undefined, to: undefined }
+                  : {}),
+        }),
+        [filters, selectedAccount, dateMode, dateRange],
+    );
 
-        // Apply search filter
-        if (searchQuery.trim()) {
-            const query = searchQuery.toLowerCase();
-            filtered = filtered.filter(
-                (t) =>
-                    t.title.toLowerCase().includes(query) ||
-                    t.category?.toLowerCase().includes(query)
-            );
-        }
+    const filteredTransactions = useMemo(
+        () =>
+            filterTransactions(transactions, effectiveFilters, {
+                people: searchOptions.people,
+                projects: searchOptions.projects,
+            }),
+        [transactions, effectiveFilters, searchOptions],
+    );
 
-        // Sort by date (newest first)
-        return filtered.sort(
-            (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-        );
-    }, [transactions, dateRange, searchQuery, selectedAccount]);
-
-    // Reset visible count when filters change
-    useMemo(() => {
+    // Back to the first page whenever the results change shape
+    const [pagedFor, setPagedFor] = useState(effectiveFilters);
+    if (pagedFor !== effectiveFilters) {
+        setPagedFor(effectiveFilters);
         setVisibleCount(ITEMS_PER_PAGE);
-    }, [dateRange, searchQuery, selectedAccount]);
+    }
+
+    const clearSearch = () => {
+        setFilters(EMPTY_FILTERS);
+        setDateMode("period");
+    };
+
+    // The panel's "Clear filters" keeps what was typed and the dates
+    const clearFilters = () =>
+        setFilters((prev) => ({
+            ...EMPTY_FILTERS,
+            text: prev.text,
+            from: prev.from,
+            to: prev.to,
+        }));
+
+    // A custom range starts from the period being shown
+    const changeDateMode = (mode: DateMode) => {
+        if (mode === "custom" && dateMode !== "custom") {
+            setFilters((prev) => ({
+                ...prev,
+                from: todayISO(dateRange.start),
+                to: todayISO(dateRange.end),
+            }));
+        }
+        setDateMode(mode);
+    };
+
+    const filtersId = useId();
 
     // Paginated transactions
     const paginatedTransactions = useMemo(() => {
@@ -120,23 +198,37 @@ export const TransactionFeed = ({
         });
     };
 
-    // Calculate totals for the filtered period
-    const totals = useMemo(() => {
-        let income = 0;
-        let expense = 0;
-        let transfer = 0;
-
-        filteredTransactions.forEach((t) => {
-            if (t.type === "income") income += t.amount;
-            else if (t.type === "expense") expense += t.amount;
-            else if (t.type === "transfer") transfer += t.amount;
-        });
-
-        return { income, expense, transfer, net: income - expense };
-    }, [filteredTransactions]);
+    const totals = useMemo(
+        () => searchTotals(filteredTransactions, effectiveFilters.accountId),
+        [filteredTransactions, effectiveFilters.accountId],
+    );
 
     const sortedDates = Object.keys(groupedTransactions).sort(
         (a, b) => new Date(b).getTime() - new Date(a).getTime()
+    );
+
+    const countText = `${totals.count} transaction${totals.count !== 1 ? "s" : ""}`;
+
+    const pill = (
+        label: string,
+        value: string,
+        tone: string,
+        delay = 0,
+        title?: string,
+    ) => (
+        <motion.div
+            key={label}
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay }}
+            title={title}
+            className={cn(
+                "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium shrink-0",
+                tone,
+            )}>
+            <span className="text-xs opacity-70">{label}</span>
+            <span className="tabular-nums">{value}</span>
+        </motion.div>
     );
 
     return (
@@ -160,15 +252,14 @@ export const TransactionFeed = ({
                         <p className="font-medium">{selectedAccount.name}</p>
                     </div>
                     <span className="text-sm text-muted-foreground tabular-nums">
-                        {filteredTransactions.length} transaction
-                        {filteredTransactions.length !== 1 ? "s" : ""}
+                        {countText}
                     </span>
                 </motion.div>
             )}
 
             {/* Header with Search */}
             <div className="flex items-center justify-between gap-3">
-                <div className="flex-1">
+                <div className="flex-1 min-w-0">
                     <AnimatePresence mode="wait">
                         {showSearch ? (
                             <motion.div
@@ -180,17 +271,22 @@ export const TransactionFeed = ({
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                                 <Input
                                     autoFocus
-                                    placeholder="Search transactions..."
-                                    value={searchQuery}
+                                    placeholder={COPY.searchPlaceholder}
+                                    aria-label="Search transactions"
+                                    value={filters.text}
                                     onChange={(e) =>
-                                        setSearchQuery(e.target.value)
+                                        setFilters((prev) => ({
+                                            ...prev,
+                                            text: e.target.value,
+                                        }))
                                     }
                                     className="pl-9 pr-9 h-10 rounded-full bg-muted/50 border-0"
                                 />
                                 <button
                                     onClick={() => {
-                                        setSearchQuery("");
+                                        clearSearch();
                                         setShowSearch(false);
+                                        setShowFilters(false);
                                     }}
                                     title="Close search"
                                     className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
@@ -206,11 +302,7 @@ export const TransactionFeed = ({
                                     Transactions
                                 </h2>
                                 <p className="text-sm text-muted-foreground">
-                                    {filteredTransactions.length} transaction
-                                    {filteredTransactions.length !== 1
-                                        ? "s"
-                                        : ""}{" "}
-                                    in {dateRange.label}
+                                    {countText} in {periodText}
                                 </p>
                             </motion.div>
                         )}
@@ -221,52 +313,93 @@ export const TransactionFeed = ({
                     <Button
                         variant="ghost"
                         size="icon"
+                        title="Search transactions"
                         onClick={() => setShowSearch(!showSearch)}
                         className="rounded-full w-9 h-9">
                         <Search className="w-4 h-4" />
                     </Button>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        title={COPY.filters}
+                        aria-expanded={showFilters}
+                        aria-controls={showFilters ? filtersId : undefined}
+                        onClick={() => setShowFilters(!showFilters)}
+                        className={cn(
+                            "relative rounded-full w-9 h-9",
+                            showFilters && "bg-muted",
+                        )}>
+                        <SlidersHorizontal className="w-4 h-4" />
+                        {activeFilterCount > 0 && (
+                            <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full bg-primary text-primary-foreground text-[10px] leading-4 tabular-nums">
+                                {activeFilterCount}
+                            </span>
+                        )}
+                    </Button>
                 </div>
             </div>
 
-            {/* Summary Pills */}
+            {/* The title line (with the live count) hides behind the search box */}
+            {showSearch && (
+                <p className="text-sm text-muted-foreground px-1 -mt-2">
+                    {countText} in {periodText}
+                </p>
+            )}
+
+            {showFilters && (
+                <SearchFilters
+                    filters={filters}
+                    onChange={setFilters}
+                    dateMode={dateMode}
+                    onDateModeChange={changeDateMode}
+                    periodLabel={dateRange.label}
+                    options={searchOptions}
+                    lockedAccountId={selectedAccount?.id}
+                    onClear={clearFilters}
+                    id={filtersId}
+                />
+            )}
+
+            {/* Summary Pills: loans and transfers stay out of the net */}
             <div className="flex gap-2 overflow-x-auto scrollbar-none pb-1">
-                <motion.div
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className="flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-sm font-medium shrink-0">
-                    <span className="text-xs opacity-70">Income</span>
-                    <span className="tabular-nums">
-                        {formatCurrency(totals.income)}
-                    </span>
-                </motion.div>
-
-                <motion.div
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: 0.05 }}
-                    className="flex items-center gap-2 px-4 py-2 rounded-full bg-red-500/10 text-red-600 dark:text-red-400 text-sm font-medium shrink-0">
-                    <span className="text-xs opacity-70">Expenses</span>
-                    <span className="tabular-nums">
-                        {formatCurrency(totals.expense)}
-                    </span>
-                </motion.div>
-
-                <motion.div
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: 0.1 }}
-                    className={cn(
-                        "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium shrink-0",
-                        totals.net >= 0
-                            ? "bg-blue-500/10 text-blue-600 dark:text-blue-400"
-                            : "bg-orange-500/10 text-orange-600 dark:text-orange-400"
-                    )}>
-                    <span className="text-xs opacity-70">Net</span>
-                    <span className="tabular-nums">
-                        {totals.net >= 0 ? "+" : ""}
-                        {formatCurrency(totals.net)}
-                    </span>
-                </motion.div>
+                {pill(
+                    "Income",
+                    formatCurrency(totals.income),
+                    "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+                )}
+                {pill(
+                    "Expenses",
+                    formatCurrency(totals.expense),
+                    "bg-red-500/10 text-red-600 dark:text-red-400",
+                    0.05,
+                )}
+                {pill(
+                    "Net",
+                    `${totals.net >= 0 ? "+" : ""}${formatCurrency(totals.net)}`,
+                    totals.net >= 0
+                        ? "bg-blue-500/10 text-blue-600 dark:text-blue-400"
+                        : "bg-orange-500/10 text-orange-600 dark:text-orange-400",
+                    0.1,
+                )}
+                {totals.loanCount > 0 &&
+                    pill(
+                        COPY.loans,
+                        `${COPY.moneyIn} ${formatCurrency(totals.loanIn)} · ${COPY.moneyOut} ${formatCurrency(totals.loanOut)}`,
+                        "bg-violet-500/10 text-violet-600 dark:text-violet-400",
+                        0.15,
+                        COPY.notCounted,
+                    )}
+                {totals.transferCount > 0 &&
+                    pill(
+                        COPY.transfers,
+                        // Seen from one account a transfer comes in or goes out
+                        effectiveFilters.accountId
+                            ? `${COPY.moneyIn} ${formatCurrency(totals.transferIn)} · ${COPY.moneyOut} ${formatCurrency(totals.transferOut)}`
+                            : formatCurrency(totals.transferAmount),
+                        "bg-muted text-muted-foreground",
+                        0.2,
+                        COPY.notCounted,
+                    )}
             </div>
 
             {/* Transaction List */}
@@ -283,8 +416,8 @@ export const TransactionFeed = ({
                             No transactions found
                         </h3>
                         <p className="text-sm text-muted-foreground">
-                            {searchQuery
-                                ? "Try a different search term"
+                            {isSearching
+                                ? COPY.tryAnother
                                 : `No transactions in ${dateRange.label.toLowerCase()}`}
                         </p>
                     </div>

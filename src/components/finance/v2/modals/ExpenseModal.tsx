@@ -27,10 +27,10 @@ import { Label } from "@/components/ui/Label";
 import { TextArea } from "@/components/ui/TextArea";
 import { fundOf } from "@/utils/finance/balances";
 import { todayISO } from "@/utils/finance/dates";
-import { FundBalanceWarning, FundPicker } from "../controls/FundPicker";
+import { FundPicker } from "../controls/FundPicker";
 import { ProjectPicker } from "../controls/ProjectPicker";
 import { WorkCostSwitch } from "../charity/WorkCostSwitch";
-import { COPY as CHARITY_COPY } from "../charity/copy";
+import { DonationDoubleCountHint, ExpenseFundWarning } from "./ExpenseHints";
 import type {
     Account,
     ExpenseCategory,
@@ -51,6 +51,8 @@ interface ExpenseModalProps {
     defaultCurrency: Currency;
     /** When set, the modal edits an existing expense with these values */
     initialData?: Partial<ExpenseFormData>;
+    /** Starting values of a new expense (e.g. from quick-add) */
+    prefill?: Partial<ExpenseFormData>;
     funds?: Fund[];
     /** Balance a fund holds in an account (for the negative-balance warning) */
     getFundBalance?: (accountId: string, fundId: string) => number;
@@ -108,6 +110,7 @@ export const ExpenseModal = ({
     categories,
     defaultCurrency,
     initialData,
+    prefill,
     funds = [],
     getFundBalance,
     formatCurrency,
@@ -158,12 +161,12 @@ export const ExpenseModal = ({
                 isRecurring: false,
                 tags: [],
                 notes: "",
-                ...initialData,
-                fundId: fundOf(initialData?.fundId),
+                ...(initialData ?? prefill),
+                fundId: fundOf((initialData ?? prefill)?.fundId),
             });
             setStep("amount");
         }
-    }, [isOpen, defaultCurrency, categories, accounts, initialData]);
+    }, [isOpen, defaultCurrency, categories, accounts, initialData, prefill]);
 
     const handleCategoryScroll = () => {
         const element = categoryScrollRef.current;
@@ -208,12 +211,6 @@ export const ExpenseModal = ({
         (formData.isWorkCost ??
             !!categories.find((c) => c.id === formData.categoryId)
                 ?.isWorkCostDefault);
-    const showDoubleCountHint =
-        isDonation &&
-        !!charityFundId &&
-        fundOf(formData.fundId) !== charityFundId &&
-        !!hasPaidOutsideNear?.(formData.date);
-
     const handleSubmit = () => {
         if (
             formData.amount <= 0 ||
@@ -241,24 +238,6 @@ export const ExpenseModal = ({
         (c) => c.id === formData.categoryId,
     );
     const selectedAccount = accounts.find((a) => a.id === formData.accountId);
-    const selectedFund = funds.find((f) => f.id === formData.fundId);
-
-    // When editing, the saved expense is already in the balance: add it back
-    const fundBalanceAfter = (() => {
-        if (!getFundBalance || !formData.accountId) return 0;
-        const fundId = fundOf(formData.fundId);
-        const alreadyCounted =
-            isEditing &&
-            initialData?.accountId === formData.accountId &&
-            fundOf(initialData?.fundId) === fundId
-                ? initialData?.amount ?? 0
-                : 0;
-        return (
-            getFundBalance(formData.accountId, fundId) +
-            alreadyCounted -
-            formData.amount
-        );
-    })();
 
     return (
         <AnimatePresence>
@@ -492,25 +471,18 @@ export const ExpenseModal = ({
                                             activeClassName="bg-red-300/20 ring-2 ring-red-500"
                                         />
 
-                                        {formatCurrency &&
-                                            formData.amount > 0 &&
-                                            selectedAccount && (
-                                                <FundBalanceWarning
-                                                    balanceAfter={
-                                                        fundBalanceAfter
-                                                    }
-                                                    fundName={
-                                                        selectedFund?.name ??
-                                                        "Me"
-                                                    }
-                                                    accountName={
-                                                        selectedAccount.name
-                                                    }
-                                                    formatCurrency={
-                                                        formatCurrency
-                                                    }
-                                                />
-                                            )}
+                                        <ExpenseFundWarning
+                                            draft={formData}
+                                            saved={
+                                                isEditing
+                                                    ? initialData
+                                                    : undefined
+                                            }
+                                            accounts={accounts}
+                                            funds={funds}
+                                            getFundBalance={getFundBalance}
+                                            formatCurrency={formatCurrency}
+                                        />
                                     </>
                                 ) : (
                                     <>
@@ -577,13 +549,17 @@ export const ExpenseModal = ({
                                                 }
                                                 className="rounded-xl"
                                             />
-                                            {showDoubleCountHint && (
-                                                <p className="mt-2 text-xs text-amber-500">
-                                                    {
-                                                        CHARITY_COPY.doubleCountHint
-                                                    }
-                                                </p>
-                                            )}
+                                            <DonationDoubleCountHint
+                                                draft={formData}
+                                                donationCategoryIds={
+                                                    donationCategoryIds
+                                                }
+                                                charityFundId={charityFundId}
+                                                hasPaidOutsideNear={
+                                                    hasPaidOutsideNear
+                                                }
+                                                className="mt-2 text-xs text-amber-500"
+                                            />
                                         </div>
 
                                         {/* Expense Type */}

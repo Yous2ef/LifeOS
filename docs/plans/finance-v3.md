@@ -1,6 +1,6 @@
 # Finance v3 — funds, loans, charity obligation, reports
 
-Status: approved 2026-10-31. Phase 0 built (uncommitted); Phases 1–5 pending. Date: 2026-10-31. Reviewed twice against the code (round 1: 20 findings, round 2: 9 findings — all folded in below).
+Status: approved 2026-10-31. Phases 0–5 built, reviewed (Opus, max 2 rounds each) and committed. Date: 2026-10-31. Reviewed twice against the code (round 1: 20 findings, round 2: 9 findings — all folded in below).
 
 ## Objective
 

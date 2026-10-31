@@ -50,6 +50,8 @@ interface IncomeModalProps {
     defaultCurrency: Currency;
     /** When set, the modal edits an existing income with these values */
     initialData?: Partial<IncomeFormData>;
+    /** Starting values of a new income (e.g. from quick-add) */
+    prefill?: Partial<IncomeFormData>;
     funds?: Fund[];
     projects?: FinanceProject[];
     onCreateProject?: (name: string) => FinanceProject;
@@ -112,6 +114,7 @@ export const IncomeModal = ({
     incomeCategories,
     defaultCurrency,
     initialData,
+    prefill,
     funds = [],
     projects = [],
     onCreateProject,
@@ -150,6 +153,7 @@ export const IncomeModal = ({
     useEffect(() => {
         if (isOpen) {
             const today = todayISO();
+            const seed = initialData ?? prefill;
             setFormData({
                 title: "",
                 amount: 0,
@@ -166,18 +170,25 @@ export const IncomeModal = ({
                 isRecurring: false,
                 tags: [],
                 notes: "",
-                ...initialData,
-                fundId: fundOf(initialData?.fundId),
+                ...seed,
+                fundId: fundOf(seed?.fundId),
                 // Legacy pending rows carry a stale actualDate; only a received
                 // income keeps its date, so pending → received defaults to today
                 actualDate:
-                    initialData?.status === "received"
-                        ? (initialData.actualDate ?? today)
+                    seed?.status === "received"
+                        ? (seed.actualDate ?? today)
                         : today,
             });
             setStep("amount");
         }
-    }, [isOpen, defaultCurrency, accounts, incomeCategories, initialData]);
+    }, [
+        isOpen,
+        defaultCurrency,
+        accounts,
+        incomeCategories,
+        initialData,
+        prefill,
+    ]);
 
     const handleCategoryScroll = () => {
         const element = categoryScrollRef.current;

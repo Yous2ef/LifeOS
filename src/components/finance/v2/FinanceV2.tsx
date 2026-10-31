@@ -80,12 +80,15 @@ import {
     toDraftIncome,
 } from "./charity/incomeCharity";
 import type { TransferFormData } from "./modals/TransferModal";
-
-// Reports
-import { ReportsModal } from "./reports/ReportsModal";
+import type { ExpenseFormData } from "./modals/ExpenseModal";
+import type { IncomeFormData } from "./modals/IncomeModal";
+import type { CharityChoice } from "./charity/CharityStep";
+import { QuickAddSheet, type QuickAddDraft } from "./controls/QuickAddSheet";
 
 import type {
     Account,
+    Expense,
+    Income,
     Transaction,
     FinancialGoal,
     Installment,
@@ -94,9 +97,9 @@ import {
     installmentFormToNew,
     installmentFormToUpdates,
 } from "@/utils/finance/installments";
-import { incomeDisplayDate } from "@/utils/finance/aggregations";
-import { fundOf } from "@/utils/finance/balances";
-import { loanTransactions } from "@/utils/finance/loans";
+import { buildFeedRows } from "@/utils/finance/feedRows";
+import { touchesAccount } from "@/utils/finance/search";
+import { rememberQuickAdd } from "@/utils/finance/quickAdd";
 import { useTransactionActions } from "./feed/useTransactionActions";
 
 // Custom hook for celebration
@@ -239,8 +242,12 @@ export const FinanceV2 = () => {
     const [showSettingsSheet, setShowSettingsSheet] = useState(false);
     const [showAccountManager, setShowAccountManager] = useState(false);
     const [showFundManager, setShowFundManager] = useState(false);
-    const [showReportsModal, setShowReportsModal] = useState(false);
     const [showBudgetModal, setShowBudgetModal] = useState(false);
+    const [showQuickAdd, setShowQuickAdd] = useState(false);
+    // What quick-add's "Full form" hands to the expense or income form
+    const [fullFormDraft, setFullFormDraft] = useState<QuickAddDraft | null>(
+        null,
+    );
 
     // Edit states
     const [editingInstallment, setEditingInstallment] =
@@ -278,98 +285,59 @@ export const FinanceV2 = () => {
 
     // ==================== Computed Values ====================
 
-    // Get all transactions merged
-    const allTransactions: Transaction[] = useMemo(() => {
-        const incomeTransactions: Transaction[] = incomes.map((inc) => {
-            const incomeCategory = incomeCategories.find(
-                (c) => c.id === inc.categoryId,
-            );
-            return {
-                id: inc.id,
-                type: "income" as const,
-                title: inc.title,
-                amount: inc.amount,
-                date: incomeDisplayDate(inc).split("T")[0],
-                accountId: inc.accountId,
-                category: incomeCategory?.name,
-                categoryId: inc.categoryId,
-                categoryIcon: incomeCategory?.icon,
-                categoryColor: incomeCategory?.color,
-                notes: inc.notes,
-                tags: inc.tags,
-                status: inc.status,
-                frequency: inc.frequency,
-                isRecurring: inc.isRecurring,
-                transactionNature: inc.type,
-            };
-        });
+    // Incomes, expenses, transfers and loan movements as one feed
+    const allTransactions = useMemo(
+        () =>
+            buildFeedRows(
+                {
+                    incomes,
+                    expenses,
+                    transfers,
+                    accounts,
+                    funds,
+                    categories,
+                    incomeCategories,
+                    loans,
+                    loanPayments,
+                    people,
+                },
+                charitySettings,
+            ),
+        [
+            incomes,
+            expenses,
+            transfers,
+            accounts,
+            funds,
+            categories,
+            incomeCategories,
+            loans,
+            loanPayments,
+            people,
+            charitySettings,
+        ],
+    );
 
-        const expenseTransactions: Transaction[] = expenses.map((exp) => {
-            const category = categories.find((c) => c.id === exp.categoryId);
-            return {
-                id: exp.id,
-                type: "expense" as const,
-                title: exp.title,
-                amount: exp.amount,
-                date: exp.date,
-                accountId: exp.accountId,
-                location: exp.location,
-                category: category?.name,
-                categoryId: exp.categoryId,
-                categoryIcon: category?.icon,
-                categoryColor: category?.color,
-                notes: exp.notes,
-                tags: exp.tags,
-                frequency: exp.recurringFrequency,
-                isRecurring: exp.isRecurring,
-                transactionNature: exp.type,
-            };
-        });
-
-        const fundName = (fundId?: string) =>
-            funds.find((f) => f.id === fundOf(fundId))?.name || "Fund";
-        const transferTransactions: Transaction[] = transfers.map((t) => {
-            const fromAccount = accounts.find((a) => a.id === t.fromAccountId);
-            const toAccount = accounts.find((a) => a.id === t.toAccountId);
-            // Same account = fund transfer: name the owners, not the place
-            const route =
-                t.fromAccountId === t.toAccountId
-                    ? `${fundName(t.fromFundId)} → ${fundName(t.toFundId)}`
-                    : `${fromAccount?.name || "Account"} → ${
-                          toAccount?.name || "Account"
-                      }`;
-            return {
-                id: t.id,
-                type: "transfer" as const,
-                title: t.notes || route,
-                amount: t.amount,
-                date: t.date,
-                accountId: t.fromAccountId,
-                toAccountId: t.toAccountId,
-                category: "Transfer",
-                notes: t.notes,
-            };
-        });
-
-        return [
-            ...incomeTransactions,
-            ...expenseTransactions,
-            ...transferTransactions,
-            ...loanTransactions({ loans, loanPayments, people }),
-        ].sort(
-            (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
-        );
-    }, [
-        incomes,
-        expenses,
-        transfers,
-        categories,
-        accounts,
-        funds,
-        loans,
-        loanPayments,
-        people,
-    ]);
+    const searchOptions = useMemo(
+        () => ({
+            accounts,
+            funds,
+            expenseCategories: categories,
+            incomeCategories,
+            projects,
+            people,
+            showWorkCost: charitySettings.enabled,
+        }),
+        [
+            accounts,
+            funds,
+            categories,
+            incomeCategories,
+            projects,
+            people,
+            charitySettings.enabled,
+        ],
+    );
 
     // Loan rows open their person on the People page
     const openLoan = (transaction: Transaction) =>
@@ -429,6 +397,15 @@ export const FinanceV2 = () => {
                       previewCharity(toDraftIncome(form, editingIncome))
                 : undefined,
         [charitySettings.enabled, previewCharity, editingIncome],
+    );
+    // Quick-add only ever creates
+    const getNewIncomeCharityPreview = useMemo(
+        () =>
+            charitySettings.enabled
+                ? (form: Parameters<typeof toDraftIncome>[0]) =>
+                      previewCharity(toDraftIncome(form, null))
+                : undefined,
+        [charitySettings.enabled, previewCharity],
     );
 
     const renderCharityBadge = (transaction: Transaction) => {
@@ -501,8 +478,103 @@ export const FinanceV2 = () => {
 
     // ==================== Handlers ====================
 
-    const hasTransactions = (accountId: string) => {
-        return allTransactions.some((t) => t.accountId === accountId);
+    // Incoming transfers count too, or the account could be deleted under them
+    const hasTransactions = (accountId: string) =>
+        allTransactions.some((t) => touchesAccount(t, accountId));
+
+    // Shared by the expense form and quick-add
+    const submitExpense = (data: ExpenseFormData, editing: Expense | null) => {
+        const fallbackTitle =
+            categories.find((c) => c.id === data.categoryId)?.name ||
+            "Expense";
+        const expenseData = {
+            title: data.title?.trim() || fallbackTitle,
+            amount: data.amount,
+            currency: data.currency,
+            categoryId: data.categoryId,
+            type: data.type,
+            paymentMethod: data.paymentMethod,
+            accountId: data.accountId,
+            fundId: data.fundId,
+            date: data.date,
+            isRecurring: data.isRecurring,
+            recurringFrequency: data.recurringFrequency,
+            tags: data.tags,
+            notes: data.notes,
+            projectId: data.projectId,
+            isWorkCost: data.isWorkCost,
+        };
+        if (editing) {
+            updateExpense(editing.id, expenseData);
+            transactionActions.stopEdit();
+        } else {
+            addExpense(expenseData);
+            rememberQuickAdd("expense", {
+                accountId: data.accountId,
+                fundId: data.fundId,
+            });
+        }
+    };
+
+    // Shared by the income form and quick-add
+    const submitIncome = (
+        data: IncomeFormData,
+        charity: CharityChoice | null,
+        editing: Income | null,
+    ) => {
+        const fallbackTitle =
+            incomeCategories.find((c) => c.id === data.categoryId)?.name ||
+            "Income";
+        const incomeData = {
+            title: data.title?.trim() || fallbackTitle,
+            amount: data.amount,
+            currency: data.currency,
+            type: data.type,
+            categoryId: data.categoryId,
+            status: data.status,
+            frequency: data.frequency,
+            accountId: data.accountId,
+            fundId: data.fundId,
+            // Pending income has no actual date until it's received
+            actualDate:
+                data.status === "received" ? data.actualDate : undefined,
+            expectedDate:
+                data.status === "received" ? undefined : data.expectedDate,
+            isRecurring: data.isRecurring,
+            tags: data.tags,
+            notes: data.notes,
+            projectId: data.projectId,
+            charityPaidOutsideAmount: paidOutsideAfter(charity, editing),
+        };
+        let incomeId = editing?.id;
+        if (editing) {
+            updateIncome(editing.id, incomeData);
+            transactionActions.stopEdit();
+        } else {
+            incomeId = addIncome(incomeData).id;
+            rememberQuickAdd("income", {
+                accountId: data.accountId,
+                fundId: data.fundId,
+            });
+        }
+        if (charity?.action === "pay-now") {
+            transferBetweenAccounts(
+                data.accountId,
+                data.accountId,
+                charity.amount,
+                CHARITY_COPY.transferNote,
+                data.actualDate,
+                {
+                    fromFundId: payNowFromFund(
+                        data.fundId,
+                        charitySettings.fundId,
+                    ),
+                    toFundId: charitySettings.fundId,
+                    // Pays this income first, not the oldest one
+                    charityIncomeId: incomeId,
+                },
+            );
+        }
     };
 
     const handleDeleteGoal = (goal: FinancialGoal) => {
@@ -522,7 +594,7 @@ export const FinanceV2 = () => {
                 .map((g, index) => `${index + 1}. ${g.title}`)
                 .join("\n");
             const selection = window.prompt(
-                `\"${goal.title}\" has ${formatCurrency(
+                `"${goal.title}" has ${formatCurrency(
                     amountToTransfer,
                 )}.\nChoose where to transfer it before deleting (enter number):\n\n${choices}`,
             );
@@ -571,7 +643,7 @@ export const FinanceV2 = () => {
                 .map((i, index) => `${index + 1}. ${i.title}`)
                 .join("\n");
             const selection = window.prompt(
-                `\"${installment.title}\" has ${formatCurrency(
+                `"${installment.title}" has ${formatCurrency(
                     amountToTransfer,
                 )} paid.\nChoose where to transfer it before deleting (enter number):\n\n${choices}`,
             );
@@ -805,6 +877,7 @@ export const FinanceV2 = () => {
                     selectedAccount={selectedAccount}
                     onClearAccountFilter={() => setSelectedAccount(null)}
                     renderBadge={charityLedger ? renderCharityBadge : undefined}
+                    searchOptions={searchOptions}
                 />
             )}
         </>
@@ -832,7 +905,7 @@ export const FinanceV2 = () => {
                 dateRange={dateRange}
                 onDateRangeChange={setDateRange}
                 onSettingsClick={() => setShowSettingsSheet(true)}
-                onAddClick={() => setShowExpenseModal(true)}
+                onAddClick={() => setShowQuickAdd(true)}
                 onReportsClick={() => navigate("/finance/reports")}
                 onPeopleClick={() => navigate("/finance/people")}
             />
@@ -865,13 +938,46 @@ export const FinanceV2 = () => {
                 centerColumn={renderFeedColumn()}
             />
 
-            {/* Quick Actions FAB */}
-            <QuickActions
-                onAddIncome={() => setShowIncomeModal(true)}
-                onAddExpense={() => setShowExpenseModal(true)}
-                onAddTransfer={() => setShowTransferModal(true)}
-                onAddLoan={() =>
-                    navigate("/finance/people", { state: { newLoan: true } })
+            {/* One add button: the quick-add sheet */}
+            <QuickActions onAdd={() => setShowQuickAdd(true)} />
+
+            <QuickAddSheet
+                isOpen={showQuickAdd}
+                onClose={() => setShowQuickAdd(false)}
+                accounts={accounts}
+                funds={funds}
+                expenseCategories={categories}
+                incomeCategories={incomeCategories}
+                expenses={expenses}
+                incomes={incomes}
+                defaultCurrency={settings.defaultCurrency}
+                formatCurrency={formatCurrency}
+                formatAmount={formatAmount}
+                getFundBalance={balanceOf}
+                charityEnabled={charitySettings.enabled}
+                charityFundId={charitySettings.fundId}
+                charityRate={charitySettings.rate}
+                donationCategoryIds={charitySettings.donationCategoryIds}
+                hasPaidOutsideNear={charityPaidOutsideNear}
+                hasDonationNear={charityDonationNear}
+                getCharityPreview={getNewIncomeCharityPreview}
+                onAddExpense={(data) => submitExpense(data, null)}
+                onAddIncome={(data, charity) =>
+                    submitIncome(data, charity, null)
+                }
+                onFullForm={(draft) => {
+                    setFullFormDraft(draft);
+                    if (draft.kind === "income") setShowIncomeModal(true);
+                    else setShowExpenseModal(true);
+                }}
+                onTransfer={(prefill) => {
+                    setTransferPrefill(prefill);
+                    setShowTransferModal(true);
+                }}
+                onLoan={(amount) =>
+                    navigate("/finance/people", {
+                        state: { newLoan: true, amount },
+                    })
                 }
             />
 
@@ -882,38 +988,18 @@ export const FinanceV2 = () => {
                 isOpen={showExpenseModal || !!transactionActions.editingExpense}
                 onClose={() => {
                     setShowExpenseModal(false);
+                    setFullFormDraft(null);
                     transactionActions.stopEdit();
                 }}
                 initialData={transactionActions.expenseInitialData}
-                onSubmit={(data) => {
-                    const fallbackTitle =
-                        categories.find((c) => c.id === data.categoryId)
-                            ?.name || "Expense";
-                    const expenseData = {
-                        title: data.title?.trim() || fallbackTitle,
-                        amount: data.amount,
-                        currency: data.currency,
-                        categoryId: data.categoryId,
-                        type: data.type,
-                        paymentMethod: data.paymentMethod,
-                        accountId: data.accountId,
-                        fundId: data.fundId,
-                        date: data.date,
-                        isRecurring: data.isRecurring,
-                        recurringFrequency: data.recurringFrequency,
-                        tags: data.tags,
-                        notes: data.notes,
-                        projectId: data.projectId,
-                        isWorkCost: data.isWorkCost,
-                    };
-                    const editing = transactionActions.editingExpense;
-                    if (editing) {
-                        updateExpense(editing.id, expenseData);
-                        transactionActions.stopEdit();
-                    } else {
-                        addExpense(expenseData);
-                    }
-                }}
+                prefill={
+                    fullFormDraft?.kind === "expense"
+                        ? fullFormDraft.data
+                        : undefined
+                }
+                onSubmit={(data) =>
+                    submitExpense(data, transactionActions.editingExpense)
+                }
                 accounts={accounts}
                 categories={categories}
                 defaultCurrency={settings.defaultCurrency}
@@ -933,68 +1019,22 @@ export const FinanceV2 = () => {
                 isOpen={showIncomeModal || !!transactionActions.editingIncome}
                 onClose={() => {
                     setShowIncomeModal(false);
+                    setFullFormDraft(null);
                     transactionActions.stopEdit();
                 }}
                 initialData={transactionActions.incomeInitialData}
-                onSubmit={(data, charity) => {
-                    const fallbackTitle =
-                        incomeCategories.find((c) => c.id === data.categoryId)
-                            ?.name || "Income";
-                    const editing = transactionActions.editingIncome;
-                    const incomeData = {
-                        title: data.title?.trim() || fallbackTitle,
-                        amount: data.amount,
-                        currency: data.currency,
-                        type: data.type,
-                        categoryId: data.categoryId,
-                        status: data.status,
-                        frequency: data.frequency,
-                        accountId: data.accountId,
-                        fundId: data.fundId,
-                        // Pending income has no actual date until it's received
-                        actualDate:
-                            data.status === "received"
-                                ? data.actualDate
-                                : undefined,
-                        expectedDate:
-                            data.status === "received"
-                                ? undefined
-                                : data.expectedDate,
-                        isRecurring: data.isRecurring,
-                        tags: data.tags,
-                        notes: data.notes,
-                        projectId: data.projectId,
-                        charityPaidOutsideAmount: paidOutsideAfter(
-                            charity,
-                            editing,
-                        ),
-                    };
-                    let incomeId = editing?.id;
-                    if (editing) {
-                        updateIncome(editing.id, incomeData);
-                        transactionActions.stopEdit();
-                    } else {
-                        incomeId = addIncome(incomeData).id;
-                    }
-                    if (charity?.action === "pay-now") {
-                        transferBetweenAccounts(
-                            data.accountId,
-                            data.accountId,
-                            charity.amount,
-                            CHARITY_COPY.transferNote,
-                            data.actualDate,
-                            {
-                                fromFundId: payNowFromFund(
-                                    data.fundId,
-                                    charitySettings.fundId,
-                                ),
-                                toFundId: charitySettings.fundId,
-                                // Pays this income first, not the oldest one
-                                charityIncomeId: incomeId,
-                            },
-                        );
-                    }
-                }}
+                prefill={
+                    fullFormDraft?.kind === "income"
+                        ? fullFormDraft.data
+                        : undefined
+                }
+                onSubmit={(data, charity) =>
+                    submitIncome(
+                        data,
+                        charity,
+                        transactionActions.editingIncome,
+                    )
+                }
                 accounts={accounts}
                 incomeCategories={incomeCategories}
                 defaultCurrency={settings.defaultCurrency}
@@ -1194,6 +1234,10 @@ export const FinanceV2 = () => {
                                 toFundId: data.toFundId,
                             },
                         );
+                        rememberQuickAdd("transfer", {
+                            accountId: data.fromAccountId,
+                            fundId: data.fromFundId,
+                        });
                     }
                     setShowTransferModal(false);
                 }}
@@ -1677,17 +1721,6 @@ export const FinanceV2 = () => {
                     </div>
                 )}
             </TransactionDrawer>
-
-            {/* Reports Modal */}
-            <ReportsModal
-                isOpen={showReportsModal}
-                onClose={() => setShowReportsModal(false)}
-                incomes={incomes}
-                expenses={expenses}
-                categories={categories}
-                dateRange={dateRange}
-                formatCurrency={formatCurrency}
-            />
 
             {/* Budget Modal */}
             <BudgetModal
