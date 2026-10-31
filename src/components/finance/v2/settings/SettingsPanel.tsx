@@ -13,6 +13,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
     Settings,
     Wallet,
+    PiggyBank,
     Tags,
     Bell,
     Download,
@@ -36,14 +37,22 @@ interface SettingsPanelProps {
     onImport: (data: unknown) => void;
     onResetData: () => void;
     accountsContent?: React.ReactNode; // AccountManager component
+    fundsContent?: React.ReactNode; // FundManager component
     categoriesContent?: React.ReactNode; // CategoryStudio component
 }
 
-type SettingsTab = "general" | "accounts" | "categories" | "alerts" | "data";
+type SettingsTab =
+    | "general"
+    | "accounts"
+    | "funds"
+    | "categories"
+    | "alerts"
+    | "data";
 
 const TABS: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
     { id: "general", label: "General", icon: <Settings className="w-4 h-4" /> },
     { id: "accounts", label: "Accounts", icon: <Wallet className="w-4 h-4" /> },
+    { id: "funds", label: "Funds", icon: <PiggyBank className="w-4 h-4" /> },
     {
         id: "categories",
         label: "Categories",
@@ -69,6 +78,7 @@ export const SettingsPanel = ({
     onImport,
     onResetData,
     accountsContent,
+    fundsContent,
     categoriesContent,
 }: SettingsPanelProps) => {
     const [activeTab, setActiveTab] = useState<SettingsTab>("general");
@@ -223,6 +233,15 @@ export const SettingsPanel = ({
                                     Manage Accounts
                                 </h3>
                                 {accountsContent}
+                            </div>
+                        )}
+
+                        {activeTab === "funds" && (
+                            <div className="space-y-4">
+                                <h3 className="text-lg font-semibold">
+                                    Manage Funds
+                                </h3>
+                                {fundsContent}
                             </div>
                         )}
 

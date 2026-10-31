@@ -24,8 +24,11 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { TextArea } from "@/components/ui/TextArea";
+import { fundOf } from "@/utils/finance/balances";
+import { FundPicker } from "../controls/FundPicker";
 import type {
     Account,
+    Fund,
     IncomeCategory,
     TransactionNature,
     IncomeStatus,
@@ -42,6 +45,7 @@ interface IncomeModalProps {
     defaultCurrency: Currency;
     /** When set, the modal edits an existing income with these values */
     initialData?: Partial<IncomeFormData>;
+    funds?: Fund[];
 }
 
 export interface IncomeFormData {
@@ -49,6 +53,7 @@ export interface IncomeFormData {
     amount: number;
     currency: Currency;
     accountId: string;
+    fundId?: string;
     categoryId: string;
     type: TransactionNature;
     status: IncomeStatus;
@@ -93,6 +98,7 @@ export const IncomeModal = ({
     incomeCategories,
     defaultCurrency,
     initialData,
+    funds = [],
 }: IncomeModalProps) => {
     const isEditing = !!initialData;
     const [formData, setFormData] = useState<IncomeFormData>({
@@ -101,6 +107,7 @@ export const IncomeModal = ({
         currency: defaultCurrency,
         accountId:
             accounts.find((a) => a.isDefault)?.id || accounts[0]?.id || "",
+        fundId: fundOf(),
         categoryId: incomeCategories[0]?.id || "",
         type: "variable",
         status: "received",
@@ -120,6 +127,7 @@ export const IncomeModal = ({
     // Reset form when modal opens
     useEffect(() => {
         if (isOpen) {
+            const today = new Date().toISOString().split("T")[0];
             setFormData({
                 title: "",
                 amount: 0,
@@ -132,12 +140,18 @@ export const IncomeModal = ({
                 type: "variable",
                 status: "received",
                 frequency: "one-time",
-                actualDate: new Date().toISOString().split("T")[0],
-                expectedDate: new Date().toISOString().split("T")[0],
+                expectedDate: today,
                 isRecurring: false,
                 tags: [],
                 notes: "",
                 ...initialData,
+                fundId: fundOf(initialData?.fundId),
+                // Legacy pending rows carry a stale actualDate; only a received
+                // income keeps its date, so pending → received defaults to today
+                actualDate:
+                    initialData?.status === "received"
+                        ? (initialData.actualDate ?? today)
+                        : today,
             });
             setStep("amount");
         }
@@ -432,6 +446,18 @@ export const IncomeModal = ({
                                                     ))}
                                             </div>
                                         </div>
+
+                                        <FundPicker
+                                            funds={funds}
+                                            value={fundOf(formData.fundId)}
+                                            onChange={(fundId) =>
+                                                setFormData((prev) => ({
+                                                    ...prev,
+                                                    fundId,
+                                                }))
+                                            }
+                                            activeClassName="bg-emerald-500/20 ring-2 ring-emerald-500"
+                                        />
                                     </>
                                 ) : (
                                     <>

@@ -197,6 +197,7 @@ export function consolidateV1Data(): AppData {
         finance: financeData ?? {
             accounts: [],
             transfers: [],
+            funds: [],
             incomes: [],
             expenses: [],
             categories: [],

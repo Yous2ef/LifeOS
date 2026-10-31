@@ -22,7 +22,8 @@ import { useFinance } from "@/hooks/useFinance";
 import { GlassCard } from "./v2/layout/GlassCard";
 
 export const FinanceWidget = () => {
-    const { totalBalance: netWorth, goals, formatCurrency, getMonthlyStats } =
+    // Same net worth as the finance home: the focused funds' balance
+    const { focusedBalance: netWorth, goals, formatCurrency, getMonthlyStats } =
         useFinance();
 
     // Calculate totals

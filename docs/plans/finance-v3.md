@@ -91,8 +91,9 @@ interface Fund { id; name; icon; color; kind: "personal" | "charity" | "custom";
 - Fund delete is blocked while any record references the fund or its balance isn't zero. Me and Charity can't be deleted.
 - Goals stay virtual (they never moved money and still don't); moving goals onto funds is a later step.
 - UI: A1 — fund tabs (Me / Charity / Investment / All / manage), place list showing "focused of total", eye toggle. Fund picker in income/expense/transfer forms (default Me, hidden funds listed last under "Set aside"). Fund manager in Settings (create, rename, hide, reorder).
-- Privacy: `usePrivacyMode` hook + a `<Money>` display component used by every amount on finance pages and `FinanceWidget`.
-- Warn when a spend would make a fund's balance in that account negative (warning, not a block).
+- Privacy (as built): `usePrivacyMode` (`src/hooks/usePrivacyMode.ts`, per-device localStorage) masks amounts as `••••` inside `useFinance`'s `formatCurrency` / `formatAmount` — one choke point, so every amount formatted through them is covered with no per-screen code. Later phases must format amounts through these (or `maskAmount` / the hook's `mask` for anything else, e.g. chart axis ticks). There is no `<Money>` blur component.
+- Warn when a spend or transfer would make a fund's balance in that account negative (warning, not a block — transfers no longer block on insufficient balance either).
+- Pure balance helpers in `balances.ts` take precomputed `FundBalances` (`fundBalanceIn`, `focusedAccountBalance`, `sumActiveAccounts`); `useFinance` only wires them. Empty `focusedFundIds` means All.
 
 Tests: balances per fund; fund transfer moves owner not place.
 

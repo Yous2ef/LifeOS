@@ -10,6 +10,9 @@ interface AccountCarouselProps {
     accounts: Account[];
     calculateBalance: (accountId: string) => number;
     formatCurrency: (amount: number) => string;
+    /** When set, cards show the focused funds' part "of" the account total */
+    calculateFocusedBalance?: (accountId: string) => number;
+    formatAmount?: (amount: number) => string;
     onAccountClick?: (account: Account) => void;
     onAddAccount?: () => void;
     selectedAccountId?: string;
@@ -20,6 +23,8 @@ export const AccountCarousel = ({
     accounts,
     calculateBalance,
     formatCurrency,
+    calculateFocusedBalance,
+    formatAmount,
     onAccountClick,
     onAddAccount,
     selectedAccountId,
@@ -106,6 +111,10 @@ export const AccountCarousel = ({
                             account={account}
                             balance={calculateBalance(account.id)}
                             formatCurrency={formatCurrency}
+                            focusedBalance={calculateFocusedBalance?.(
+                                account.id,
+                            )}
+                            formatAmount={formatAmount}
                             onClick={() => onAccountClick?.(account)}
                             isSelected={account.id === selectedAccountId}
                         />

@@ -4,10 +4,13 @@ import type {
     AccountTransfer,
     Expense,
     Income,
+    Installment,
     Transaction,
 } from "@/types/modules/finance";
+import { isLivePaymentExpense } from "@/utils/finance/installments";
 import type { IncomeFormData } from "../modals/IncomeModal";
 import type { ExpenseFormData } from "../modals/ExpenseModal";
+import type { TransferFormData } from "../modals/TransferModal";
 
 type Restorable =
     | { kind: "income"; record: Income }
@@ -18,6 +21,7 @@ interface TransactionActionsDeps {
     incomes: Income[];
     expenses: Expense[];
     transfers: AccountTransfer[];
+    installments: Installment[];
     deleteIncome: (id: string) => void;
     deleteExpense: (id: string) => { success: boolean; error?: string };
     deleteTransfer: (id: string) => void;
@@ -37,6 +41,7 @@ export const useTransactionActions = ({
     incomes,
     expenses,
     transfers,
+    installments,
     deleteIncome,
     deleteExpense,
     deleteTransfer,
@@ -44,6 +49,8 @@ export const useTransactionActions = ({
 }: TransactionActionsDeps) => {
     const [editingIncome, setEditingIncome] = useState<Income | null>(null);
     const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+    const [editingTransfer, setEditingTransfer] =
+        useState<AccountTransfer | null>(null);
 
     const startEdit = useCallback(
         (transaction: Transaction) => {
@@ -52,17 +59,26 @@ export const useTransactionActions = ({
                     incomes.find((i) => i.id === transaction.id) ?? null,
                 );
             } else if (transaction.type === "expense") {
-                setEditingExpense(
-                    expenses.find((e) => e.id === transaction.id) ?? null,
+                const expense = expenses.find((e) => e.id === transaction.id);
+                // Mirrors the delete guard: the payment owns amount and account
+                if (expense && isLivePaymentExpense(expense, installments)) {
+                    toast.error("Edit this payment from the installment");
+                    return;
+                }
+                setEditingExpense(expense ?? null);
+            } else {
+                setEditingTransfer(
+                    transfers.find((t) => t.id === transaction.id) ?? null,
                 );
             }
         },
-        [incomes, expenses],
+        [incomes, expenses, transfers, installments],
     );
 
     const stopEdit = useCallback(() => {
         setEditingIncome(null);
         setEditingExpense(null);
+        setEditingTransfer(null);
     }, []);
 
     // Memoised so the modal's reset effect doesn't wipe edits on every render
@@ -74,6 +90,9 @@ export const useTransactionActions = ({
         () => editingExpense ?? undefined,
         [editingExpense],
     );
+    const transferInitialData = useMemo<
+        Partial<TransferFormData> | undefined
+    >(() => editingTransfer ?? undefined, [editingTransfer]);
 
     const findRecord = useCallback(
         (transaction: Transaction): Restorable | null => {
@@ -133,8 +152,10 @@ export const useTransactionActions = ({
     return {
         editingIncome,
         editingExpense,
+        editingTransfer,
         incomeInitialData,
         expenseInitialData,
+        transferInitialData,
         startEdit,
         stopEdit,
         handleDelete,

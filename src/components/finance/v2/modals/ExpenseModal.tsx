@@ -25,9 +25,12 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { TextArea } from "@/components/ui/TextArea";
+import { fundOf } from "@/utils/finance/balances";
+import { FundBalanceWarning, FundPicker } from "../controls/FundPicker";
 import type {
     Account,
     ExpenseCategory,
+    Fund,
     TransactionNature,
     RecurringFrequency,
     Currency,
@@ -43,6 +46,10 @@ interface ExpenseModalProps {
     defaultCurrency: Currency;
     /** When set, the modal edits an existing expense with these values */
     initialData?: Partial<ExpenseFormData>;
+    funds?: Fund[];
+    /** Balance a fund holds in an account (for the negative-balance warning) */
+    getFundBalance?: (accountId: string, fundId: string) => number;
+    formatCurrency?: (amount: number) => string;
 }
 
 export interface ExpenseFormData {
@@ -51,6 +58,7 @@ export interface ExpenseFormData {
     currency: Currency;
     categoryId: string;
     accountId: string;
+    fundId?: string;
     type: TransactionNature;
     paymentMethod: PaymentMethod;
     date: string;
@@ -83,6 +91,9 @@ export const ExpenseModal = ({
     categories,
     defaultCurrency,
     initialData,
+    funds = [],
+    getFundBalance,
+    formatCurrency,
 }: ExpenseModalProps) => {
     const isEditing = !!initialData;
     const [formData, setFormData] = useState<ExpenseFormData>({
@@ -92,6 +103,7 @@ export const ExpenseModal = ({
         categoryId: categories[0]?.id || "",
         accountId:
             accounts.find((a) => a.isDefault)?.id || accounts[0]?.id || "",
+        fundId: fundOf(),
         type: "variable",
         paymentMethod: "card",
         date: new Date().toISOString().split("T")[0],
@@ -124,6 +136,7 @@ export const ExpenseModal = ({
                 tags: [],
                 notes: "",
                 ...initialData,
+                fundId: fundOf(initialData?.fundId),
             });
             setStep("amount");
         }
@@ -190,6 +203,24 @@ export const ExpenseModal = ({
         (c) => c.id === formData.categoryId,
     );
     const selectedAccount = accounts.find((a) => a.id === formData.accountId);
+    const selectedFund = funds.find((f) => f.id === formData.fundId);
+
+    // When editing, the saved expense is already in the balance: add it back
+    const fundBalanceAfter = (() => {
+        if (!getFundBalance || !formData.accountId) return 0;
+        const fundId = fundOf(formData.fundId);
+        const alreadyCounted =
+            isEditing &&
+            initialData?.accountId === formData.accountId &&
+            fundOf(initialData?.fundId) === fundId
+                ? initialData?.amount ?? 0
+                : 0;
+        return (
+            getFundBalance(formData.accountId, fundId) +
+            alreadyCounted -
+            formData.amount
+        );
+    })();
 
     return (
         <AnimatePresence>
@@ -407,6 +438,38 @@ export const ExpenseModal = ({
                                                     ))}
                                             </div>
                                         </div>
+
+                                        <FundPicker
+                                            funds={funds}
+                                            value={fundOf(formData.fundId)}
+                                            onChange={(fundId) =>
+                                                setFormData((prev) => ({
+                                                    ...prev,
+                                                    fundId,
+                                                }))
+                                            }
+                                            activeClassName="bg-red-300/20 ring-2 ring-red-500"
+                                        />
+
+                                        {formatCurrency &&
+                                            formData.amount > 0 &&
+                                            selectedAccount && (
+                                                <FundBalanceWarning
+                                                    balanceAfter={
+                                                        fundBalanceAfter
+                                                    }
+                                                    fundName={
+                                                        selectedFund?.name ??
+                                                        "Me"
+                                                    }
+                                                    accountName={
+                                                        selectedAccount.name
+                                                    }
+                                                    formatCurrency={
+                                                        formatCurrency
+                                                    }
+                                                />
+                                            )}
                                     </>
                                 ) : (
                                     <>

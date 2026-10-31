@@ -16,6 +16,7 @@
  */
 
 import type { AppData, FreelancingData } from "../types";
+import { FUND_ME_ID } from "../types/modules/finance";
 
 // Storage keys
 const V1_KEYS = {
@@ -271,6 +272,7 @@ export function getDefaultModuleData(): AppData {
         finance: {
             accounts: [],
             transfers: [],
+            funds: [],
             incomes: [],
             expenses: [],
             categories: [],
@@ -290,6 +292,7 @@ export function getDefaultModuleData(): AppData {
                 enableInsights: true,
                 weeklyReportEnabled: false,
                 monthlyReportEnabled: true,
+                focusedFundIds: [FUND_ME_ID],
             },
         },
         home: {

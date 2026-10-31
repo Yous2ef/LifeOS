@@ -15,7 +15,11 @@ import type { AppData } from "./index";
 import type { UniversityData } from "./modules/university";
 import type { HomeData } from "./modules/home";
 import type { MiscData } from "./modules/misc";
-import type { FinanceData, FinanceSettings } from "./modules/finance";
+import {
+    FUND_ME_ID,
+    type FinanceData,
+    type FinanceSettings,
+} from "./modules/finance";
 import type { FreelancingData, FreelancerProfile } from "./modules/freelancing";
 import type { ProgrammingData } from "./modules/programming";
 import type { SettingsData } from "./core/settings";
@@ -126,6 +130,7 @@ export const createDefaultFinanceSettings = (): FinanceSettings => ({
     enableInsights: true,
     weeklyReportEnabled: false,
     monthlyReportEnabled: true,
+    focusedFundIds: [FUND_ME_ID],
 });
 
 /**
@@ -134,6 +139,7 @@ export const createDefaultFinanceSettings = (): FinanceSettings => ({
 export const createDefaultFinanceData = (): FinanceData => ({
     accounts: [],
     transfers: [],
+    funds: [], // Me is added when the module is normalised
     incomes: [],
     expenses: [],
     categories: [],

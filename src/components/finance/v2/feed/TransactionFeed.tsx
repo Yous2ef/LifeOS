@@ -326,8 +326,7 @@ export const TransactionFeed = ({
                                                 )
                                             }
                                             onEdit={
-                                                onEdit &&
-                                                transaction.type !== "transfer"
+                                                onEdit
                                                     ? () => onEdit(transaction)
                                                     : undefined
                                             }

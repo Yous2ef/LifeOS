@@ -1,4 +1,5 @@
 import type {
+    Expense,
     FinanceData,
     Installment,
     InstallmentPayment,
@@ -53,6 +54,16 @@ export const installmentFormToNew = (
     autoPayment: false,
     remindDaysBefore: 3,
 });
+
+/** An expense that pays an installment payment which still exists */
+export const isLivePaymentExpense = (
+    expense: Pick<Expense, "linkedPaymentId">,
+    installments: Installment[],
+): boolean =>
+    !!expense.linkedPaymentId &&
+    installments.some((inst) =>
+        inst.payments.some((p) => p.id === expense.linkedPaymentId),
+    );
 
 const countsAsPaid = (payment: InstallmentPayment) =>
     payment.status === "paid" || payment.status === "late";

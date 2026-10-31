@@ -28,6 +28,7 @@ import { NetWorthDisplay } from "./wallet/NetWorthDisplay";
 import { AccountCarousel } from "./wallet/AccountCarousel";
 import { AccountList } from "./wallet/AccountList";
 import { BudgetWidget } from "./wallet/BudgetWidget";
+import { FundTabs } from "./wallet/FundTabs";
 
 // Feed Components
 import { TransactionFeed } from "./feed/TransactionFeed";
@@ -64,6 +65,7 @@ import { BudgetModal } from "./modals/BudgetModal";
 import { AccountManager } from "./settings/AccountManager";
 import { SettingsPanel } from "./settings/SettingsPanel";
 import { CategoryStudioV2 } from "./settings/CategoryStudioV2";
+import { FundManager } from "./settings/FundManager";
 
 // Reports
 import { ReportsModal } from "./reports/ReportsModal";
@@ -79,6 +81,7 @@ import {
     installmentFormToUpdates,
 } from "@/utils/finance/installments";
 import { incomeDisplayDate } from "@/utils/finance/aggregations";
+import { fundOf } from "@/utils/finance/balances";
 import { useTransactionActions } from "./feed/useTransactionActions";
 
 // Custom hook for celebration
@@ -120,7 +123,21 @@ export const FinanceV2 = () => {
         goals,
         settings,
         formatCurrency,
+        formatAmount,
         calculateAccountBalance,
+        funds,
+        focusedFundIds,
+        setFocusedFunds,
+        addFund,
+        updateFund,
+        deleteFund,
+        getFundDeleteError,
+        reorderFunds,
+        toggleFundVisibility,
+        balanceOf,
+        balanceOfFund,
+        calculateFocusedBalance,
+        focusedBalance,
         addExpense,
         deleteExpense,
         addIncome,
@@ -128,6 +145,7 @@ export const FinanceV2 = () => {
         updateIncome,
         updateExpense,
         deleteTransfer,
+        updateTransfer,
         restoreRecord,
         addInstallment,
         updateInstallment,
@@ -184,6 +202,7 @@ export const FinanceV2 = () => {
     const [showGoalDetailsModal, setShowGoalDetailsModal] = useState(false);
     const [showSettingsSheet, setShowSettingsSheet] = useState(false);
     const [showAccountManager, setShowAccountManager] = useState(false);
+    const [showFundManager, setShowFundManager] = useState(false);
     const [showReportsModal, setShowReportsModal] = useState(false);
     const [showBudgetModal, setShowBudgetModal] = useState(false);
 
@@ -271,17 +290,22 @@ export const FinanceV2 = () => {
             };
         });
 
+        const fundName = (fundId?: string) =>
+            funds.find((f) => f.id === fundOf(fundId))?.name || "Fund";
         const transferTransactions: Transaction[] = transfers.map((t) => {
             const fromAccount = accounts.find((a) => a.id === t.fromAccountId);
             const toAccount = accounts.find((a) => a.id === t.toAccountId);
+            // Same account = fund transfer: name the owners, not the place
+            const route =
+                t.fromAccountId === t.toAccountId
+                    ? `${fundName(t.fromFundId)} → ${fundName(t.toFundId)}`
+                    : `${fromAccount?.name || "Account"} → ${
+                          toAccount?.name || "Account"
+                      }`;
             return {
                 id: t.id,
                 type: "transfer" as const,
-                title:
-                    t.notes ||
-                    `${fromAccount?.name || "Account"} → ${
-                        toAccount?.name || "Account"
-                    }`,
+                title: t.notes || route,
                 amount: t.amount,
                 date: t.date,
                 accountId: t.fromAccountId,
@@ -298,40 +322,43 @@ export const FinanceV2 = () => {
         ].sort(
             (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
         );
-    }, [incomes, expenses, transfers, categories, accounts]);
+    }, [incomes, expenses, transfers, categories, accounts, funds]);
 
     const transactionActions = useTransactionActions({
         incomes,
         expenses,
         transfers,
+        installments,
         deleteIncome,
         deleteExpense,
         deleteTransfer,
         restoreRecord,
     });
 
-    // Calculate net worth
-    const netWorth = useMemo(
-        () => {
-            if (selectedAccount) {
-                return calculateAccountBalance(selectedAccount.id);
-            }
-            return accounts
-                .filter((a) => a.isActive)
-                .reduce(
-                    (sum, account) => sum + calculateAccountBalance(account.id),
-                    0,
-                );
-        },
-        // Include transfers, incomes, expenses to ensure recalculation when balances change
-        [
-            accounts,
-            calculateAccountBalance,
-            transfers,
-            incomes,
-            expenses,
-            selectedAccount,
-        ],
+    // Net worth of the focused funds (or of the selected account's focused part)
+    const netWorth = selectedAccount
+        ? calculateFocusedBalance(selectedAccount.id)
+        : focusedBalance;
+
+    // "x of total" on account cards only when focusing on some funds; with
+    // only Me the focused part always equals the total
+    const showFocusedPart = funds.length > 1 && focusedFundIds.length > 0;
+    const focusedCardBalance = showFocusedPart
+        ? calculateFocusedBalance
+        : undefined;
+
+    const fundManager = (
+        <FundManager
+            funds={funds}
+            onAddFund={addFund}
+            onUpdateFund={updateFund}
+            onDeleteFund={deleteFund}
+            getDeleteError={getFundDeleteError}
+            onReorderFunds={reorderFunds}
+            onToggleVisibility={toggleFundVisibility}
+            getFundBalance={balanceOfFund}
+            formatCurrency={formatCurrency}
+        />
     );
 
     // Get current month for budget
@@ -486,6 +513,14 @@ export const FinanceV2 = () => {
     // Left Column - The Wallet
     const renderWalletColumn = () => (
         <>
+            <FundTabs
+                funds={funds}
+                focusedFundIds={focusedFundIds}
+                onFocusChange={setFocusedFunds}
+                onManage={() => setShowFundManager(true)}
+                className="mb-3"
+            />
+
             {/* Net Worth Hero*/}
             <GlassCard
                 intensity="medium"
@@ -511,6 +546,8 @@ export const FinanceV2 = () => {
                         accounts={accounts}
                         calculateBalance={calculateAccountBalance}
                         formatCurrency={formatCurrency}
+                        calculateFocusedBalance={focusedCardBalance}
+                        formatAmount={formatAmount}
                         onAccountClick={(account) =>
                             setSelectedAccount(
                                 selectedAccount?.id === account.id
@@ -681,15 +718,13 @@ export const FinanceV2 = () => {
 
             {/* Header */}
             <FinanceHeader
-                accounts={accounts}
-                calculateAccountBalance={calculateAccountBalance}
+                netWorth={netWorth}
                 formatCurrency={formatCurrency}
                 dateRange={dateRange}
                 onDateRangeChange={setDateRange}
                 onSettingsClick={() => setShowSettingsSheet(true)}
                 onAddClick={() => setShowExpenseModal(true)}
                 onReportsClick={() => navigate("/finance/reports")}
-                selectedAccount={selectedAccount}
             />
 
             {/* Mobile: Account Carousel */}
@@ -700,6 +735,8 @@ export const FinanceV2 = () => {
                     accounts={accounts}
                     calculateBalance={calculateAccountBalance}
                     formatCurrency={formatCurrency}
+                    calculateFocusedBalance={focusedCardBalance}
+                    formatAmount={formatAmount}
                     onAccountClick={(account) =>
                         setSelectedAccount(
                             selectedAccount?.id === account.id ? null : account,
@@ -747,6 +784,7 @@ export const FinanceV2 = () => {
                         type: data.type,
                         paymentMethod: data.paymentMethod,
                         accountId: data.accountId,
+                        fundId: data.fundId,
                         date: data.date,
                         isRecurring: data.isRecurring,
                         recurringFrequency: data.recurringFrequency,
@@ -764,6 +802,9 @@ export const FinanceV2 = () => {
                 accounts={accounts}
                 categories={categories}
                 defaultCurrency={settings.defaultCurrency}
+                funds={funds}
+                getFundBalance={balanceOf}
+                formatCurrency={formatCurrency}
             />
 
             {/* Income Modal */}
@@ -787,6 +828,7 @@ export const FinanceV2 = () => {
                         status: data.status,
                         frequency: data.frequency,
                         accountId: data.accountId,
+                        fundId: data.fundId,
                         // Pending income has no actual date until it's received
                         actualDate:
                             data.status === "received"
@@ -811,6 +853,7 @@ export const FinanceV2 = () => {
                 accounts={accounts}
                 incomeCategories={incomeCategories}
                 defaultCurrency={settings.defaultCurrency}
+                funds={funds}
             />
 
             {/* Installment Modal */}
@@ -965,22 +1008,48 @@ export const FinanceV2 = () => {
 
             {/* Transfer Modal */}
             <TransferModal
-                isOpen={showTransferModal}
-                onClose={() => setShowTransferModal(false)}
+                isOpen={
+                    showTransferModal || !!transactionActions.editingTransfer
+                }
+                onClose={() => {
+                    setShowTransferModal(false);
+                    transactionActions.stopEdit();
+                }}
+                initialData={transactionActions.transferInitialData}
                 onSubmit={(data) => {
-                    transferBetweenAccounts(
-                        data.fromAccountId,
-                        data.toAccountId,
-                        data.amount,
-                        data.notes,
-                        data.date,
-                    );
+                    const editing = transactionActions.editingTransfer;
+                    if (editing) {
+                        updateTransfer(editing.id, {
+                            fromAccountId: data.fromAccountId,
+                            toAccountId: data.toAccountId,
+                            fromFundId: data.fromFundId,
+                            toFundId: data.toFundId,
+                            amount: data.amount,
+                            date: data.date,
+                            notes: data.notes,
+                        });
+                        transactionActions.stopEdit();
+                    } else {
+                        transferBetweenAccounts(
+                            data.fromAccountId,
+                            data.toAccountId,
+                            data.amount,
+                            data.notes,
+                            data.date,
+                            {
+                                fromFundId: data.fromFundId,
+                                toFundId: data.toFundId,
+                            },
+                        );
+                    }
                     setShowTransferModal(false);
                 }}
                 accounts={accounts}
                 defaultCurrency={settings.defaultCurrency}
                 calculateBalance={calculateAccountBalance}
                 formatCurrency={formatCurrency}
+                funds={funds}
+                getFundBalance={balanceOf}
             />
 
             {/* Payment Modal (for installments) */}
@@ -1110,6 +1179,7 @@ export const FinanceV2 = () => {
                                 calculateBalance={calculateAccountBalance}
                             />
                         }
+                        fundsContent={fundManager}
                         categoriesContent={
                             <CategoryStudioV2
                                 expenseCategories={categories}
@@ -1196,6 +1266,13 @@ export const FinanceV2 = () => {
                     formatCurrency={formatCurrency}
                     calculateBalance={calculateAccountBalance}
                 />
+            </BottomSheet>
+
+            <BottomSheet
+                isOpen={showFundManager}
+                onClose={() => setShowFundManager(false)}
+                title="Manage Funds">
+                {fundManager}
             </BottomSheet>
 
             {/* Transaction Drawer */}

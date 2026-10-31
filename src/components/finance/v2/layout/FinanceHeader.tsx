@@ -1,46 +1,37 @@
 import { motion } from "framer-motion";
-import { Settings, Plus, BarChart3 } from "lucide-react";
+import { Settings, Plus, BarChart3, Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { usePrivacyMode } from "@/hooks/usePrivacyMode";
 import { Button } from "@/components/ui/Button";
 import { SmartDatePicker } from "../controls/SmartDatePicker";
 import type { DateRange } from "../controls/SmartDatePicker";
 import { NetWorthDisplay } from "../wallet/NetWorthDisplay";
-import type { Account } from "@/types/modules/finance";
 
 interface FinanceHeaderProps {
-    accounts: Account[];
-    calculateAccountBalance: (accountId: string) => number;
+    /** Focused funds' total, or the selected account's focused part */
+    netWorth: number;
     formatCurrency: (amount: number) => string;
     dateRange: DateRange;
     onDateRangeChange: (range: DateRange) => void;
     onSettingsClick: () => void;
     onAddClick: () => void;
     onReportsClick?: () => void;
-    selectedAccount?: Account | null;
     className?: string;
 }
 
 export const FinanceHeader = ({
-    accounts,
-    calculateAccountBalance,
+    netWorth,
     formatCurrency,
     dateRange,
     onDateRangeChange,
     onSettingsClick,
     onAddClick,
     onReportsClick,
-    selectedAccount,
     className,
 }: FinanceHeaderProps) => {
-    // Show selected account balance or total net worth
-    const displayAmount = selectedAccount
-        ? calculateAccountBalance(selectedAccount.id)
-        : accounts
-              .filter((a) => a.isActive)
-              .reduce(
-                  (sum, account) => sum + calculateAccountBalance(account.id),
-                  0
-              );
+    const { isHidden, toggle: togglePrivacy } = usePrivacyMode();
+    const privacyLabel = isHidden ? "Show amounts" : "Hide amounts";
+    const PrivacyIcon = isHidden ? EyeOff : Eye;
 
     return (
         <motion.header
@@ -65,7 +56,7 @@ export const FinanceHeader = ({
                 {/* Left: Net Worth or Selected Account Balance */}
                 <div className="flex-shrink-0">
                     <NetWorthDisplay
-                        amount={displayAmount}
+                        amount={netWorth}
                         formatCurrency={formatCurrency}
                         compact
                     />
@@ -81,6 +72,17 @@ export const FinanceHeader = ({
 
                 {/* Right: Actions */}
                 <div className="flex items-center gap-2">
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={togglePrivacy}
+                        className="rounded-full w-10 h-10"
+                        title={privacyLabel}
+                        aria-label={privacyLabel}
+                        aria-pressed={isHidden}>
+                        <PrivacyIcon className="w-5 h-5" />
+                    </Button>
+
                     {onReportsClick && (
                         <Button
                             variant="ghost"
@@ -119,6 +121,18 @@ export const FinanceHeader = ({
                         onChange={onDateRangeChange}
                     />
                 </div>
+
+                {/* Privacy */}
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={togglePrivacy}
+                    className="h-auto py-2 px-3 hover:bg-primary/10"
+                    title={privacyLabel}
+                    aria-label={privacyLabel}
+                    aria-pressed={isHidden}>
+                    <PrivacyIcon className="w-5 h-5" />
+                </Button>
 
                 {/* Reports */}
                 {onReportsClick && (

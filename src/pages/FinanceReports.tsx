@@ -51,6 +51,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
 import { useFinance } from "@/hooks/useFinance";
+import { usePrivacyMode } from "@/hooks/usePrivacyMode";
 import { GlassCard } from "@/components/finance/v2/layout/GlassCard";
 import {
     countedIncomesInRange,
@@ -89,6 +90,9 @@ const itemVariants = {
 export const FinanceReports = () => {
     const { incomes, expenses, categories, goals, formatCurrency } =
         useFinance();
+    const { mask } = usePrivacyMode();
+    // Axis ticks don't go through formatCurrency, so mask them here
+    const formatAxisAmount = (v: number) => mask(`${(v / 1000).toFixed(0)}k`);
 
     const [timeRange, setTimeRange] = useState<TimeRange>("6m");
     const [filterMode, setFilterMode] = useState<ReportFilterMode>("preset");
@@ -1094,9 +1098,7 @@ export const FinanceReports = () => {
                                     <YAxis
                                         stroke="var(--muted-foreground)"
                                         fontSize={12}
-                                        tickFormatter={(v) =>
-                                            `${(v / 1000).toFixed(0)}k`
-                                        }
+                                        tickFormatter={formatAxisAmount}
                                     />
                                     <Tooltip
                                         contentStyle={{
@@ -1353,9 +1355,7 @@ export const FinanceReports = () => {
                                 <YAxis
                                     stroke="var(--muted-foreground)"
                                     fontSize={12}
-                                    tickFormatter={(v) =>
-                                        `${(v / 1000).toFixed(0)}k`
-                                    }
+                                    tickFormatter={formatAxisAmount}
                                 />
                                 <Tooltip
                                     contentStyle={{

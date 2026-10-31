@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { TextArea } from "@/components/ui/TextArea";
+import { usePrivacyMode } from "@/hooks/usePrivacyMode";
 import type {
     Account,
     RecurringFrequency,
@@ -72,6 +73,9 @@ export const InstallmentModal = ({
     installment,
 }: InstallmentModalProps) => {
     const isEditing = !!installment;
+    // Saved history is masked in privacy mode; amounts being typed stay visible
+    const { mask } = usePrivacyMode();
+    const savedAmount = (amount: number) => mask(amount.toLocaleString());
 
     const [formData, setFormData] = useState<InstallmentFormData>({
         title: "",
@@ -394,12 +398,12 @@ export const InstallmentModal = ({
                                             <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
                                                 <span>
                                                     {formData.currency}{" "}
-                                                    {formData.paidAmount.toLocaleString()}{" "}
+                                                    {savedAmount(formData.paidAmount)}{" "}
                                                     paid
                                                 </span>
                                                 <span>
                                                     {formData.currency}{" "}
-                                                    {remainingAmount.toLocaleString()}{" "}
+                                                    {savedAmount(remainingAmount)}{" "}
                                                     remaining
                                                 </span>
                                             </div>

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
     findInstallmentMismatches,
     installmentFormToUpdates,
+    isLivePaymentExpense,
     summarizeInstallmentPayments,
 } from "../installments";
 import { expense, financeData, income, installment } from "./fixtures";
@@ -77,5 +78,30 @@ describe("findInstallmentMismatches", () => {
             incomes: [income({ amount: 50, linkedInstallmentId: "inst_1" })],
         });
         expect(findInstallmentMismatches(data)).toEqual([]);
+    });
+});
+
+describe("isLivePaymentExpense", () => {
+    const withPayment = installment({
+        payments: [
+            {
+                id: "pay_1",
+                installmentId: "inst_1",
+                date: "2026-10-01",
+                amount: 100,
+                status: "paid",
+                createdAt: "2026-10-01T00:00:00.000Z",
+            },
+        ],
+    });
+
+    it("is true only while the linked payment still exists", () => {
+        expect(
+            isLivePaymentExpense({ linkedPaymentId: "pay_1" }, [withPayment]),
+        ).toBe(true);
+        expect(
+            isLivePaymentExpense({ linkedPaymentId: "pay_1" }, [installment()]),
+        ).toBe(false);
+        expect(isLivePaymentExpense({}, [withPayment])).toBe(false);
     });
 });

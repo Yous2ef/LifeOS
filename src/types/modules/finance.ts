@@ -35,11 +35,36 @@ export interface AccountTransfer {
     id: string;
     fromAccountId: string;
     toAccountId: string;
+    fromFundId?: string; // missing = Me
+    toFundId?: string; // missing = Me; same account + other fund = fund transfer
     amount: number;
     date: string;
     notes?: string;
     createdAt: string;
     updatedAt?: string;
+}
+
+// ==================== Fund Types ====================
+
+// Who the money belongs to (Me, Charity, …) — a second dimension on top of
+// accounts, which say where the money sits.
+export type FundKind = "personal" | "charity" | "custom";
+
+// Fixed fund ids: records without a fundId belong to Me, and two devices must
+// never create two Charity funds.
+export const FUND_ME_ID = "fund_me";
+export const FUND_CHARITY_ID = "fund_charity";
+
+export interface Fund {
+    id: string;
+    name: string;
+    icon: string;
+    color: string;
+    kind: FundKind;
+    isVisible: boolean; // Hidden funds are "set aside": no tab, listed last
+    order: number;
+    createdAt: string;
+    updatedAt: string;
 }
 
 // ==================== Enums & Constants ====================
@@ -132,6 +157,7 @@ export interface ExpenseCategory {
     isDefault: boolean; // System default category
     order: number;
     createdAt: string;
+    updatedAt?: string; // Lets cloud merge pick the newer edit
 }
 
 // Income Category
@@ -144,6 +170,7 @@ export interface IncomeCategory {
     isDefault: boolean; // System default category
     order: number;
     createdAt: string;
+    updatedAt?: string; // Lets cloud merge pick the newer edit
 }
 
 // Income
@@ -157,6 +184,7 @@ export interface Income {
     status: IncomeStatus;
     frequency: IncomeFrequency;
     accountId: string; // Which account received this
+    fundId?: string; // Which fund owns it; missing = Me
     expectedDate?: string;
     actualDate?: string;
     isRecurring: boolean;
@@ -179,6 +207,7 @@ export interface Expense {
     type: TransactionNature; // fixed, variable, or emergency
     paymentMethod: PaymentMethod;
     accountId: string; // NEW: Which account paid this
+    fundId?: string; // Which fund paid it; missing = Me
     location?: string; // NEW: Physical/digital location
     date: string;
     isRecurring: boolean;
@@ -327,6 +356,7 @@ export interface FinanceSettings {
     enableInsights: boolean;
     weeklyReportEnabled: boolean;
     monthlyReportEnabled: boolean;
+    focusedFundIds: string[]; // Funds the home screen shows; empty = all funds
 }
 
 // ==================== Statistics & Analytics ====================
@@ -667,6 +697,7 @@ export const DEFAULT_FINANCE_SETTINGS: FinanceSettings = {
     enableInsights: true,
     weeklyReportEnabled: true,
     monthlyReportEnabled: true,
+    focusedFundIds: [FUND_ME_ID],
 };
 
 // ==================== Helper Types ====================
@@ -734,6 +765,7 @@ export interface DeletedRecord {
 export interface FinanceData {
     accounts: Account[]; // NEW: Multi-account support
     transfers: AccountTransfer[]; // NEW: Transfer history
+    funds: Fund[];
     incomes: Income[];
     expenses: Expense[];
     categories: ExpenseCategory[];

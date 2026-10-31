@@ -14,6 +14,9 @@ interface AccountCardProps {
     account: Account;
     balance: number;
     formatCurrency: (amount: number) => string;
+    /** Set when the home screen focuses on some funds: shown as "x of total" */
+    focusedBalance?: number;
+    formatAmount?: (amount: number) => string;
     onClick?: () => void;
     isSelected?: boolean;
     compact?: boolean;
@@ -68,12 +71,16 @@ export const AccountCard = ({
     account,
     balance,
     formatCurrency,
+    focusedBalance,
+    formatAmount,
     onClick,
     isSelected = false,
     compact = false,
     className,
 }: AccountCardProps) => {
     const gradient = getGradient(account.color, compact);
+    const isFocused = focusedBalance !== undefined;
+    const shownBalance = focusedBalance ?? balance;
 
     if (compact) {
         return (
@@ -104,12 +111,16 @@ export const AccountCard = ({
                     </p>
                     <p
                         className={cn(
-                            "text-xs",
-                            balance >= 0
+                            "text-xs tabular-nums",
+                            shownBalance >= 0
                                 ? "text-muted-foreground"
                                 : "text-red-500"
                         )}>
-                        {formatCurrency(balance)}
+                        {isFocused
+                            ? `${(formatAmount ?? formatCurrency)(
+                                  shownBalance
+                              )} of ${formatCurrency(balance)}`
+                            : formatCurrency(balance)}
                     </p>
                 </div>
             </motion.button>
@@ -191,12 +202,17 @@ export const AccountCard = ({
                         {account.name}
                     </p>
                     <motion.p
-                        key={balance}
+                        key={shownBalance}
                         initial={{ opacity: 0.5 }}
                         animate={{ opacity: 1 }}
                         className="text-2xl font-bold tracking-tight tabular-nums">
-                        {formatCurrency(balance)}
+                        {formatCurrency(shownBalance)}
                     </motion.p>
+                    {isFocused && (
+                        <p className="text-xs opacity-80 tabular-nums">
+                            of {formatCurrency(balance)}
+                        </p>
+                    )}
                 </div>
             </div>
 

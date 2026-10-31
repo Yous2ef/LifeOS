@@ -68,4 +68,48 @@ describe("finance writes", () => {
             result.current.categories.some((c) => c.name === "Local only"),
         ).toBe(false);
     });
+
+    it("deletes a fund only while nothing uses it, leaving a tombstone", () => {
+        const { result } = renderHook(() => useFinance(), { wrapper });
+        let fundId = "";
+        act(() => {
+            fundId = result.current.addFund({
+                name: "Investment",
+                icon: "",
+                color: "",
+            }).id;
+            result.current.addIncome({
+                title: "Dividend",
+                amount: 50,
+                currency: "EGP",
+                categoryId: "c",
+                type: "variable",
+                status: "received",
+                frequency: "one-time",
+                accountId: "a",
+                fundId,
+                isRecurring: false,
+                tags: [],
+            });
+        });
+
+        let outcome = { success: true } as { success: boolean };
+        act(() => {
+            outcome = result.current.deleteFund(fundId);
+        });
+        expect(outcome.success).toBe(false);
+        expect(result.current.deleteFund("fund_me").success).toBe(false);
+
+        act(() => {
+            result.current.deleteIncome(result.current.incomes[0].id);
+        });
+        act(() => {
+            outcome = result.current.deleteFund(fundId);
+        });
+        expect(outcome.success).toBe(true);
+        expect(result.current.funds.some((f) => f.id === fundId)).toBe(false);
+        expect(
+            result.current.exportData().deleted?.some((d) => d.id === fundId),
+        ).toBe(true);
+    });
 });

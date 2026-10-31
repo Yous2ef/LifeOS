@@ -1,7 +1,9 @@
 import {
     DEFAULT_FINANCE_SETTINGS,
+    FUND_ME_ID,
     type ExpenseCategory,
     type FinanceData,
+    type Fund,
     type IncomeCategory,
 } from "@/types/modules/finance";
 
@@ -11,6 +13,23 @@ const defaultId = (prefix: string, name: string): string =>
     `${prefix}_${name.toLowerCase().replace(/[^a-z0-9]+/g, "_")}`;
 
 export const DEFAULT_ACCOUNT_ID = "acc_main_cash";
+
+export { FUND_CHARITY_ID, FUND_ME_ID } from "@/types/modules/finance";
+
+// Epoch stamp so a renamed Me on any device always wins the merge over a seed
+const SEED_STAMP = new Date(0).toISOString();
+
+export const getDefaultMeFund = (): Fund => ({
+    id: FUND_ME_ID,
+    name: "Me",
+    icon: "🙂",
+    color: "#22c55e",
+    kind: "personal",
+    isVisible: true,
+    order: 0,
+    createdAt: SEED_STAMP,
+    updatedAt: SEED_STAMP,
+});
 
 export const getDefaultExpenseCategories = (): ExpenseCategory[] => {
     const now = new Date().toISOString();
@@ -296,11 +315,15 @@ export const getDefaultIncomeCategories = (): IncomeCategory[] => {
     return items.map((item) => ({ ...item, id: defaultId("inc_cat", item.name) }));
 };
 
-export const getDefaultFinanceSettings = () => ({ ...DEFAULT_FINANCE_SETTINGS });
+export const getDefaultFinanceSettings = () => ({
+    ...DEFAULT_FINANCE_SETTINGS,
+    focusedFundIds: [FUND_ME_ID],
+});
 
 export const getDefaultFinanceData = (): FinanceData => ({
     accounts: [], // Populated by migration or the user
     transfers: [],
+    funds: [getDefaultMeFund()],
     incomes: [],
     expenses: [],
     categories: getDefaultExpenseCategories(),

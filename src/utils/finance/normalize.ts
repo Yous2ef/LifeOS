@@ -1,5 +1,14 @@
-import type { DeletedRecord, FinanceData } from "@/types/modules/finance";
-import { getDefaultFinanceData } from "./defaults";
+import type { DeletedRecord, FinanceData, Fund } from "@/types/modules/finance";
+import { FUND_ME_ID, getDefaultFinanceData, getDefaultMeFund } from "./defaults";
+
+// Me is ensured here, not in the first-run migration, so data from any device
+// or backup always has the fund that records without a fundId belong to.
+const withMeFund = (funds: Fund[] | undefined): Fund[] => {
+    const list = funds ?? [];
+    return list.some((fund) => fund.id === FUND_ME_ID)
+        ? list
+        : [getDefaultMeFund(), ...list];
+};
 
 /**
  * Fills every missing finance field with its default so readers and updaters
@@ -17,6 +26,7 @@ export const normalizeFinanceData = (
         ...data,
         accounts: data.accounts ?? defaults.accounts,
         transfers: data.transfers ?? defaults.transfers,
+        funds: withMeFund(data.funds),
         incomes: data.incomes ?? defaults.incomes,
         expenses: data.expenses ?? defaults.expenses,
         categories: data.categories ?? defaults.categories,
@@ -25,7 +35,13 @@ export const normalizeFinanceData = (
         budgets: data.budgets ?? defaults.budgets,
         goals: data.goals ?? defaults.goals,
         alerts: data.alerts ?? defaults.alerts,
-        settings: { ...defaults.settings, ...(data.settings ?? {}) },
+        settings: {
+            ...defaults.settings,
+            ...(data.settings ?? {}),
+            focusedFundIds:
+                data.settings?.focusedFundIds ??
+                defaults.settings.focusedFundIds,
+        },
         deleted: data.deleted ?? [],
     };
 };

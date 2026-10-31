@@ -4,13 +4,27 @@ import {
     financeNeedsMigration,
     runMigrationIfNeeded,
 } from "@/utils/finance/migration";
-import { getDefaultFinanceData } from "@/utils/finance/defaults";
+import { FUND_ME_ID, getDefaultFinanceData } from "@/utils/finance/defaults";
 import { addTombstones, normalizeFinanceData } from "@/utils/finance/normalize";
 import {
-    computeAccountBalances,
-    computeTotalBalance,
+    accountTotals,
+    computeBalances,
+    focusedAccountBalance,
+    fundBalanceIn,
+    fundOf,
+    sumActiveAccounts,
 } from "@/utils/finance/balances";
-import { summarizeInstallmentPayments } from "@/utils/finance/installments";
+import {
+    focusWithoutFund,
+    getFundDeleteBlocker,
+    resolveFocusedFundIds,
+    sortFunds,
+} from "@/utils/finance/funds";
+import { maskAmount, usePrivacyMode } from "./usePrivacyMode";
+import {
+    isLivePaymentExpense,
+    summarizeInstallmentPayments,
+} from "@/utils/finance/installments";
 import {
     applyRecurringExpenses,
     applyRecurringIncomes,
@@ -34,6 +48,7 @@ import type {
     Transaction,
     Account,
     AccountTransfer,
+    Fund,
     PaymentMethod,
 } from "@/types/modules/finance";
 
@@ -72,6 +87,15 @@ const isInMonth = (
     const start = getMonthStart(month, startDay);
     const end = getMonthEnd(month, startDay);
     return date >= start && date <= end;
+};
+
+const omitPaymentFields = (
+    updates: Partial<Expense>,
+): Partial<Expense> => {
+    const safe = { ...updates };
+    delete safe.amount;
+    delete safe.accountId;
+    return safe;
 };
 
 // ==================== Main Hook ====================
@@ -259,15 +283,22 @@ export const useFinance = () => {
         (id: string, updates: Partial<Expense>) => {
             setData((prev) => ({
                 ...prev,
-                expenses: prev.expenses.map((expense) =>
-                    expense.id === id
-                        ? {
-                              ...expense,
-                              ...updates,
-                              updatedAt: new Date().toISOString(),
-                          }
-                        : expense,
-                ),
+                expenses: prev.expenses.map((expense) => {
+                    if (expense.id !== id) return expense;
+                    // An installment payment's amount and account belong to the
+                    // payment; changing them here would desync the installment.
+                    const safeUpdates = isLivePaymentExpense(
+                        expense,
+                        prev.installments,
+                    )
+                        ? omitPaymentFields(updates)
+                        : updates;
+                    return {
+                        ...expense,
+                        ...safeUpdates,
+                        updatedAt: new Date().toISOString(),
+                    };
+                }),
             }));
         },
         [setData],
@@ -276,12 +307,7 @@ export const useFinance = () => {
     const deleteExpense = useCallback(
         (id: string): { success: boolean; error?: string } => {
             const expense = data.expenses.find((e) => e.id === id);
-            const paymentStillExists =
-                !!expense?.linkedPaymentId &&
-                data.installments.some((inst) =>
-                    inst.payments.some((p) => p.id === expense.linkedPaymentId),
-                );
-            if (paymentStillExists) {
+            if (expense && isLivePaymentExpense(expense, data.installments)) {
                 return {
                     success: false,
                     error: "Delete this payment from the installment",
@@ -326,7 +352,13 @@ export const useFinance = () => {
             setData((prev) => ({
                 ...prev,
                 categories: prev.categories.map((cat) =>
-                    cat.id === id ? { ...cat, ...updates } : cat,
+                    cat.id === id
+                        ? {
+                              ...cat,
+                              ...updates,
+                              updatedAt: new Date().toISOString(),
+                          }
+                        : cat,
                 ),
             }));
         },
@@ -361,7 +393,11 @@ export const useFinance = () => {
                 const updatedExpenses = transferToCategoryId
                     ? prev.expenses.map((expense) =>
                           expense.categoryId === id
-                              ? { ...expense, categoryId: transferToCategoryId }
+                              ? {
+                                    ...expense,
+                                    categoryId: transferToCategoryId,
+                                    updatedAt: new Date().toISOString(),
+                                }
                               : expense,
                       )
                     : prev.expenses;
@@ -471,7 +507,13 @@ export const useFinance = () => {
             setData((prev) => ({
                 ...prev,
                 incomeCategories: (prev.incomeCategories || []).map((cat) =>
-                    cat.id === id ? { ...cat, ...updates } : cat,
+                    cat.id === id
+                        ? {
+                              ...cat,
+                              ...updates,
+                              updatedAt: new Date().toISOString(),
+                          }
+                        : cat,
                 ),
             }));
         },
@@ -627,18 +669,195 @@ export const useFinance = () => {
         [data.accounts],
     );
 
-    // Calculate real-time balance for an account
-    const accountBalances = useMemo(() => computeAccountBalances(data), [data]);
+    // Real-time balances per (account, fund); account totals span all funds
+    const fundBalances = useMemo(() => computeBalances(data), [data]);
+    const accountBalances = useMemo(
+        () => accountTotals(fundBalances),
+        [fundBalances],
+    );
 
     const calculateAccountBalance = useCallback(
         (accountId: string): number => accountBalances.get(accountId) ?? 0,
         [accountBalances],
     );
 
-    // Net worth across active accounts (archived accounts excluded)
-    const totalBalance = useMemo(() => computeTotalBalance(data), [data]);
+    const balanceOf = useCallback(
+        (accountId: string, fundId?: string): number =>
+            fundBalanceIn(fundBalances, accountId, fundId),
+        [fundBalances],
+    );
 
-    // Transfer money between accounts
+    // ==================== Fund Operations ====================
+
+    const funds = useMemo(() => sortFunds(data.funds), [data.funds]);
+
+    // Empty = All funds
+    const focusedFundIds = useMemo(
+        () => resolveFocusedFundIds(data.funds, data.settings.focusedFundIds),
+        [data.funds, data.settings.focusedFundIds],
+    );
+
+    /** Part of an account's balance owned by the focused funds */
+    const calculateFocusedBalance = useCallback(
+        (accountId: string): number =>
+            focusedAccountBalance(fundBalances, accountId, focusedFundIds),
+        [fundBalances, focusedFundIds],
+    );
+
+    // Net worth: focused funds across active accounts
+    const focusedBalance = useMemo(
+        () => sumActiveAccounts(fundBalances, data.accounts, focusedFundIds),
+        [fundBalances, data.accounts, focusedFundIds],
+    );
+
+    const balanceOfFund = useCallback(
+        (fundId: string): number =>
+            sumActiveAccounts(fundBalances, data.accounts, [fundOf(fundId)]),
+        [fundBalances, data.accounts],
+    );
+
+    // Lets the UI explain a blocked delete before asking to confirm
+    const getFundDeleteError = useCallback(
+        (id: string): string | null => getFundDeleteBlocker(data, id),
+        [data],
+    );
+
+    const setFocusedFunds = useCallback(
+        (fundIds: string[]) => {
+            setData((prev) => ({
+                ...prev,
+                settings: { ...prev.settings, focusedFundIds: fundIds },
+            }));
+        },
+        [setData],
+    );
+
+    const addFund = useCallback(
+        (
+            fundData: Pick<Fund, "name" | "icon" | "color"> &
+                Partial<Pick<Fund, "kind">>,
+        ) => {
+            const now = new Date().toISOString();
+            const newFund: Fund = {
+                kind: "custom",
+                ...fundData,
+                id: `fund_${generateId()}`,
+                isVisible: true,
+                order: 0, // set from the latest list below
+                createdAt: now,
+                updatedAt: now,
+            };
+            setData((prev) => ({
+                ...prev,
+                funds: [
+                    ...prev.funds,
+                    {
+                        ...newFund,
+                        order:
+                            Math.max(0, ...prev.funds.map((f) => f.order)) + 1,
+                    },
+                ],
+            }));
+            return newFund;
+        },
+        [setData],
+    );
+
+    const updateFund = useCallback(
+        (id: string, updates: Partial<Omit<Fund, "id" | "createdAt">>) => {
+            setData((prev) => ({
+                ...prev,
+                funds: prev.funds.map((fund) =>
+                    fund.id === id
+                        ? {
+                              ...fund,
+                              ...updates,
+                              updatedAt: new Date().toISOString(),
+                          }
+                        : fund,
+                ),
+            }));
+        },
+        [setData],
+    );
+
+    // Me always keeps its tab: it's the default focus and owns every legacy record
+    const toggleFundVisibility = useCallback(
+        (id: string) => {
+            if (id === FUND_ME_ID) return;
+            setData((prev) => {
+                const fund = prev.funds.find((f) => f.id === id);
+                if (!fund) return prev;
+                const hiding = fund.isVisible;
+                return {
+                    ...prev,
+                    funds: prev.funds.map((f) =>
+                        f.id === id
+                            ? {
+                                  ...f,
+                                  isVisible: !hiding,
+                                  updatedAt: new Date().toISOString(),
+                              }
+                            : f,
+                    ),
+                    settings: hiding
+                        ? {
+                              ...prev.settings,
+                              focusedFundIds: focusWithoutFund(
+                                  prev.settings.focusedFundIds,
+                                  id,
+                              ),
+                          }
+                        : prev.settings,
+                };
+            });
+        },
+        [setData],
+    );
+
+    const reorderFunds = useCallback(
+        (orderedIds: string[]) => {
+            const now = new Date().toISOString();
+            setData((prev) => ({
+                ...prev,
+                funds: prev.funds.map((fund) => {
+                    const order = orderedIds.indexOf(fund.id);
+                    return order === -1 || order === fund.order
+                        ? fund
+                        : { ...fund, order, updatedAt: now };
+                }),
+            }));
+        },
+        [setData],
+    );
+
+    const deleteFund = useCallback(
+        (id: string): { success: boolean; error?: string } => {
+            const blocker = getFundDeleteBlocker(data, id);
+            if (blocker) return { success: false, error: blocker };
+
+            setData((prev) => {
+                // Re-check on the latest state: a write may have landed since
+                if (getFundDeleteBlocker(prev, id)) return prev;
+                return {
+                    ...prev,
+                    funds: prev.funds.filter((fund) => fund.id !== id),
+                    settings: {
+                        ...prev.settings,
+                        focusedFundIds: focusWithoutFund(
+                            prev.settings.focusedFundIds,
+                            id,
+                        ),
+                    },
+                    deleted: addTombstones(prev.deleted, [id]),
+                };
+            });
+            return { success: true };
+        },
+        [data, setData],
+    );
+
+    // Transfer money between accounts, funds, or both
     const transferBetweenAccounts = useCallback(
         (
             fromAccountId: string,
@@ -646,6 +865,7 @@ export const useFinance = () => {
             amount: number,
             notes?: string,
             date?: string,
+            fundIds?: { fromFundId?: string; toFundId?: string },
         ) => {
             const fromAccount = data.accounts.find(
                 (a) => a.id === fromAccountId,
@@ -660,11 +880,20 @@ export const useFinance = () => {
                 throw new Error("Transfer amount must be greater than 0");
             }
 
+            if (
+                fromAccountId === toAccountId &&
+                fundOf(fundIds?.fromFundId) === fundOf(fundIds?.toFundId)
+            ) {
+                throw new Error("Choose a different account or fund");
+            }
+
             const now = new Date().toISOString();
             const transfer: AccountTransfer = {
                 id: generateId(),
                 fromAccountId,
                 toAccountId,
+                fromFundId: fundIds?.fromFundId,
+                toFundId: fundIds?.toFundId,
                 amount,
                 date: date || now.split("T")[0],
                 notes,
@@ -1789,16 +2018,29 @@ export const useFinance = () => {
 
     // ==================== Format Helpers ====================
 
+    // Privacy mode masks every amount at its single formatting point, so any
+    // screen that formats through here is covered without its own check.
+    const { isHidden: amountsHidden } = usePrivacyMode();
+
+    /** Number without currency (e.g. "3,089"), masked in privacy mode */
+    const formatAmount = useCallback(
+        (amount: number) =>
+            maskAmount(
+                new Intl.NumberFormat("en-US", {
+                    minimumFractionDigits: data.settings.showCents ? 2 : 0,
+                    maximumFractionDigits: data.settings.showCents ? 2 : 0,
+                }).format(amount),
+                amountsHidden,
+            ),
+        [amountsHidden, data.settings.showCents],
+    );
+
     const formatCurrency = useCallback(
         (amount: number, currency?: string) => {
             const curr = currency || data.settings.defaultCurrency;
-            const formatted = new Intl.NumberFormat("en-US", {
-                minimumFractionDigits: data.settings.showCents ? 2 : 0,
-                maximumFractionDigits: data.settings.showCents ? 2 : 0,
-            }).format(amount);
-            return `${formatted} ${curr}`;
+            return `${formatAmount(amount)} ${curr}`;
         },
-        [data.settings.defaultCurrency, data.settings.showCents],
+        [data.settings.defaultCurrency, formatAmount],
     );
 
     // ==================== Export/Import Functions ====================
@@ -1849,6 +2091,8 @@ export const useFinance = () => {
         // Data
         accounts: data.accounts,
         transfers: data.transfers,
+        funds,
+        focusedFundIds,
         incomes: data.incomes,
         expenses: data.expenses,
         categories: data.categories,
@@ -1891,10 +2135,22 @@ export const useFinance = () => {
         deleteAccount,
         getAccountById,
         calculateAccountBalance,
-        totalBalance,
         transferBetweenAccounts,
         updateTransfer,
         deleteTransfer,
+
+        // Fund operations
+        addFund,
+        updateFund,
+        deleteFund,
+        getFundDeleteError,
+        reorderFunds,
+        toggleFundVisibility,
+        setFocusedFunds,
+        balanceOf,
+        balanceOfFund,
+        calculateFocusedBalance,
+        focusedBalance,
 
         // Installment operations
         addInstallment,
@@ -1937,6 +2193,7 @@ export const useFinance = () => {
 
         // Helpers
         formatCurrency,
+        formatAmount,
         getCurrentMonth,
     };
 };

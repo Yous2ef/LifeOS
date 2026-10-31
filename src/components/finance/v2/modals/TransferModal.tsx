@@ -5,6 +5,7 @@
  * - Electric blue theme for transfers
  * - Visual card-to-card transfer animation
  * - Source and destination account selection
+ * - Fund transfers: same account, other fund (owner changes, place doesn't)
  */
 
 import { useState, useEffect } from "react";
@@ -15,7 +16,9 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { TextArea } from "@/components/ui/TextArea";
-import type { Account, Currency } from "@/types/modules/finance";
+import { fundOf } from "@/utils/finance/balances";
+import { FundBalanceWarning, FundSelect } from "../controls/FundPicker";
+import type { Account, Currency, Fund } from "@/types/modules/finance";
 
 interface TransferModalProps {
     isOpen: boolean;
@@ -25,11 +28,17 @@ interface TransferModalProps {
     defaultCurrency: Currency;
     calculateBalance: (accountId: string) => number;
     formatCurrency: (amount: number) => string;
+    funds?: Fund[];
+    getFundBalance?: (accountId: string, fundId: string) => number;
+    /** When set, the modal edits an existing transfer with these values */
+    initialData?: Partial<TransferFormData>;
 }
 
 export interface TransferFormData {
     fromAccountId: string;
     toAccountId: string;
+    fromFundId?: string;
+    toFundId?: string;
     amount: number;
     date: string;
     notes?: string;
@@ -43,12 +52,19 @@ export const TransferModal = ({
     defaultCurrency,
     calculateBalance,
     formatCurrency,
+    funds = [],
+    getFundBalance,
+    initialData,
 }: TransferModalProps) => {
+    const isEditing = !!initialData;
     const activeAccounts = accounts.filter((a) => a.isActive);
+    const hasFunds = funds.length > 1;
 
     const [formData, setFormData] = useState<TransferFormData>({
         fromAccountId: activeAccounts[0]?.id || "",
         toAccountId: activeAccounts[1]?.id || "",
+        fromFundId: fundOf(),
+        toFundId: fundOf(),
         amount: 0,
         date: new Date().toISOString().split("T")[0],
         notes: "",
@@ -66,11 +82,19 @@ export const TransferModal = ({
                 amount: 0,
                 date: new Date().toISOString().split("T")[0],
                 notes: "",
+                ...initialData,
+                fromFundId: fundOf(initialData?.fromFundId),
+                toFundId: fundOf(initialData?.toFundId),
             });
             setIsTransferring(false);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isOpen]);
+    }, [isOpen, initialData]);
+
+    // Same account is fine when the fund changes (a fund transfer)
+    const isSamePlaceAndOwner =
+        formData.fromAccountId === formData.toAccountId &&
+        fundOf(formData.fromFundId) === fundOf(formData.toFundId);
 
     const handleSubmit = async () => {
         if (
@@ -80,7 +104,7 @@ export const TransferModal = ({
         ) {
             return;
         }
-        if (formData.fromAccountId === formData.toAccountId) {
+        if (isSamePlaceAndOwner) {
             return;
         }
 
@@ -96,15 +120,36 @@ export const TransferModal = ({
 
     const fromAccount = accounts.find((a) => a.id === formData.fromAccountId);
     const toAccount = accounts.find((a) => a.id === formData.toAccountId);
-    const fromBalance = fromAccount ? calculateBalance(fromAccount.id) : 0;
-    const toBalance = toAccount ? calculateBalance(toAccount.id) : 0;
+    const fromFund = funds.find((f) => f.id === fundOf(formData.fromFundId));
+    const toFund = funds.find((f) => f.id === fundOf(formData.toFundId));
+    // With funds, each side shows what that fund holds in that account
+    const balanceIn = (accountId: string, fundId?: string) =>
+        hasFunds && getFundBalance
+            ? getFundBalance(accountId, fundOf(fundId))
+            : calculateBalance(accountId);
+    // When editing, the saved transfer already left the source: add it back
+    const alreadyMoved =
+        isEditing &&
+        initialData?.fromAccountId === formData.fromAccountId &&
+        (!hasFunds ||
+            fundOf(initialData?.fromFundId) === fundOf(formData.fromFundId))
+            ? (initialData?.amount ?? 0)
+            : 0;
+    const fromBalance = fromAccount
+        ? balanceIn(fromAccount.id, formData.fromFundId) + alreadyMoved
+        : 0;
+    const toBalance = toAccount
+        ? balanceIn(toAccount.id, formData.toFundId)
+        : 0;
+    const placeLabel = (account?: Account, fund?: Fund) =>
+        hasFunds && fund ? `${account?.name} · ${fund.name}` : account?.name;
 
+    // Going below zero warns but doesn't block (money may be logged late)
     const isValid =
         formData.fromAccountId &&
         formData.toAccountId &&
-        formData.fromAccountId !== formData.toAccountId &&
-        formData.amount > 0 &&
-        formData.amount <= fromBalance;
+        !isSamePlaceAndOwner &&
+        formData.amount > 0;
 
     return (
         <AnimatePresence>
@@ -140,7 +185,9 @@ export const TransferModal = ({
                                     </div>
                                     <div>
                                         <h2 className="text-lg font-semibold">
-                                            Transfer Money
+                                            {isEditing
+                                                ? "Edit transfer"
+                                                : "Transfer Money"}
                                         </h2>
                                         <p className="text-xs text-muted-foreground">
                                             Move money between accounts
@@ -181,12 +228,23 @@ export const TransferModal = ({
                                         />
                                     </div>
                                     {fromAccount &&
-                                        formData.amount > fromBalance && (
-                                            <p className="text-sm text-rose-500">
+                                        formData.amount > fromBalance &&
+                                        (hasFunds ? (
+                                            <FundBalanceWarning
+                                                balanceAfter={
+                                                    fromBalance -
+                                                    formData.amount
+                                                }
+                                                fundName={fromFund?.name ?? ""}
+                                                accountName={fromAccount.name}
+                                                formatCurrency={formatCurrency}
+                                            />
+                                        ) : (
+                                            <p className="text-sm text-amber-500">
                                                 Insufficient balance (Available:{" "}
                                                 {formatCurrency(fromBalance)})
                                             </p>
-                                        )}
+                                        ))}
                                 </div>
 
                                 {/* Visual Transfer */}
@@ -225,13 +283,25 @@ export const TransferModal = ({
                                                     key={acc.id}
                                                     value={acc.id}
                                                     disabled={
+                                                        !hasFunds &&
                                                         acc.id ===
-                                                        formData.toAccountId
+                                                            formData.toAccountId
                                                     }>
                                                     {acc.name}
                                                 </option>
                                             ))}
                                         </select>
+                                        <FundSelect
+                                            funds={funds}
+                                            value={fundOf(formData.fromFundId)}
+                                            onChange={(fromFundId) =>
+                                                setFormData((prev) => ({
+                                                    ...prev,
+                                                    fromFundId,
+                                                }))
+                                            }
+                                            className="mt-1"
+                                        />
                                         {fromAccount && (
                                             <div className="mt-2 flex items-center gap-2">
                                                 <div
@@ -261,6 +331,8 @@ export const TransferModal = ({
                                                         prev.toAccountId,
                                                     toAccountId:
                                                         prev.fromAccountId,
+                                                    fromFundId: prev.toFundId,
+                                                    toFundId: prev.fromFundId,
                                                 }));
                                             }}
                                             whileHover={{ scale: 1.1 }}
@@ -344,13 +416,25 @@ export const TransferModal = ({
                                                     key={acc.id}
                                                     value={acc.id}
                                                     disabled={
+                                                        !hasFunds &&
                                                         acc.id ===
-                                                        formData.fromAccountId
+                                                            formData.fromAccountId
                                                     }>
                                                     {acc.name}
                                                 </option>
                                             ))}
                                         </select>
+                                        <FundSelect
+                                            funds={funds}
+                                            value={fundOf(formData.toFundId)}
+                                            onChange={(toFundId) =>
+                                                setFormData((prev) => ({
+                                                    ...prev,
+                                                    toFundId,
+                                                }))
+                                            }
+                                            className="mt-1"
+                                        />
                                         {toAccount && (
                                             <div className="mt-2 flex items-center gap-2">
                                                 <div
@@ -429,6 +513,8 @@ export const TransferModal = ({
                                             }}>
                                             Transferring...
                                         </motion.span>
+                                    ) : isEditing ? (
+                                        "Save changes"
                                     ) : (
                                         "Transfer"
                                     )}
@@ -440,13 +526,13 @@ export const TransferModal = ({
                                 <div className="px-4 pb-4">
                                     <div className="p-3 bg-blue-500/10 rounded-xl text-sm text-center">
                                         <span className="text-muted-foreground">
-                                            {fromAccount?.name}
+                                            {placeLabel(fromAccount, fromFund)}
                                         </span>
                                         <span className="mx-2 text-blue-500">
                                             →
                                         </span>
                                         <span className="text-muted-foreground">
-                                            {toAccount?.name}
+                                            {placeLabel(toAccount, toFund)}
                                         </span>
                                         <span className="ml-2 font-semibold text-blue-500">
                                             {defaultCurrency}{" "}
