@@ -5,6 +5,9 @@ import type {
     FinanceData,
     Income,
     Installment,
+    Loan,
+    LoanPayment,
+    Person,
 } from "@/types/modules/finance";
 import { normalizeFinanceData } from "../normalize";
 
@@ -92,6 +95,37 @@ export const installment = (over: Partial<Installment> = {}): Installment => ({
     autoPayment: false,
     remindDaysBefore: 3,
     payments: [],
+    createdAt: STAMP,
+    updatedAt: STAMP,
+    ...over,
+});
+
+export const person = (over: Partial<Person> = {}): Person => ({
+    id: "person_1",
+    name: "Abdo",
+    createdAt: STAMP,
+    updatedAt: STAMP,
+    ...over,
+});
+
+export const loan = (over: Partial<Loan> = {}): Loan => ({
+    id: "loan_1",
+    personId: "person_1",
+    direction: "borrowed",
+    amount: 500,
+    accountId: "acc_1",
+    date: "2026-10-05",
+    createdAt: STAMP,
+    updatedAt: STAMP,
+    ...over,
+});
+
+export const loanPayment = (over: Partial<LoanPayment> = {}): LoanPayment => ({
+    id: "lp_1",
+    loanId: "loan_1",
+    amount: 100,
+    accountId: "acc_1",
+    date: "2026-10-20",
     createdAt: STAMP,
     updatedAt: STAMP,
     ...over,

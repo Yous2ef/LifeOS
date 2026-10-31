@@ -82,6 +82,7 @@ import {
 } from "@/utils/finance/installments";
 import { incomeDisplayDate } from "@/utils/finance/aggregations";
 import { fundOf } from "@/utils/finance/balances";
+import { loanTransactions } from "@/utils/finance/loans";
 import { useTransactionActions } from "./feed/useTransactionActions";
 
 // Custom hook for celebration
@@ -137,7 +138,12 @@ export const FinanceV2 = () => {
         balanceOf,
         balanceOfFund,
         calculateFocusedBalance,
-        focusedBalance,
+        netWorth: totalNetWorth,
+        people,
+        loans,
+        loanPayments,
+        deleteLoan,
+        deleteLoanPayment,
         addExpense,
         deleteExpense,
         addIncome,
@@ -319,26 +325,48 @@ export const FinanceV2 = () => {
             ...incomeTransactions,
             ...expenseTransactions,
             ...transferTransactions,
+            ...loanTransactions({ loans, loanPayments, people }),
         ].sort(
             (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
         );
-    }, [incomes, expenses, transfers, categories, accounts, funds]);
+    }, [
+        incomes,
+        expenses,
+        transfers,
+        categories,
+        accounts,
+        funds,
+        loans,
+        loanPayments,
+        people,
+    ]);
+
+    // Loan rows open their person on the People page
+    const openLoan = (transaction: Transaction) =>
+        navigate("/finance/people", {
+            state: { personId: transaction.loan?.personId },
+        });
 
     const transactionActions = useTransactionActions({
         incomes,
         expenses,
         transfers,
         installments,
+        loans,
+        loanPayments,
         deleteIncome,
         deleteExpense,
         deleteTransfer,
+        deleteLoan,
+        deleteLoanPayment,
         restoreRecord,
+        onOpenLoan: openLoan,
     });
 
-    // Net worth of the focused funds (or of the selected account's focused part)
+    // Net worth with loans (or the selected account's focused part)
     const netWorth = selectedAccount
         ? calculateFocusedBalance(selectedAccount.id)
-        : focusedBalance;
+        : totalNetWorth;
 
     // "x of total" on account cards only when focusing on some funds; with
     // only Me the focused part always equals the total
@@ -691,7 +719,9 @@ export const FinanceV2 = () => {
                     transactions={allTransactions}
                     formatCurrency={formatCurrency}
                     dateRange={dateRange}
-                    onTransactionClick={(t) => setSelectedTransaction(t)}
+                    onTransactionClick={(t) =>
+                        t.loan ? openLoan(t) : setSelectedTransaction(t)
+                    }
                     onEdit={transactionActions.startEdit}
                     onDelete={transactionActions.handleDelete}
                     selectedAccount={selectedAccount}
@@ -725,6 +755,7 @@ export const FinanceV2 = () => {
                 onSettingsClick={() => setShowSettingsSheet(true)}
                 onAddClick={() => setShowExpenseModal(true)}
                 onReportsClick={() => navigate("/finance/reports")}
+                onPeopleClick={() => navigate("/finance/people")}
             />
 
             {/* Mobile: Account Carousel */}
@@ -760,6 +791,9 @@ export const FinanceV2 = () => {
                 onAddIncome={() => setShowIncomeModal(true)}
                 onAddExpense={() => setShowExpenseModal(true)}
                 onAddTransfer={() => setShowTransferModal(true)}
+                onAddLoan={() =>
+                    navigate("/finance/people", { state: { newLoan: true } })
+                }
             />
 
             {/* ==================== Modals & Sheets ==================== */}

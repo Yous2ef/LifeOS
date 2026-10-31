@@ -8,7 +8,15 @@ import {
     resolveFocusedFundIds,
 } from "../funds";
 import { normalizeFinanceData } from "../normalize";
-import { account, expense, financeData, income, transfer } from "./fixtures";
+import {
+    account,
+    expense,
+    financeData,
+    income,
+    loan,
+    loanPayment,
+    transfer,
+} from "./fixtures";
 
 const fund = (over: Partial<Fund> = {}): Fund => ({
     id: "fund_inv",
@@ -91,7 +99,7 @@ describe("getFundDeleteBlocker", () => {
         expect(getFundDeleteBlocker(financeData(base), "fund_inv")).toBeNull();
     });
 
-    it("blocks while an income, expense or transfer references it", () => {
+    it("blocks while an income, expense, transfer, loan or repayment references it", () => {
         const cases = [
             { incomes: [income({ fundId: "fund_inv" })] },
             { expenses: [expense({ fundId: "fund_inv" })] },
@@ -104,6 +112,11 @@ describe("getFundDeleteBlocker", () => {
                 transfers: [
                     transfer({ toAccountId: "acc_1", fromFundId: "fund_inv" }),
                 ],
+            },
+            { loans: [loan({ fundId: "fund_inv" })] },
+            {
+                loans: [loan()],
+                loanPayments: [loanPayment({ fundId: "fund_inv" })],
             },
         ];
         cases.forEach((records) => {

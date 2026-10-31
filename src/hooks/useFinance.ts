@@ -1,4 +1,4 @@
-﻿import { useEffect, useCallback, useMemo } from "react";
+﻿import { useEffect, useCallback, useMemo, useRef } from "react";
 import { useApp } from "../context/AppContext";
 import {
     financeNeedsMigration,
@@ -9,6 +9,7 @@ import { addTombstones, normalizeFinanceData } from "@/utils/finance/normalize";
 import {
     accountTotals,
     computeBalances,
+    day,
     focusedAccountBalance,
     fundBalanceIn,
     fundOf,
@@ -20,6 +21,15 @@ import {
     resolveFocusedFundIds,
     sortFunds,
 } from "@/utils/finance/funds";
+import {
+    allocateSettlement,
+    getLoanAmountError,
+    getLoanPaymentError,
+    getPersonDeleteBlocker,
+    loanTotals as computeLoanTotals,
+    netWorthWithLoans,
+    paymentsByLoan,
+} from "@/utils/finance/loans";
 import { maskAmount, usePrivacyMode } from "./usePrivacyMode";
 import {
     isLivePaymentExpense,
@@ -49,7 +59,10 @@ import type {
     Account,
     AccountTransfer,
     Fund,
+    Loan,
+    LoanPayment,
     PaymentMethod,
+    Person,
 } from "@/types/modules/finance";
 
 // ==================== Helper Functions ====================
@@ -89,6 +102,40 @@ const isInMonth = (
     return date >= start && date <= end;
 };
 
+/** A deleted record (with what was deleted alongside it) that undo puts back */
+export type RestorableRecord =
+    | { kind: "income"; record: Income }
+    | { kind: "expense"; record: Expense }
+    | { kind: "transfer"; record: AccountTransfer }
+    | { kind: "person"; record: Person }
+    | { kind: "loan"; record: Loan; payments: LoanPayment[] }
+    | { kind: "loanPayment"; record: LoanPayment };
+
+type WriteResult = { success: boolean; error?: string };
+
+// Undo must not create an orphan (a loan without its person, a repayment
+// without its loan) or overpay a loan repaid again since the delete
+const getRestoreError = (
+    state: FinanceData,
+    restored: RestorableRecord,
+): string | null => {
+    if (restored.kind === "loan") {
+        return state.people.some((p) => p.id === restored.record.personId)
+            ? null
+            : "Couldn't undo — this person was deleted.";
+    }
+    if (restored.kind !== "loanPayment") return null;
+    const { record } = restored;
+    const loan = state.loans.find((l) => l.id === record.loanId);
+    if (!loan) return "Couldn't undo — this loan was deleted.";
+    const others = state.loanPayments.filter(
+        (p) => p.loanId === loan.id && p.id !== record.id,
+    );
+    return getLoanPaymentError(loan, others, record.amount, record.date)
+        ? "Couldn't undo — this loan is already repaid."
+        : null;
+};
+
 const omitPaymentFields = (
     updates: Partial<Expense>,
 ): Partial<Expense> => {
@@ -122,6 +169,13 @@ export const useFinance = () => {
         },
         [updateModule],
     );
+
+    // Latest committed state, for actions run from closures made on an older
+    // render (an Undo button in a toast), so their checks see current data
+    const latestDataRef = useRef(data);
+    useEffect(() => {
+        latestDataRef.current = data;
+    }, [data]);
 
     // Upgrade older data (v1 single balance, income types) once, on the latest state
     useEffect(() => {
@@ -209,47 +263,72 @@ export const useFinance = () => {
     // Undo of a delete: put the record back with a fresh updatedAt (so it wins
     // over its tombstone in a later cloud merge) and drop the local tombstone
     const restoreRecord = useCallback(
-        (
-            restored:
-                | { kind: "income"; record: Income }
-                | { kind: "expense"; record: Expense }
-                | { kind: "transfer"; record: AccountTransfer },
-        ) => {
+        (restored: RestorableRecord): WriteResult => {
+            const error = getRestoreError(latestDataRef.current, restored);
+            if (error) return { success: false, error };
             const now = new Date().toISOString();
+            const putBack = <T extends { id: string }>(list: T[], record: T) => [
+                ...list.filter((item) => item.id !== record.id),
+                { ...record, updatedAt: now },
+            ];
             setData((prev) => {
+                if (getRestoreError(prev, restored)) return prev;
+                const ids = new Set([
+                    restored.record.id,
+                    ...(restored.kind === "loan"
+                        ? restored.payments.map((p) => p.id)
+                        : []),
+                ]);
                 const deleted = (prev.deleted ?? []).filter(
-                    (d) => d.id !== restored.record.id,
+                    (d) => !ids.has(d.id),
                 );
                 switch (restored.kind) {
                     case "income":
                         return {
                             ...prev,
-                            incomes: [
-                                ...prev.incomes.filter((i) => i.id !== restored.record.id),
-                                { ...restored.record, updatedAt: now },
-                            ],
+                            incomes: putBack(prev.incomes, restored.record),
                             deleted,
                         };
                     case "expense":
                         return {
                             ...prev,
-                            expenses: [
-                                ...prev.expenses.filter((e) => e.id !== restored.record.id),
-                                { ...restored.record, updatedAt: now },
-                            ],
+                            expenses: putBack(prev.expenses, restored.record),
                             deleted,
                         };
                     case "transfer":
                         return {
                             ...prev,
-                            transfers: [
-                                ...prev.transfers.filter((t) => t.id !== restored.record.id),
-                                { ...restored.record, updatedAt: now },
-                            ],
+                            transfers: putBack(prev.transfers, restored.record),
+                            deleted,
+                        };
+                    case "person":
+                        return {
+                            ...prev,
+                            people: putBack(prev.people, restored.record),
+                            deleted,
+                        };
+                    case "loan":
+                        return {
+                            ...prev,
+                            loans: putBack(prev.loans, restored.record),
+                            loanPayments: restored.payments.reduce(
+                                (list, payment) => putBack(list, payment),
+                                prev.loanPayments,
+                            ),
+                            deleted,
+                        };
+                    case "loanPayment":
+                        return {
+                            ...prev,
+                            loanPayments: putBack(
+                                prev.loanPayments,
+                                restored.record,
+                            ),
                             deleted,
                         };
                 }
             });
+            return { success: true };
         },
         [setData],
     );
@@ -625,7 +704,9 @@ export const useFinance = () => {
                 data.installments.some((inst) => inst.linkedAccountId === id) ||
                 data.transfers.some(
                     (t) => t.fromAccountId === id || t.toAccountId === id,
-                );
+                ) ||
+                data.loans.some((l) => l.accountId === id) ||
+                data.loanPayments.some((p) => p.accountId === id);
 
             if (hasTransactions) {
                 return {
@@ -660,6 +741,8 @@ export const useFinance = () => {
             data.incomes,
             data.installments,
             data.transfers,
+            data.loans,
+            data.loanPayments,
             setData,
         ],
     );
@@ -708,6 +791,27 @@ export const useFinance = () => {
     const focusedBalance = useMemo(
         () => sumActiveAccounts(fundBalances, data.accounts, focusedFundIds),
         [fundBalances, data.accounts, focusedFundIds],
+    );
+
+    // Owed to you / you owe, for loans held in the focused funds
+    const loanTotals = useMemo(
+        () =>
+            computeLoanTotals(
+                { loans: data.loans, loanPayments: data.loanPayments },
+                {
+                    fundIds: focusedFundIds,
+                    activeAccountIds: data.accounts
+                        .filter((account) => account.isActive)
+                        .map((account) => account.id),
+                },
+            ),
+        [data.loans, data.loanPayments, data.accounts, focusedFundIds],
+    );
+
+    // Net worth (D11): focused funds' balances + owed to you − you owe
+    const netWorth = useMemo(
+        () => netWorthWithLoans(focusedBalance, loanTotals),
+        [focusedBalance, loanTotals],
     );
 
     const balanceOfFund = useCallback(
@@ -938,6 +1042,240 @@ export const useFinance = () => {
             }));
         },
         [setData],
+    );
+
+    // ==================== People & Loans ====================
+    // Loans move money between accounts and people; they are never income or
+    // expense, so stats, budgets and reports (built on incomes/expenses) skip them.
+
+    const addPerson = useCallback(
+        (name: string, notes?: string): Person => {
+            const now = new Date().toISOString();
+            const person: Person = {
+                id: `person_${generateId()}`,
+                name: name.trim(),
+                notes,
+                createdAt: now,
+                updatedAt: now,
+            };
+            setData((prev) => ({ ...prev, people: [...prev.people, person] }));
+            return person;
+        },
+        [setData],
+    );
+
+    const updatePerson = useCallback(
+        (id: string, updates: Partial<Pick<Person, "name" | "notes">>) => {
+            setData((prev) => ({
+                ...prev,
+                people: prev.people.map((person) =>
+                    person.id === id
+                        ? {
+                              ...person,
+                              ...updates,
+                              updatedAt: new Date().toISOString(),
+                          }
+                        : person,
+                ),
+            }));
+        },
+        [setData],
+    );
+
+    const deletePerson = useCallback(
+        (id: string): WriteResult => {
+            const blocker = getPersonDeleteBlocker(data, id);
+            if (blocker) return { success: false, error: blocker };
+            setData((prev) => {
+                if (getPersonDeleteBlocker(prev, id)) return prev;
+                return {
+                    ...prev,
+                    people: prev.people.filter((person) => person.id !== id),
+                    deleted: addTombstones(prev.deleted, [id]),
+                };
+            });
+            return { success: true };
+        },
+        [data, setData],
+    );
+
+    const addLoan = useCallback(
+        (loanData: Omit<Loan, "id" | "createdAt" | "updatedAt">): Loan => {
+            const now = new Date().toISOString();
+            const loan: Loan = {
+                ...loanData,
+                id: `loan_${generateId()}`,
+                createdAt: now,
+                updatedAt: now,
+            };
+            setData((prev) => ({ ...prev, loans: [...prev.loans, loan] }));
+            return loan;
+        },
+        [setData],
+    );
+
+    const updateLoan = useCallback(
+        (
+            id: string,
+            updates: Partial<Omit<Loan, "id" | "createdAt" | "updatedAt">>,
+        ): WriteResult => {
+            const editError = (loans: Loan[], payments: LoanPayment[]) => {
+                const loan = loans.find((l) => l.id === id);
+                if (!loan) return "This loan no longer exists.";
+                const own = payments.filter((p) => p.loanId === id);
+                if (
+                    updates.date &&
+                    own.some((p) => day(p.date) < day(updates.date!))
+                ) {
+                    return "A loan can't be dated after its first repayment.";
+                }
+                if (updates.amount === undefined) return null;
+                return getLoanAmountError(updates.amount, own);
+            };
+            const error = editError(data.loans, data.loanPayments);
+            if (error) return { success: false, error };
+
+            setData((prev) => {
+                if (editError(prev.loans, prev.loanPayments)) return prev;
+                // Repayments take their direction from the loan: flipping it
+                // would silently turn every repayment around
+                const isRepaid = prev.loanPayments.some((p) => p.loanId === id);
+                return {
+                    ...prev,
+                    loans: prev.loans.map((loan) =>
+                        loan.id === id
+                            ? {
+                                  ...loan,
+                                  ...updates,
+                                  direction: isRepaid
+                                      ? loan.direction
+                                      : (updates.direction ?? loan.direction),
+                                  updatedAt: new Date().toISOString(),
+                              }
+                            : loan,
+                    ),
+                };
+            });
+            return { success: true };
+        },
+        [data.loans, data.loanPayments, setData],
+    );
+
+    // A loan's repayments go with it (their direction comes from the loan)
+    const deleteLoan = useCallback(
+        (id: string) => {
+            setData((prev) => {
+                const paymentIds = prev.loanPayments
+                    .filter((p) => p.loanId === id)
+                    .map((p) => p.id);
+                return {
+                    ...prev,
+                    loans: prev.loans.filter((loan) => loan.id !== id),
+                    loanPayments: prev.loanPayments.filter(
+                        (p) => p.loanId !== id,
+                    ),
+                    deleted: addTombstones(prev.deleted, [id, ...paymentIds]),
+                };
+            });
+        },
+        [setData],
+    );
+
+    const addLoanPayment = useCallback(
+        (
+            paymentData: Omit<LoanPayment, "id" | "createdAt" | "updatedAt">,
+        ): WriteResult => {
+            const paymentError = (loans: Loan[], payments: LoanPayment[]) =>
+                getLoanPaymentError(
+                    loans.find((l) => l.id === paymentData.loanId),
+                    payments.filter((p) => p.loanId === paymentData.loanId),
+                    paymentData.amount,
+                    paymentData.date,
+                );
+            const error = paymentError(data.loans, data.loanPayments);
+            if (error) return { success: false, error };
+
+            const now = new Date().toISOString();
+            const payment: LoanPayment = {
+                ...paymentData,
+                id: `loanpay_${generateId()}`,
+                createdAt: now,
+                updatedAt: now,
+            };
+            setData((prev) => {
+                // Re-check on the latest state: another repayment may have landed
+                if (paymentError(prev.loans, prev.loanPayments)) return prev;
+                return { ...prev, loanPayments: [...prev.loanPayments, payment] };
+            });
+            return { success: true };
+        },
+        [data.loans, data.loanPayments, setData],
+    );
+
+    const deleteLoanPayment = useCallback(
+        (id: string) => {
+            setData((prev) => ({
+                ...prev,
+                loanPayments: prev.loanPayments.filter((p) => p.id !== id),
+                deleted: addTombstones(prev.deleted, [id]),
+            }));
+        },
+        [setData],
+    );
+
+    /**
+     * Repays one loan, or a person's open loans oldest first. Partial amounts
+     * are fine; more than what's left is refused.
+     */
+    const settleUp = useCallback(
+        (input: {
+            target: { loanId: string } | { personId: string };
+            amount: number;
+            accountId: string;
+            fundId?: string;
+            date: string;
+            notes?: string;
+        }): WriteResult => {
+            const plan = (source: Pick<FinanceData, "loans" | "loanPayments">) =>
+                allocateSettlement(
+                    source,
+                    input.target,
+                    input.amount,
+                    input.date,
+                );
+            const { error } = plan(data);
+            if (error) return { success: false, error };
+
+            const now = new Date().toISOString();
+            setData((prev) => {
+                const { allocations, error: latestError } = plan(prev);
+                if (latestError) return prev;
+                const payments: LoanPayment[] = allocations.map((a) => ({
+                    id: `loanpay_${generateId()}`,
+                    loanId: a.loanId,
+                    amount: a.amount,
+                    accountId: input.accountId,
+                    fundId: input.fundId,
+                    date: input.date,
+                    notes: input.notes,
+                    ...(a.isOffset ? { isOffset: true } : {}),
+                    createdAt: now,
+                    updatedAt: now,
+                }));
+                return {
+                    ...prev,
+                    loanPayments: [...prev.loanPayments, ...payments],
+                };
+            });
+            return { success: true };
+        },
+        [data, setData],
+    );
+
+    // Repayments grouped by loan, for the People page
+    const loanPaymentsByLoan = useMemo(
+        () => paymentsByLoan(data.loanPayments),
+        [data.loanPayments],
     );
 
     // ==================== Installment Operations ====================
@@ -2151,6 +2489,23 @@ export const useFinance = () => {
         balanceOfFund,
         calculateFocusedBalance,
         focusedBalance,
+        netWorth,
+
+        // People & loans
+        people: data.people,
+        loans: data.loans,
+        loanPayments: data.loanPayments,
+        loanPaymentsByLoan,
+        loanTotals,
+        addPerson,
+        updatePerson,
+        deletePerson,
+        addLoan,
+        updateLoan,
+        deleteLoan,
+        addLoanPayment,
+        deleteLoanPayment,
+        settleUp,
 
         // Installment operations
         addInstallment,

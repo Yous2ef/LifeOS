@@ -67,6 +67,50 @@ export interface Fund {
     updatedAt: string;
 }
 
+// ==================== Loan Types ====================
+
+// Loans move money in and out of accounts but are never income or expense.
+export type LoanDirection = "lent" | "borrowed";
+
+export interface Person {
+    id: string;
+    name: string;
+    notes?: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface Loan {
+    id: string;
+    personId: string;
+    direction: LoanDirection;
+    amount: number;
+    accountId: string; // Where the money came in (borrowed) or went out (lent)
+    fundId?: string; // missing = Me
+    date: string;
+    dueDate?: string;
+    notes?: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+// A repayment: you paying back (borrowed) or being paid back (lent).
+// Outstanding and status are derived from these, never stored.
+export interface LoanPayment {
+    id: string;
+    loanId: string;
+    amount: number;
+    accountId: string;
+    fundId?: string; // missing = Me
+    date: string;
+    notes?: string;
+    // Written by a full person-level settle: the other side's debt cancels this
+    // much, so no money moves (left out of balances and the feed)
+    isOffset?: boolean;
+    createdAt: string;
+    updatedAt: string;
+}
+
 // ==================== Enums & Constants ====================
 
 export type Currency = "EGP" | "USD" | "EUR" | "GBP" | "SAR" | "AED" | "KWD";
@@ -702,7 +746,7 @@ export const DEFAULT_FINANCE_SETTINGS: FinanceSettings = {
 
 // ==================== Helper Types ====================
 
-export type TransactionType = "income" | "expense" | "transfer";
+export type TransactionType = "income" | "expense" | "transfer" | "loan";
 
 export interface Transaction {
     id: string;
@@ -723,6 +767,12 @@ export interface Transaction {
     frequency?: IncomeFrequency | RecurringFrequency; // For recurring transactions
     isRecurring?: boolean;
     transactionNature?: TransactionNature; // fixed, variable, or emergency
+    loan?: {
+        kind: "loan" | "repayment"; // repayment rows carry the payment's id
+        direction: LoanDirection;
+        loanId: string;
+        personId: string;
+    };
 }
 
 // For Quick Add
@@ -766,6 +816,9 @@ export interface FinanceData {
     accounts: Account[]; // NEW: Multi-account support
     transfers: AccountTransfer[]; // NEW: Transfer history
     funds: Fund[];
+    people: Person[];
+    loans: Loan[];
+    loanPayments: LoanPayment[];
     incomes: Income[];
     expenses: Expense[];
     categories: ExpenseCategory[];

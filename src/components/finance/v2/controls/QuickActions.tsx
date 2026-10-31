@@ -4,6 +4,7 @@ import {
     ArrowUpRight,
     ArrowDownLeft,
     ArrowLeftRight,
+    HandCoins,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
@@ -15,12 +16,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useState } from "react";
 
-type ActionType = "income" | "expense" | "transfer";
+type ActionType = "income" | "expense" | "transfer" | "loan";
 
 interface QuickActionsProps {
     onAddIncome: () => void;
     onAddExpense: () => void;
     onAddTransfer: () => void;
+    onAddLoan?: () => void;
     className?: string;
     variant?: "fab" | "inline";
 }
@@ -29,6 +31,7 @@ export const QuickActions = ({
     onAddIncome,
     onAddExpense,
     onAddTransfer,
+    onAddLoan,
     className,
     variant = "fab",
 }: QuickActionsProps) => {
@@ -59,6 +62,18 @@ export const QuickActions = ({
             bgColor: "bg-blue-500/10 hover:bg-blue-500/20",
             onClick: onAddTransfer,
         },
+        ...(onAddLoan
+            ? [
+                  {
+                      type: "loan" as ActionType,
+                      label: "New loan",
+                      icon: <HandCoins className="w-4 h-4" />,
+                      color: "text-violet-500",
+                      bgColor: "bg-violet-500/10 hover:bg-violet-500/20",
+                      onClick: onAddLoan,
+                  },
+              ]
+            : []),
     ];
 
     if (variant === "inline") {

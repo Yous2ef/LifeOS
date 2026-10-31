@@ -58,6 +58,14 @@ export const TransferModal = ({
 }: TransferModalProps) => {
     const isEditing = !!initialData;
     const activeAccounts = accounts.filter((a) => a.isActive);
+    // Editing keeps the transfer's own accounts selectable even if archived
+    const selectableAccounts = accounts.filter(
+        (a) =>
+            a.isActive ||
+            (isEditing &&
+                (a.id === initialData?.fromAccountId ||
+                    a.id === initialData?.toAccountId)),
+    );
     const hasFunds = funds.length > 1;
 
     const [formData, setFormData] = useState<TransferFormData>({
@@ -278,7 +286,7 @@ export const TransferModal = ({
                                             <option value="">
                                                 Select account
                                             </option>
-                                            {activeAccounts.map((acc) => (
+                                            {selectableAccounts.map((acc) => (
                                                 <option
                                                     key={acc.id}
                                                     value={acc.id}
@@ -411,7 +419,7 @@ export const TransferModal = ({
                                             <option value="">
                                                 Select account
                                             </option>
-                                            {activeAccounts.map((acc) => (
+                                            {selectableAccounts.map((acc) => (
                                                 <option
                                                     key={acc.id}
                                                     value={acc.id}

@@ -140,6 +140,9 @@ export const createDefaultFinanceData = (): FinanceData => ({
     accounts: [],
     transfers: [],
     funds: [], // Me is added when the module is normalised
+    people: [],
+    loans: [],
+    loanPayments: [],
     incomes: [],
     expenses: [],
     categories: [],

@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { mergeFinanceData } from "../merge";
-import { account, expense, income, transfer } from "./fixtures";
+import {
+    account,
+    expense,
+    income,
+    loan,
+    loanPayment,
+    person,
+    transfer,
+} from "./fixtures";
 
 describe("mergeFinanceData", () => {
     it("keeps every finance array, including accounts, transfers and income categories", () => {
@@ -24,6 +32,34 @@ describe("mergeFinanceData", () => {
         expect(merged.accounts?.map((a) => a.id).sort()).toEqual(["acc_1", "acc_2"]);
         expect(merged.transfers).toHaveLength(1);
         expect(merged.incomeCategories).toHaveLength(1);
+    });
+
+    it("merges people, loans and repayments by id and honours their tombstones", () => {
+        const merged = mergeFinanceData(
+            {
+                people: [person()],
+                loans: [loan({ id: "kept" })],
+                loanPayments: [],
+                deleted: [
+                    { id: "gone", deletedAt: "2026-10-20T00:00:00Z" },
+                    { id: "lp_gone", deletedAt: "2026-10-20T00:00:00Z" },
+                ],
+            },
+            {
+                people: [person({ id: "person_2" })],
+                loans: [loan({ id: "gone" })],
+                loanPayments: [
+                    loanPayment({ id: "lp_gone", loanId: "gone" }),
+                    loanPayment({ id: "lp_kept", loanId: "kept" }),
+                ],
+            },
+        );
+        expect(merged.people?.map((p) => p.id).sort()).toEqual([
+            "person_1",
+            "person_2",
+        ]);
+        expect(merged.loans?.map((l) => l.id)).toEqual(["kept"]);
+        expect(merged.loanPayments?.map((p) => p.id)).toEqual(["lp_kept"]);
     });
 
     it("keeps the newer copy of a row edited on both sides", () => {

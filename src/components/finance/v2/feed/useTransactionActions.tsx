@@ -5,34 +5,49 @@ import type {
     Expense,
     Income,
     Installment,
+    Loan,
+    LoanPayment,
     Transaction,
 } from "@/types/modules/finance";
+import type { RestorableRecord } from "@/hooks/useFinance";
 import { isLivePaymentExpense } from "@/utils/finance/installments";
+import { showUndoToast } from "./undoToast";
+import { withRepaymentsText } from "../people/copy";
 import type { IncomeFormData } from "../modals/IncomeModal";
 import type { ExpenseFormData } from "../modals/ExpenseModal";
 import type { TransferFormData } from "../modals/TransferModal";
-
-type Restorable =
-    | { kind: "income"; record: Income }
-    | { kind: "expense"; record: Expense }
-    | { kind: "transfer"; record: AccountTransfer };
 
 interface TransactionActionsDeps {
     incomes: Income[];
     expenses: Expense[];
     transfers: AccountTransfer[];
     installments: Installment[];
+    loans: Loan[];
+    loanPayments: LoanPayment[];
     deleteIncome: (id: string) => void;
     deleteExpense: (id: string) => { success: boolean; error?: string };
     deleteTransfer: (id: string) => void;
-    restoreRecord: (restored: Restorable) => void;
+    deleteLoan: (id: string) => void;
+    deleteLoanPayment: (id: string) => void;
+    restoreRecord: (restored: RestorableRecord) => {
+        success: boolean;
+        error?: string;
+    };
+    /** Loans are edited from the People page */
+    onOpenLoan?: (transaction: Transaction) => void;
 }
 
 const LABELS: Record<Transaction["type"], string> = {
     income: "income",
     expense: "expense",
     transfer: "transfer",
+    loan: "loan",
 };
+
+const labelOf = (transaction: Transaction) =>
+    transaction.loan?.kind === "repayment"
+        ? "repayment"
+        : LABELS[transaction.type];
 
 const capitalize = (text: string) => text[0].toUpperCase() + text.slice(1);
 
@@ -42,10 +57,15 @@ export const useTransactionActions = ({
     expenses,
     transfers,
     installments,
+    loans,
+    loanPayments,
     deleteIncome,
     deleteExpense,
     deleteTransfer,
+    deleteLoan,
+    deleteLoanPayment,
     restoreRecord,
+    onOpenLoan,
 }: TransactionActionsDeps) => {
     const [editingIncome, setEditingIncome] = useState<Income | null>(null);
     const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
@@ -66,13 +86,15 @@ export const useTransactionActions = ({
                     return;
                 }
                 setEditingExpense(expense ?? null);
+            } else if (transaction.type === "loan") {
+                onOpenLoan?.(transaction);
             } else {
                 setEditingTransfer(
                     transfers.find((t) => t.id === transaction.id) ?? null,
                 );
             }
         },
-        [incomes, expenses, transfers, installments],
+        [incomes, expenses, transfers, installments, onOpenLoan],
     );
 
     const stopEdit = useCallback(() => {
@@ -95,7 +117,7 @@ export const useTransactionActions = ({
     >(() => editingTransfer ?? undefined, [editingTransfer]);
 
     const findRecord = useCallback(
-        (transaction: Transaction): Restorable | null => {
+        (transaction: Transaction): RestorableRecord | null => {
             if (transaction.type === "income") {
                 const record = incomes.find((i) => i.id === transaction.id);
                 return record ? { kind: "income", record } : null;
@@ -104,18 +126,33 @@ export const useTransactionActions = ({
                 const record = expenses.find((e) => e.id === transaction.id);
                 return record ? { kind: "expense", record } : null;
             }
+            if (transaction.loan?.kind === "repayment") {
+                const record = loanPayments.find((p) => p.id === transaction.id);
+                return record ? { kind: "loanPayment", record } : null;
+            }
+            if (transaction.loan) {
+                const record = loans.find((l) => l.id === transaction.id);
+                const payments = loanPayments.filter(
+                    (p) => p.loanId === transaction.id,
+                );
+                return record ? { kind: "loan", record, payments } : null;
+            }
             const record = transfers.find((t) => t.id === transaction.id);
             return record ? { kind: "transfer", record } : null;
         },
-        [incomes, expenses, transfers],
+        [incomes, expenses, transfers, loans, loanPayments],
     );
 
     const handleDelete = useCallback(
         (transaction: Transaction) => {
             const restorable = findRecord(transaction);
             if (!restorable) return;
-            const label = LABELS[transaction.type];
-            if (!window.confirm(`Delete this ${label}?`)) return;
+            const label = labelOf(transaction);
+            const extra =
+                restorable.kind === "loan"
+                    ? withRepaymentsText(restorable.payments.length)
+                    : "";
+            if (!window.confirm(`Delete this ${label}${extra}?`)) return;
 
             if (restorable.kind === "expense") {
                 const result = deleteExpense(transaction.id);
@@ -125,28 +162,27 @@ export const useTransactionActions = ({
                 }
             } else if (restorable.kind === "income") {
                 deleteIncome(transaction.id);
+            } else if (restorable.kind === "loan") {
+                deleteLoan(transaction.id);
+            } else if (restorable.kind === "loanPayment") {
+                deleteLoanPayment(transaction.id);
             } else {
                 deleteTransfer(transaction.id);
             }
 
-            toast(
-                (t) => (
-                    <span className="flex items-center gap-3">
-                        {capitalize(label)} deleted
-                        <button
-                            className="font-semibold text-primary"
-                            onClick={() => {
-                                restoreRecord(restorable);
-                                toast.dismiss(t.id);
-                            }}>
-                            Undo
-                        </button>
-                    </span>
-                ),
-                { duration: 6000 },
+            showUndoToast(`${capitalize(label)} deleted`, () =>
+                restoreRecord(restorable),
             );
         },
-        [findRecord, deleteExpense, deleteIncome, deleteTransfer, restoreRecord],
+        [
+            findRecord,
+            deleteExpense,
+            deleteIncome,
+            deleteTransfer,
+            deleteLoan,
+            deleteLoanPayment,
+            restoreRecord,
+        ],
     );
 
     return {

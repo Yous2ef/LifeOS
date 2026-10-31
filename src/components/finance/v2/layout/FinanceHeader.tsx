@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Settings, Plus, BarChart3, Eye, EyeOff } from "lucide-react";
+import { Settings, Plus, BarChart3, Eye, EyeOff, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePrivacyMode } from "@/hooks/usePrivacyMode";
 import { Button } from "@/components/ui/Button";
@@ -8,7 +8,7 @@ import type { DateRange } from "../controls/SmartDatePicker";
 import { NetWorthDisplay } from "../wallet/NetWorthDisplay";
 
 interface FinanceHeaderProps {
-    /** Focused funds' total, or the selected account's focused part */
+    /** Focused funds + owed to you − you owe, or the selected account's focused part */
     netWorth: number;
     formatCurrency: (amount: number) => string;
     dateRange: DateRange;
@@ -16,6 +16,7 @@ interface FinanceHeaderProps {
     onSettingsClick: () => void;
     onAddClick: () => void;
     onReportsClick?: () => void;
+    onPeopleClick?: () => void;
     className?: string;
 }
 
@@ -27,6 +28,7 @@ export const FinanceHeader = ({
     onSettingsClick,
     onAddClick,
     onReportsClick,
+    onPeopleClick,
     className,
 }: FinanceHeaderProps) => {
     const { isHidden, toggle: togglePrivacy } = usePrivacyMode();
@@ -83,6 +85,18 @@ export const FinanceHeader = ({
                         <PrivacyIcon className="w-5 h-5" />
                     </Button>
 
+                    {onPeopleClick && (
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={onPeopleClick}
+                            className="rounded-full w-10 h-10"
+                            title="People"
+                            aria-label="People">
+                            <Users className="w-5 h-5" />
+                        </Button>
+                    )}
+
                     {onReportsClick && (
                         <Button
                             variant="ghost"
@@ -133,6 +147,19 @@ export const FinanceHeader = ({
                     aria-pressed={isHidden}>
                     <PrivacyIcon className="w-5 h-5" />
                 </Button>
+
+                {/* People */}
+                {onPeopleClick && (
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={onPeopleClick}
+                        className="flex-col h-auto py-2 px-3 gap-1 hover:bg-primary/10"
+                        title="People">
+                        <Users className="w-5 h-5" />
+                        <span className="text-[10px] font-medium">People</span>
+                    </Button>
+                )}
 
                 {/* Reports */}
                 {onReportsClick && (

@@ -1,21 +1,36 @@
-import type { FinanceData, Income } from "@/types/modules/finance";
+import type {
+    FinanceData,
+    Income,
+    LoanDirection,
+} from "@/types/modules/finance";
 import { FUND_ME_ID } from "./defaults";
 
 export type BalanceSource = Pick<
     FinanceData,
     "accounts" | "incomes" | "expenses" | "transfers"
->;
+> &
+    Partial<Pick<FinanceData, "loans" | "loanPayments">>;
 
 /** accountId → fundId → balance */
 export type FundBalances = Map<string, Map<string, number>>;
 
-const day = (date: string): string => date.slice(0, 10);
+/** The YYYY-MM-DD part of a date or timestamp */
+export const day = (date: string): string => date.slice(0, 10);
 
-const isOnOrBefore = (date: string, asOf?: string): boolean =>
+export const isOnOrBefore = (date: string, asOf?: string): boolean =>
     !asOf || day(date) <= day(asOf);
 
 /** Records without a fund belong to Me */
 export const fundOf = (fundId?: string): string => fundId || FUND_ME_ID;
+
+/**
+ * +1 when money comes into the account, −1 when it leaves: borrowing and being
+ * repaid bring money in; lending and repaying take it out.
+ */
+export const loanCashSign = (
+    direction: LoanDirection,
+    isRepayment: boolean,
+): 1 | -1 => ((direction === "borrowed") !== isRepayment ? 1 : -1);
 
 /** The day a received income landed in its account */
 export const incomeDate = (income: Income): string =>
@@ -33,6 +48,10 @@ export const incomeDate = (income: Income): string =>
  * Installments are not read here: every installment payment creates a linked
  * expense and every refund a linked income, so counting `paidAmount` too would
  * deduct the same money twice.
+ *
+ * Loans move money (borrowed +, lent −, repayments the reverse) without being
+ * income or expense. A payment whose loan is gone (deleted on another device)
+ * has no direction and is skipped, and offset payments move no money.
  */
 export const computeBalances = (
     data: BalanceSource,
@@ -68,6 +87,27 @@ export const computeBalances = (
         if (!isOnOrBefore(transfer.date, asOf)) return;
         add(transfer.fromAccountId, transfer.fromFundId, -transfer.amount);
         add(transfer.toAccountId, transfer.toFundId, transfer.amount);
+    });
+
+    const loans = data.loans ?? [];
+    const directionOf = new Map(loans.map((loan) => [loan.id, loan.direction]));
+    loans.forEach((loan) => {
+        if (!isOnOrBefore(loan.date, asOf)) return;
+        add(
+            loan.accountId,
+            loan.fundId,
+            loanCashSign(loan.direction, false) * loan.amount,
+        );
+    });
+    (data.loanPayments ?? []).forEach((payment) => {
+        const direction = directionOf.get(payment.loanId);
+        if (!direction || payment.isOffset) return;
+        if (!isOnOrBefore(payment.date, asOf)) return;
+        add(
+            payment.accountId,
+            payment.fundId,
+            loanCashSign(direction, true) * payment.amount,
+        );
     });
 
     return balances;

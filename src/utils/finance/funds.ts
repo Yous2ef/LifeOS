@@ -44,7 +44,8 @@ export const focusWithoutFund = (
  * also means "holds no money".
  */
 export const getFundDeleteBlocker = (
-    data: Pick<FinanceData, "incomes" | "expenses" | "transfers">,
+    data: Pick<FinanceData, "incomes" | "expenses" | "transfers"> &
+        Partial<Pick<FinanceData, "loans" | "loanPayments">>,
     fundId: string,
 ): string | null => {
     if (fundId === FUND_ME_ID || fundId === FUND_CHARITY_ID) {
@@ -58,6 +59,10 @@ export const getFundDeleteBlocker = (
             (transfer) =>
                 fundOf(transfer.fromFundId) === fundId ||
                 fundOf(transfer.toFundId) === fundId,
+        ) ||
+        (data.loans ?? []).some((loan) => fundOf(loan.fundId) === fundId) ||
+        (data.loanPayments ?? []).some(
+            (payment) => fundOf(payment.fundId) === fundId,
         );
     if (isUsed) return "This fund has transactions. Hide it instead.";
 

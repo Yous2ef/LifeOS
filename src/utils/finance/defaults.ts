@@ -324,6 +324,9 @@ export const getDefaultFinanceData = (): FinanceData => ({
     accounts: [], // Populated by migration or the user
     transfers: [],
     funds: [getDefaultMeFund()],
+    people: [],
+    loans: [],
+    loanPayments: [],
     incomes: [],
     expenses: [],
     categories: getDefaultExpenseCategories(),

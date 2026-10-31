@@ -56,6 +56,7 @@ const Finance = lazy(() =>
 const FinanceGoals = lazy(() => import("./pages/FinanceGoals"));
 const FinanceInstallments = lazy(() => import("./pages/FinanceInstallments"));
 const FinanceReports = lazy(() => import("./pages/FinanceReports"));
+const FinancePeople = lazy(() => import("./pages/FinancePeople"));
 
 // Loading fallback component
 const LoadingFallback = () => (
@@ -159,6 +160,10 @@ const AppContent: React.FC = () => {
                             <Route
                                 path="/finance/reports"
                                 element={<FinanceReports />}
+                            />
+                            <Route
+                                path="/finance/people"
+                                element={<FinancePeople />}
                             />
                             <Route path="/misc" element={<Misc />} />
                             <Route path="/settings" element={<Settings />} />
