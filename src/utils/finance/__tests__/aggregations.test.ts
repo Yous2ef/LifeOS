@@ -3,7 +3,10 @@ import {
     countedIncomesInRange,
     incomeDisplayDate,
     monthlySeries,
+    NO_PROJECT_KEY,
+    topByTitle,
     totalsByCategory,
+    totalsByProject,
 } from "../aggregations";
 import { expense, income } from "./fixtures";
 
@@ -63,5 +66,60 @@ describe("totalsByCategory", () => {
             ["food", 25, 25],
             ["unused", 0, 0],
         ]);
+    });
+});
+
+describe("totalsByProject", () => {
+    it("groups by project with untagged rows under one key", () => {
+        const totals = totalsByProject([
+            { projectId: "p1", amount: 30 },
+            { amount: 50 },
+            { projectId: "p1", amount: 20 },
+        ]);
+        expect(totals.map((t) => [t.key, t.amount, t.count, t.percentage])).toEqual([
+            ["p1", 50, 2, 50],
+            [NO_PROJECT_KEY, 50, 1, 50],
+        ]);
+    });
+});
+
+describe("topByTitle", () => {
+    it("merges titles that differ only in case or spacing, keeping the first spelling", () => {
+        const top = topByTitle(
+            [
+                { title: "Upwork", amount: 100 },
+                { title: " upwork  ", amount: 50 },
+                { title: "Client A", amount: 120 },
+                { title: "Tip", amount: 5 },
+            ],
+            2,
+        );
+        expect(top.map((t) => [t.title, t.amount, t.count])).toEqual([
+            ["Upwork", 150, 2],
+            ["Client A", 120, 1],
+        ]);
+    });
+});
+
+describe("monthlySeries month steps", () => {
+    it("keeps every month when the range starts late in a month, February included", () => {
+        const series = monthlySeries([], [], {
+            start: new Date("2026-01-30T00:00:00"),
+            end: new Date("2026-04-02T23:59:59"),
+        });
+        expect(series.map((m) => m.key)).toEqual([
+            "2026-01",
+            "2026-02",
+            "2026-03",
+            "2026-04",
+        ]);
+    });
+
+    it("keeps February after a start on the 31st", () => {
+        const series = monthlySeries([], [], {
+            start: new Date("2025-12-31T00:00:00"),
+            end: new Date("2026-02-28T23:59:59"),
+        });
+        expect(series.map((m) => m.key)).toEqual(["2025-12", "2026-01", "2026-02"]);
     });
 });

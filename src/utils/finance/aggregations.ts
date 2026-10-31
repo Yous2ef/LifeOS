@@ -60,7 +60,8 @@ export const monthlySeries = (
     range: DateRange,
 ): MonthlyFlow[] => {
     const months = new Map<string, MonthlyFlow>();
-    const cursor = new Date(range.start);
+    // From the 1st: stepping a Jan 30 cursor by a month lands on Mar 2
+    const cursor = new Date(range.start.getFullYear(), range.start.getMonth(), 1);
     while (cursor <= range.end) {
         const key = monthKey(cursor);
         months.set(key, {
@@ -125,4 +126,61 @@ export const totalsByCategory = <C extends { id: string }>(
             };
         })
         .sort((a, b) => b.amount - a.amount);
+};
+
+export interface GroupTotal {
+    key: string;
+    amount: number;
+    count: number;
+    percentage: number; // share of the rows' total
+}
+
+/** Totals per key (rows whose key is null are left out), largest first */
+export const totalsBy = <R extends { amount: number }>(
+    rows: R[],
+    keyOf: (row: R) => string | null | undefined,
+): GroupTotal[] => {
+    const groups = new Map<string, { amount: number; count: number }>();
+    rows.forEach((row) => {
+        const key = keyOf(row);
+        if (key == null) return;
+        const current = groups.get(key) ?? { amount: 0, count: 0 };
+        groups.set(key, {
+            amount: current.amount + row.amount,
+            count: current.count + 1,
+        });
+    });
+    const total = sumAmounts(rows);
+    return Array.from(groups, ([key, { amount, count }]) => ({
+        key,
+        amount,
+        count,
+        percentage: total > 0 ? (amount / total) * 100 : 0,
+    })).sort((a, b) => b.amount - a.amount);
+};
+
+/** Rows without a project are grouped under this key */
+export const NO_PROJECT_KEY = "__no_project__";
+
+export const totalsByProject = (
+    rows: { projectId?: string; amount: number }[],
+): GroupTotal[] => totalsBy(rows, (row) => row.projectId || NO_PROJECT_KEY);
+
+/**
+ * Biggest sources (income) or payees (expense), grouped by title. Titles are
+ * matched case- and space-insensitively so "Upwork" and "upwork " are one.
+ */
+export const topByTitle = (
+    rows: { title: string; amount: number }[],
+    limit = 5,
+): (GroupTotal & { title: string })[] => {
+    const titles = new Map<string, string>();
+    const keyOf = (row: { title: string }) => {
+        const key = row.title.trim().replace(/\s+/g, " ").toLowerCase();
+        if (!titles.has(key)) titles.set(key, row.title.trim() || "Untitled");
+        return key;
+    };
+    return totalsBy(rows, keyOf)
+        .slice(0, limit)
+        .map((group) => ({ ...group, title: titles.get(group.key) ?? group.key }));
 };
