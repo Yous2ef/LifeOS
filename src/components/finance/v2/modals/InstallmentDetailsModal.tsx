@@ -33,6 +33,8 @@ interface InstallmentDetailsModalProps {
     onPay?: () => void;
     onRefund?: () => void;
     onDelete?: () => void;
+    /** Removes a payment and the expense it created */
+    onDeletePayment?: (paymentId: string) => void;
 }
 
 export const InstallmentDetailsModal = ({
@@ -44,6 +46,7 @@ export const InstallmentDetailsModal = ({
     onPay,
     onRefund,
     onDelete,
+    onDeletePayment,
 }: InstallmentDetailsModalProps) => {
     if (!installment) return null;
 
@@ -393,6 +396,26 @@ export const InstallmentDetailsModal = ({
                                                             )}
                                                         </div>
                                                     </div>
+                                                    {onDeletePayment &&
+                                                        !isRefund && (
+                                                            <button
+                                                                type="button"
+                                                                aria-label="Delete payment"
+                                                                onClick={() => {
+                                                                    if (
+                                                                        window.confirm(
+                                                                            "Delete this payment?",
+                                                                        )
+                                                                    ) {
+                                                                        onDeletePayment(
+                                                                            payment.id,
+                                                                        );
+                                                                    }
+                                                                }}
+                                                                className="p-2 rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-500/10">
+                                                                <Trash2 className="w-4 h-4" />
+                                                            </button>
+                                                        )}
                                                 </motion.div>
                                             );
                                         })

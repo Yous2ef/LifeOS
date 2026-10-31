@@ -41,6 +41,8 @@ interface ExpenseModalProps {
     accounts: Account[];
     categories: ExpenseCategory[];
     defaultCurrency: Currency;
+    /** When set, the modal edits an existing expense with these values */
+    initialData?: Partial<ExpenseFormData>;
 }
 
 export interface ExpenseFormData {
@@ -80,7 +82,9 @@ export const ExpenseModal = ({
     accounts,
     categories,
     defaultCurrency,
+    initialData,
 }: ExpenseModalProps) => {
+    const isEditing = !!initialData;
     const [formData, setFormData] = useState<ExpenseFormData>({
         title: "",
         amount: 0,
@@ -119,10 +123,11 @@ export const ExpenseModal = ({
                 isRecurring: false,
                 tags: [],
                 notes: "",
+                ...initialData,
             });
             setStep("amount");
         }
-    }, [isOpen, defaultCurrency, categories, accounts]);
+    }, [isOpen, defaultCurrency, categories, accounts, initialData]);
 
     const handleCategoryScroll = () => {
         const element = categoryScrollRef.current;
@@ -220,7 +225,7 @@ export const ExpenseModal = ({
                                     </div>
                                     <div>
                                         <h2 className="text-lg font-semibold">
-                                            Add Expense
+                                            {isEditing ? "Edit expense" : "Add Expense"}
                                         </h2>
                                         <p className="text-xs text-muted-foreground">
                                             {step === "amount"
@@ -592,7 +597,7 @@ export const ExpenseModal = ({
                                         <Button
                                             onClick={handleSubmit}
                                             className="flex-1 rounded-xl bg-red-500 hover:bg-red-600">
-                                            Add Expense
+                                            {isEditing ? "Save changes" : "Add Expense"}
                                         </Button>
                                     </>
                                 )}

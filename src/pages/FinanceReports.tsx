@@ -52,6 +52,13 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
 import { useFinance } from "@/hooks/useFinance";
 import { GlassCard } from "@/components/finance/v2/layout/GlassCard";
+import {
+    countedIncomesInRange,
+    expensesInRange,
+    monthlySeries,
+    sumAmounts,
+    totalsByCategory,
+} from "@/utils/finance/aggregations";
 
 // Time range options
 type TimeRange = "1m" | "3m" | "6m" | "1y" | "all";
@@ -157,31 +164,19 @@ export const FinanceReports = () => {
         return { start, end };
     }, [timeRange, filterMode, fromDate, toDate]);
 
-    // Filter data by date range
-    const filteredData = useMemo(() => {
-        const filteredIncomes = incomes.filter((i) => {
-            const date = new Date(i.actualDate || i.createdAt);
-            return date >= dateRange.start && date <= dateRange.end;
-        });
-
-        const filteredExpenses = expenses.filter((e) => {
-            const date = new Date(e.date);
-            return date >= dateRange.start && date <= dateRange.end;
-        });
-
-        return { incomes: filteredIncomes, expenses: filteredExpenses };
-    }, [incomes, expenses, dateRange]);
+    // Filter data by date range (received income only)
+    const filteredData = useMemo(
+        () => ({
+            incomes: countedIncomesInRange(incomes, dateRange),
+            expenses: expensesInRange(expenses, dateRange),
+        }),
+        [incomes, expenses, dateRange],
+    );
 
     // Calculate totals
     const totals = useMemo(() => {
-        const income = filteredData.incomes.reduce(
-            (sum, i) => sum + i.amount,
-            0,
-        );
-        const expense = filteredData.expenses.reduce(
-            (sum, e) => sum + e.amount,
-            0,
-        );
+        const income = sumAmounts(filteredData.incomes);
+        const expense = sumAmounts(filteredData.expenses);
         const savings = income - expense;
         const savingsRate = income > 0 ? (savings / income) * 100 : 0;
 
@@ -189,139 +184,29 @@ export const FinanceReports = () => {
     }, [filteredData]);
 
     // Monthly chart data
-    const monthlyData = useMemo(() => {
-        const months: {
-            [key: string]: {
-                income: number;
-                expense: number;
-                savings: number;
-                month: string;
-            };
-        } = {};
+    const monthlyData = useMemo(
+        () => monthlySeries(incomes, expenses, dateRange),
+        [incomes, expenses, dateRange],
+    );
 
-        // Initialize months in range
-        const current = new Date(dateRange.start);
-        while (current <= dateRange.end) {
-            const key = `${current.getFullYear()}-${String(
-                current.getMonth() + 1,
-            ).padStart(2, "0")}`;
-            const monthName = current.toLocaleDateString("en-US", {
-                month: "short",
-            });
-            months[key] = {
-                income: 0,
-                expense: 0,
-                savings: 0,
-                month: monthName,
-            };
-            current.setMonth(current.getMonth() + 1);
-        }
+    // Category spending data (all categories, largest first)
+    const allCategoryData = useMemo(
+        () =>
+            totalsByCategory(filteredData.expenses, categories).map(
+                ({ category, amount, count, percentage }) => ({
+                    ...category,
+                    amount,
+                    count,
+                    percentage,
+                }),
+            ),
+        [categories, filteredData.expenses],
+    );
 
-        // Add income
-        filteredData.incomes.forEach((i) => {
-            const date = new Date(i.actualDate || i.createdAt);
-            const key = `${date.getFullYear()}-${String(
-                date.getMonth() + 1,
-            ).padStart(2, "0")}`;
-            if (months[key]) {
-                months[key].income += i.amount;
-            }
-        });
-
-        // Add expenses
-        filteredData.expenses.forEach((e) => {
-            const date = new Date(e.date);
-            const key = `${date.getFullYear()}-${String(
-                date.getMonth() + 1,
-            ).padStart(2, "0")}`;
-            if (months[key]) {
-                months[key].expense += e.amount;
-            }
-        });
-
-        // Calculate savings
-        Object.values(months).forEach((m) => {
-            m.savings = m.income - m.expense;
-        });
-
-        return Object.values(months);
-    }, [filteredData, dateRange]);
-
-    // Category spending data
-    const categoryData = useMemo(() => {
-        const categoryMap = new Map<
-            string,
-            { amount: number; count: number }
-        >();
-
-        filteredData.expenses.forEach((e) => {
-            const current = categoryMap.get(e.categoryId) || {
-                amount: 0,
-                count: 0,
-            };
-            categoryMap.set(e.categoryId, {
-                amount: current.amount + e.amount,
-                count: current.count + 1,
-            });
-        });
-
-        const result = categories
-            .map((cat) => {
-                const spending = categoryMap.get(cat.id) || {
-                    amount: 0,
-                    count: 0,
-                };
-                return {
-                    ...cat,
-                    amount: spending.amount,
-                    count: spending.count,
-                    percentage:
-                        totals.expense > 0
-                            ? (spending.amount / totals.expense) * 100
-                            : 0,
-                };
-            })
-            .filter((c) => c.amount > 0)
-            .sort((a, b) => b.amount - a.amount);
-
-        return result;
-    }, [filteredData, categories, totals.expense]);
-
-    const allCategoryData = useMemo(() => {
-        const categoryMap = new Map<
-            string,
-            { amount: number; count: number }
-        >();
-
-        filteredData.expenses.forEach((e) => {
-            const current = categoryMap.get(e.categoryId) || {
-                amount: 0,
-                count: 0,
-            };
-            categoryMap.set(e.categoryId, {
-                amount: current.amount + e.amount,
-                count: current.count + 1,
-            });
-        });
-
-        return categories
-            .map((cat) => {
-                const spending = categoryMap.get(cat.id) || {
-                    amount: 0,
-                    count: 0,
-                };
-                return {
-                    ...cat,
-                    amount: spending.amount,
-                    count: spending.count,
-                    percentage:
-                        totals.expense > 0
-                            ? (spending.amount / totals.expense) * 100
-                            : 0,
-                };
-            })
-            .sort((a, b) => b.amount - a.amount);
-    }, [categories, filteredData.expenses, totals.expense]);
+    const categoryData = useMemo(
+        () => allCategoryData.filter((c) => c.amount > 0),
+        [allCategoryData],
+    );
 
     const selectedCategoryTransactions = useMemo(() => {
         if (!selectedCategoryId) return [];

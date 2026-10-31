@@ -74,6 +74,12 @@ import type {
     FinancialGoal,
     Installment,
 } from "@/types/modules/finance";
+import {
+    installmentFormToNew,
+    installmentFormToUpdates,
+} from "@/utils/finance/installments";
+import { incomeDisplayDate } from "@/utils/finance/aggregations";
+import { useTransactionActions } from "./feed/useTransactionActions";
 
 // Custom hook for celebration
 const useCelebration = () => {
@@ -119,8 +125,13 @@ export const FinanceV2 = () => {
         deleteExpense,
         addIncome,
         deleteIncome,
+        updateIncome,
+        updateExpense,
+        deleteTransfer,
+        restoreRecord,
         addInstallment,
         updateInstallment,
+        deleteInstallmentPayment,
         deleteInstallment,
         addInstallmentPayment,
         addInstallmentRefund,
@@ -223,7 +234,7 @@ export const FinanceV2 = () => {
                 type: "income" as const,
                 title: inc.title,
                 amount: inc.amount,
-                date: inc.actualDate || inc.createdAt.split("T")[0],
+                date: incomeDisplayDate(inc).split("T")[0],
                 accountId: inc.accountId,
                 category: incomeCategory?.name,
                 categoryId: inc.categoryId,
@@ -288,6 +299,16 @@ export const FinanceV2 = () => {
             (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
         );
     }, [incomes, expenses, transfers, categories, accounts]);
+
+    const transactionActions = useTransactionActions({
+        incomes,
+        expenses,
+        transfers,
+        deleteIncome,
+        deleteExpense,
+        deleteTransfer,
+        restoreRecord,
+    });
 
     // Calculate net worth
     const netWorth = useMemo(
@@ -634,8 +655,8 @@ export const FinanceV2 = () => {
                     formatCurrency={formatCurrency}
                     dateRange={dateRange}
                     onTransactionClick={(t) => setSelectedTransaction(t)}
-                    onDeleteIncome={deleteIncome}
-                    onDeleteExpense={deleteExpense}
+                    onEdit={transactionActions.startEdit}
+                    onDelete={transactionActions.handleDelete}
                     selectedAccount={selectedAccount}
                     onClearAccountFilter={() => setSelectedAccount(null)}
                 />
@@ -708,13 +729,17 @@ export const FinanceV2 = () => {
 
             {/* Expense Modal */}
             <ExpenseModal
-                isOpen={showExpenseModal}
-                onClose={() => setShowExpenseModal(false)}
+                isOpen={showExpenseModal || !!transactionActions.editingExpense}
+                onClose={() => {
+                    setShowExpenseModal(false);
+                    transactionActions.stopEdit();
+                }}
+                initialData={transactionActions.expenseInitialData}
                 onSubmit={(data) => {
                     const fallbackTitle =
                         categories.find((c) => c.id === data.categoryId)
                             ?.name || "Expense";
-                    addExpense({
+                    const expenseData = {
                         title: data.title?.trim() || fallbackTitle,
                         amount: data.amount,
                         currency: data.currency,
@@ -727,7 +752,14 @@ export const FinanceV2 = () => {
                         recurringFrequency: data.recurringFrequency,
                         tags: data.tags,
                         notes: data.notes,
-                    });
+                    };
+                    const editing = transactionActions.editingExpense;
+                    if (editing) {
+                        updateExpense(editing.id, expenseData);
+                        transactionActions.stopEdit();
+                    } else {
+                        addExpense(expenseData);
+                    }
                 }}
                 accounts={accounts}
                 categories={categories}
@@ -736,13 +768,17 @@ export const FinanceV2 = () => {
 
             {/* Income Modal */}
             <IncomeModal
-                isOpen={showIncomeModal}
-                onClose={() => setShowIncomeModal(false)}
+                isOpen={showIncomeModal || !!transactionActions.editingIncome}
+                onClose={() => {
+                    setShowIncomeModal(false);
+                    transactionActions.stopEdit();
+                }}
+                initialData={transactionActions.incomeInitialData}
                 onSubmit={(data) => {
                     const fallbackTitle =
                         incomeCategories.find((c) => c.id === data.categoryId)
                             ?.name || "Income";
-                    addIncome({
+                    const incomeData = {
                         title: data.title?.trim() || fallbackTitle,
                         amount: data.amount,
                         currency: data.currency,
@@ -751,11 +787,26 @@ export const FinanceV2 = () => {
                         status: data.status,
                         frequency: data.frequency,
                         accountId: data.accountId,
-                        actualDate: data.actualDate,
+                        // Pending income has no actual date until it's received
+                        actualDate:
+                            data.status === "received"
+                                ? data.actualDate
+                                : undefined,
+                        expectedDate:
+                            data.status === "received"
+                                ? undefined
+                                : data.expectedDate,
                         isRecurring: data.isRecurring,
                         tags: data.tags,
                         notes: data.notes,
-                    });
+                    };
+                    const editing = transactionActions.editingIncome;
+                    if (editing) {
+                        updateIncome(editing.id, incomeData);
+                        transactionActions.stopEdit();
+                    } else {
+                        addIncome(incomeData);
+                    }
                 }}
                 accounts={accounts}
                 incomeCategories={incomeCategories}
@@ -770,34 +821,18 @@ export const FinanceV2 = () => {
                     setEditingInstallment(null);
                 }}
                 onSubmit={(data) => {
-                    const installmentData = {
-                        title: data.title,
-                        totalAmount: data.totalAmount,
-                        paidAmount: data.paidAmount,
-                        installmentAmount: data.installmentAmount,
-                        totalInstallments: data.totalInstallments,
-                        paidInstallments: data.paidInstallments,
-                        frequency: data.frequency,
-                        linkedAccountId:
-                            data.linkedAccountId || accounts[0]?.id || "",
-                        startDate: data.startDate,
-                        nextPaymentDate: data.nextDueDate,
-                        description: data.notes,
-                        categoryId: categories[0]?.id || "",
-                        endDate: data.startDate, // Will be calculated
-                        status: "active" as const,
-                        autoPayment: false,
-                        remindDaysBefore: 3,
-                        payments: [],
-                    };
-
                     if (editingInstallment) {
                         updateInstallment(
                             editingInstallment.id,
-                            installmentData,
+                            installmentFormToUpdates(data),
                         );
                     } else {
-                        addInstallment(installmentData);
+                        addInstallment(
+                            installmentFormToNew(data, {
+                                accountId: accounts[0]?.id || "",
+                                categoryId: categories[0]?.id || "",
+                            }),
+                        );
                     }
                     setShowInstallmentModal(false);
                     setEditingInstallment(null);
@@ -938,6 +973,7 @@ export const FinanceV2 = () => {
                         data.toAccountId,
                         data.amount,
                         data.notes,
+                        data.date,
                     );
                     setShowTransferModal(false);
                 }}
@@ -985,8 +1021,17 @@ export const FinanceV2 = () => {
                     setShowInstallmentDetailsModal(false);
                     setViewingInstallment(null);
                 }}
-                installment={viewingInstallment}
+                // Read the live record so the open modal reflects payment changes
+                installment={
+                    installments.find((i) => i.id === viewingInstallment?.id) ??
+                    viewingInstallment
+                }
                 formatCurrency={formatCurrency}
+                onDeletePayment={(paymentId) => {
+                    if (viewingInstallment) {
+                        deleteInstallmentPayment(viewingInstallment.id, paymentId);
+                    }
+                }}
                 onEdit={() => {
                     if (viewingInstallment) {
                         setEditingInstallment(viewingInstallment);

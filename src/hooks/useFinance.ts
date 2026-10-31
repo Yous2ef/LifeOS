@@ -1,6 +1,20 @@
 ﻿import { useEffect, useCallback, useMemo } from "react";
 import { useApp } from "../context/AppContext";
-import { runMigrationIfNeeded } from "@/utils/finance/migration";
+import {
+    financeNeedsMigration,
+    runMigrationIfNeeded,
+} from "@/utils/finance/migration";
+import { getDefaultFinanceData } from "@/utils/finance/defaults";
+import { addTombstones, normalizeFinanceData } from "@/utils/finance/normalize";
+import {
+    computeAccountBalances,
+    computeTotalBalance,
+} from "@/utils/finance/balances";
+import { summarizeInstallmentPayments } from "@/utils/finance/installments";
+import {
+    applyRecurringExpenses,
+    applyRecurringIncomes,
+} from "@/utils/finance/recurring";
 import type {
     FinanceData,
     Income,
@@ -60,632 +74,58 @@ const isInMonth = (
     return date >= start && date <= end;
 };
 
-// ==================== Default Data ====================
-
-const getDefaultFinanceData = (): FinanceData => {
-    const now = new Date().toISOString();
-
-    const categories: ExpenseCategory[] = [
-        {
-            id: generateId(),
-            name: "Rent/Mortgage",
-            nameAr: "إيجار/قسط سكن",
-            icon: "🏠",
-            color: "#3b82f6",
-            isEssential: true,
-            isDefault: true,
-            order: 1,
-            createdAt: now,
-        },
-        {
-            id: generateId(),
-            name: "Utilities",
-            nameAr: "فواتير",
-            icon: "⚡",
-            color: "#eab308",
-            isEssential: true,
-            isDefault: true,
-            order: 2,
-            createdAt: now,
-        },
-        {
-            id: generateId(),
-            name: "Transportation",
-            nameAr: "مواصلات",
-            icon: "🚗",
-            color: "#8b5cf6",
-            isEssential: true,
-            isDefault: true,
-            order: 3,
-            createdAt: now,
-        },
-        {
-            id: generateId(),
-            name: "Groceries",
-            nameAr: "طعام وبقالة",
-            icon: "🛒",
-            color: "#22c55e",
-            isEssential: true,
-            isDefault: true,
-            order: 4,
-            createdAt: now,
-        },
-        {
-            id: generateId(),
-            name: "Healthcare",
-            nameAr: "صحة ودواء",
-            icon: "💊",
-            color: "#ef4444",
-            isEssential: true,
-            isDefault: true,
-            order: 5,
-            createdAt: now,
-        },
-        {
-            id: generateId(),
-            name: "Insurance",
-            nameAr: "تأمين",
-            icon: "🛡️",
-            color: "#0ea5e9",
-            isEssential: true,
-            isDefault: true,
-            order: 6,
-            createdAt: now,
-        },
-        {
-            id: generateId(),
-            name: "Dining Out",
-            nameAr: "أكل بره",
-            icon: "🍔",
-            color: "#f97316",
-            isEssential: false,
-            isDefault: true,
-            order: 7,
-            createdAt: now,
-        },
-        {
-            id: generateId(),
-            name: "Entertainment",
-            nameAr: "ترفيه",
-            icon: "🎮",
-            color: "#ec4899",
-            isEssential: false,
-            isDefault: true,
-            order: 8,
-            createdAt: now,
-        },
-        {
-            id: generateId(),
-            name: "Shopping",
-            nameAr: "تسوق",
-            icon: "🛍️",
-            color: "#a855f7",
-            isEssential: false,
-            isDefault: true,
-            order: 9,
-            createdAt: now,
-        },
-        {
-            id: generateId(),
-            name: "Clothing",
-            nameAr: "ملابس",
-            icon: "👔",
-            color: "#06b6d4",
-            isEssential: false,
-            isDefault: true,
-            order: 10,
-            createdAt: now,
-        },
-        {
-            id: generateId(),
-            name: "Education",
-            nameAr: "تعليم",
-            icon: "📚",
-            color: "#14b8a6",
-            isEssential: false,
-            isDefault: true,
-            order: 11,
-            createdAt: now,
-        },
-        {
-            id: generateId(),
-            name: "Gifts",
-            nameAr: "هدايا",
-            icon: "🎁",
-            color: "#f43f5e",
-            isEssential: false,
-            isDefault: true,
-            order: 12,
-            createdAt: now,
-        },
-        {
-            id: generateId(),
-            name: "Sports",
-            nameAr: "رياضة",
-            icon: "⚽",
-            color: "#10b981",
-            isEssential: false,
-            isDefault: true,
-            order: 13,
-            createdAt: now,
-        },
-        {
-            id: generateId(),
-            name: "Travel",
-            nameAr: "سفر",
-            icon: "✈️",
-            color: "#6366f1",
-            isEssential: false,
-            isDefault: true,
-            order: 14,
-            createdAt: now,
-        },
-        {
-            id: generateId(),
-            name: "Subscriptions",
-            nameAr: "اشتراكات",
-            icon: "📱",
-            color: "#8b5cf6",
-            isEssential: false,
-            isDefault: true,
-            order: 15,
-            createdAt: now,
-        },
-        {
-            id: generateId(),
-            name: "Personal Care",
-            nameAr: "عناية شخصية",
-            icon: "💇",
-            color: "#d946ef",
-            isEssential: false,
-            isDefault: true,
-            order: 16,
-            createdAt: now,
-        },
-        {
-            id: generateId(),
-            name: "Emergency",
-            nameAr: "طوارئ",
-            icon: "🚨",
-            color: "#dc2626",
-            isEssential: true,
-            isDefault: true,
-            order: 17,
-            createdAt: now,
-        },
-        {
-            id: generateId(),
-            name: "Other",
-            nameAr: "أخرى",
-            icon: "📦",
-            color: "#64748b",
-            isEssential: false,
-            isDefault: true,
-            order: 18,
-            createdAt: now,
-        },
-    ];
-
-    const incomeCategories: IncomeCategory[] = [
-        {
-            id: generateId(),
-            name: "Salary",
-            nameAr: "راتب",
-            icon: "💼",
-            color: "#3b82f6",
-            isDefault: true,
-            order: 1,
-            createdAt: now,
-        },
-        {
-            id: generateId(),
-            name: "Freelance",
-            nameAr: "عمل حر",
-            icon: "💻",
-            color: "#8b5cf6",
-            isDefault: true,
-            order: 2,
-            createdAt: now,
-        },
-        {
-            id: generateId(),
-            name: "Business",
-            nameAr: "أعمال",
-            icon: "🏢",
-            color: "#14b8a6",
-            isDefault: true,
-            order: 3,
-            createdAt: now,
-        },
-        {
-            id: generateId(),
-            name: "Investment",
-            nameAr: "استثمار",
-            icon: "📈",
-            color: "#22c55e",
-            isDefault: true,
-            order: 4,
-            createdAt: now,
-        },
-        {
-            id: generateId(),
-            name: "Bonus",
-            nameAr: "مكافأة",
-            icon: "🎉",
-            color: "#f59e0b",
-            isDefault: true,
-            order: 5,
-            createdAt: now,
-        },
-        {
-            id: generateId(),
-            name: "Commission",
-            nameAr: "عمولة",
-            icon: "💰",
-            color: "#10b981",
-            isDefault: true,
-            order: 6,
-            createdAt: now,
-        },
-        {
-            id: generateId(),
-            name: "Gift",
-            nameAr: "هدية",
-            icon: "🎁",
-            color: "#ec4899",
-            isDefault: true,
-            order: 7,
-            createdAt: now,
-        },
-        {
-            id: generateId(),
-            name: "Refund",
-            nameAr: "استرداد",
-            icon: "🔄",
-            color: "#06b6d4",
-            isDefault: true,
-            order: 8,
-            createdAt: now,
-        },
-        {
-            id: generateId(),
-            name: "Rental Income",
-            nameAr: "دخل إيجار",
-            icon: "🏠",
-            color: "#6366f1",
-            isDefault: true,
-            order: 9,
-            createdAt: now,
-        },
-        {
-            id: generateId(),
-            name: "Other",
-            nameAr: "أخرى",
-            icon: "📦",
-            color: "#64748b",
-            isDefault: true,
-            order: 10,
-            createdAt: now,
-        },
-    ];
-
-    return {
-        accounts: [], // Will be populated by migration or user
-        transfers: [],
-        incomes: [],
-        expenses: [],
-        categories,
-        incomeCategories,
-        installments: [],
-        budgets: [],
-        goals: [],
-        alerts: [],
-        settings: {
-            defaultCurrency: "EGP",
-            monthStartDay: 1,
-            showCents: false,
-            enableBudgetAlerts: true,
-            budgetWarningThreshold: 80,
-            enableInstallmentReminders: true,
-            installmentReminderDays: 3,
-            enableInsights: true,
-            weeklyReportEnabled: true,
-            monthlyReportEnabled: true,
-        },
-    };
-};
-
 // ==================== Main Hook ====================
 
 export const useFinance = () => {
-    const { data: appData, updateData } = useApp();
+    const { data: appData, updateModule } = useApp();
 
-    // Get finance data from unified AppData, with defaults
-    // Run migration if needed to upgrade from v1 to v2
-    const data: FinanceData = useMemo(() => {
-        const baseData: FinanceData = {
-            ...getDefaultFinanceData(),
-            ...appData.finance,
-            settings: {
-                ...getDefaultFinanceData().settings,
-                ...(appData.finance?.settings || {}),
-            },
-        };
+    // Read path: defaults only. Migration runs on the write path below.
+    const data: FinanceData = useMemo(
+        () => normalizeFinanceData(appData.finance),
+        [appData.finance],
+    );
 
-        // Check if migration is needed (no accounts array OR no income categories)
-        const needsAccountMigration =
-            !baseData.accounts || baseData.accounts.length === 0;
-        const needsIncomeCategoryCreation =
-            !baseData.incomeCategories ||
-            baseData.incomeCategories.length === 0;
-
-        if (needsAccountMigration || needsIncomeCategoryCreation) {
-            // Import migration utility
-            const migratedData = runMigrationIfNeeded(baseData);
-
-            // Save migrated data back to storage
-            setTimeout(() => {
-                updateData({ finance: migratedData });
-            }, 0);
-
-            return migratedData;
-        }
-
-        return baseData;
-    }, [appData.finance, updateData]);
-
-    // Helper to update finance data in AppContext
+    // Every write applies the updater to the latest (normalised) state, so
+    // several writes in one tick all survive. A plain value replaces the module.
     const setData = useCallback(
         (updater: FinanceData | ((prev: FinanceData) => FinanceData)) => {
-            if (typeof updater === "function") {
-                updateData({ finance: updater(data) });
-            } else {
-                updateData({ finance: updater });
-            }
+            updateModule("finance", (prev) => {
+                if (typeof updater !== "function") return updater;
+                const current = normalizeFinanceData(prev);
+                const next = updater(current);
+                return next === current ? prev : next; // no-op stays a no-op
+            });
         },
-        [data, updateData],
+        [updateModule],
     );
+
+    // Upgrade older data (v1 single balance, income types) once, on the latest state
+    useEffect(() => {
+        if (!financeNeedsMigration(data)) return;
+        setData((prev) =>
+            financeNeedsMigration(prev) ? runMigrationIfNeeded(prev) : prev,
+        );
+    }, [data, setData]);
 
     // ==================== Recurring & Automation Logic ====================
 
-    const calculateNextOccurrence = useCallback(
-        (currentDate: string, frequency: string): string => {
-            const date = new Date(currentDate);
-            switch (frequency) {
-                case "daily":
-                    date.setDate(date.getDate() + 1);
-                    break;
-                case "weekly":
-                    date.setDate(date.getDate() + 7);
-                    break;
-                case "bi-weekly":
-                    date.setDate(date.getDate() + 14);
-                    break;
-                case "monthly":
-                    date.setMonth(date.getMonth() + 1);
-                    break;
-                case "quarterly":
-                    date.setMonth(date.getMonth() + 3);
-                    break;
-                case "yearly":
-                    date.setFullYear(date.getFullYear() + 1);
-                    break;
-                default:
-                    date.setMonth(date.getMonth() + 1);
-            }
-            return date.toISOString().split("T")[0];
-        },
-        [],
-    );
-
-    // Process recurring incomes - runs on app load
+    // Generate due recurring incomes/expenses on load. Runs on the latest state
+    // inside the updater, so several mounted hooks can't create duplicates.
     useEffect(() => {
-        const processRecurringIncomes = () => {
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-
-            const recurringIncomes = data.incomes.filter(
-                (inc) =>
-                    inc.isRecurring &&
-                    inc.frequency !== "one-time" &&
-                    (!inc.recurringEndDate ||
-                        new Date(inc.recurringEndDate) >= today),
-            );
-
-            const newIncomes: Income[] = [];
-            const updatedIncomes: { id: string; nextOccurrence: string }[] = [];
-
-            recurringIncomes.forEach((income) => {
-                let nextDate = income.nextOccurrence
-                    ? new Date(income.nextOccurrence)
-                    : income.actualDate
-                      ? new Date(income.actualDate)
-                      : new Date(income.createdAt);
-
-                if (!income.nextOccurrence) {
-                    const baseDate = income.actualDate || income.createdAt;
-                    nextDate = new Date(
-                        calculateNextOccurrence(baseDate, income.frequency),
-                    );
-                }
-
-                while (nextDate <= today) {
-                    const nextDateStr = nextDate.toISOString().split("T")[0];
-                    const existingEntry = data.incomes.find(
-                        (inc) =>
-                            inc.title === income.title &&
-                            inc.amount === income.amount &&
-                            inc.actualDate === nextDateStr,
-                    );
-
-                    if (!existingEntry) {
-                        const now = new Date().toISOString();
-                        newIncomes.push({
-                            ...income,
-                            id: generateId(),
-                            status: "received",
-                            actualDate: nextDateStr,
-                            expectedDate: undefined,
-                            isRecurring: false,
-                            nextOccurrence: undefined,
-                            createdAt: now,
-                            updatedAt: now,
-                            notes: `${
-                                income.notes ? income.notes + " | " : ""
-                            }Auto-generated from recurring income`,
-                        });
-                    }
-                    const newNextDate = calculateNextOccurrence(
-                        nextDateStr,
-                        income.frequency,
-                    );
-                    nextDate = new Date(newNextDate);
-                }
-
-                if (nextDate > today) {
-                    const nextOccurrenceStr = nextDate
-                        .toISOString()
-                        .split("T")[0];
-                    if (income.nextOccurrence !== nextOccurrenceStr) {
-                        updatedIncomes.push({
-                            id: income.id,
-                            nextOccurrence: nextOccurrenceStr,
-                        });
-                    }
-                }
-            });
-
-            if (newIncomes.length > 0 || updatedIncomes.length > 0) {
-                setData((prev) => ({
+        const timer = setTimeout(() => {
+            setData((prev) => {
+                const incomes = applyRecurringIncomes(prev.incomes);
+                const expenses = applyRecurringExpenses(prev.expenses);
+                if (!incomes && !expenses) return prev;
+                return {
                     ...prev,
-                    incomes: [
-                        ...prev.incomes.map((inc) => {
-                            const update = updatedIncomes.find(
-                                (u) => u.id === inc.id,
-                            );
-                            if (update) {
-                                return {
-                                    ...inc,
-                                    nextOccurrence: update.nextOccurrence,
-                                    updatedAt: new Date().toISOString(),
-                                };
-                            }
-                            return inc;
-                        }),
-                        ...newIncomes,
-                    ],
-                }));
-            }
-        };
-
-        const timer = setTimeout(processRecurringIncomes, 500);
-        return () => clearTimeout(timer);
-    }, []);
-
-    // Process recurring expenses
-    useEffect(() => {
-        const processRecurringExpenses = () => {
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-
-            const recurringExpenses = data.expenses.filter(
-                (exp) =>
-                    exp.isRecurring &&
-                    exp.recurringFrequency &&
-                    (!exp.recurringEndDate ||
-                        new Date(exp.recurringEndDate) >= today),
-            );
-
-            const newExpenses: Expense[] = [];
-            const updatedExpenses: { id: string; nextOccurrence: string }[] =
-                [];
-
-            recurringExpenses.forEach((expense) => {
-                let nextDate = expense.nextOccurrence
-                    ? new Date(expense.nextOccurrence)
-                    : new Date(expense.date);
-
-                if (!expense.nextOccurrence) {
-                    nextDate = new Date(
-                        calculateNextOccurrence(
-                            expense.date,
-                            expense.recurringFrequency || "monthly",
-                        ),
-                    );
-                }
-
-                while (nextDate <= today) {
-                    const nextDateStr = nextDate.toISOString().split("T")[0];
-                    const existingEntry = data.expenses.find(
-                        (exp) =>
-                            exp.title === expense.title &&
-                            exp.amount === expense.amount &&
-                            exp.categoryId === expense.categoryId &&
-                            exp.date === nextDateStr,
-                    );
-
-                    if (!existingEntry) {
-                        const now = new Date().toISOString();
-                        newExpenses.push({
-                            ...expense,
-                            id: generateId(),
-                            date: nextDateStr,
-                            isRecurring: false,
-                            recurringFrequency: undefined,
-                            nextOccurrence: undefined,
-                            createdAt: now,
-                            updatedAt: now,
-                            notes: `${
-                                expense.notes ? expense.notes + " | " : ""
-                            }Auto-generated from recurring expense`,
-                        });
-                    }
-                    const newNextDate = calculateNextOccurrence(
-                        nextDateStr,
-                        expense.recurringFrequency || "monthly",
-                    );
-                    nextDate = new Date(newNextDate);
-                }
-
-                if (nextDate > today) {
-                    const nextOccurrenceStr = nextDate
-                        .toISOString()
-                        .split("T")[0];
-                    if (expense.nextOccurrence !== nextOccurrenceStr) {
-                        updatedExpenses.push({
-                            id: expense.id,
-                            nextOccurrence: nextOccurrenceStr,
-                        });
-                    }
-                }
+                    incomes: incomes ?? prev.incomes,
+                    expenses: expenses ?? prev.expenses,
+                };
             });
-
-            if (newExpenses.length > 0 || updatedExpenses.length > 0) {
-                setData((prev) => ({
-                    ...prev,
-                    expenses: [
-                        ...prev.expenses.map((exp) => {
-                            const update = updatedExpenses.find(
-                                (u) => u.id === exp.id,
-                            );
-                            if (update) {
-                                return {
-                                    ...exp,
-                                    nextOccurrence: update.nextOccurrence,
-                                    updatedAt: new Date().toISOString(),
-                                };
-                            }
-                            return exp;
-                        }),
-                        ...newExpenses,
-                    ],
-                }));
-            }
-        };
-
-        const timer = setTimeout(processRecurringExpenses, 700);
+        }, 500);
         return () => clearTimeout(timer);
-    }, []);
+    }, [setData]);
 
     // ==================== Income Operations ====================
 
@@ -711,15 +151,21 @@ export const useFinance = () => {
         (id: string, updates: Partial<Income>) => {
             setData((prev) => ({
                 ...prev,
-                incomes: prev.incomes.map((income) =>
-                    income.id === id
-                        ? {
-                              ...income,
-                              ...updates,
-                              updatedAt: new Date().toISOString(),
-                          }
-                        : income,
-                ),
+                incomes: prev.incomes.map((income) => {
+                    if (income.id !== id) return income;
+                    // Receiving a pending income dates it to the day it arrived
+                    const becameReceived =
+                        updates.status === "received" &&
+                        income.status !== "received";
+                    return {
+                        ...income,
+                        ...updates,
+                        ...(becameReceived && !updates.actualDate
+                            ? { actualDate: new Date().toISOString().split("T")[0] }
+                            : {}),
+                        updatedAt: new Date().toISOString(),
+                    };
+                }),
             }));
         },
         [setData],
@@ -730,7 +176,56 @@ export const useFinance = () => {
             setData((prev) => ({
                 ...prev,
                 incomes: prev.incomes.filter((income) => income.id !== id),
+                deleted: addTombstones(prev.deleted, [id]),
             }));
+        },
+        [setData],
+    );
+
+    // Undo of a delete: put the record back with a fresh updatedAt (so it wins
+    // over its tombstone in a later cloud merge) and drop the local tombstone
+    const restoreRecord = useCallback(
+        (
+            restored:
+                | { kind: "income"; record: Income }
+                | { kind: "expense"; record: Expense }
+                | { kind: "transfer"; record: AccountTransfer },
+        ) => {
+            const now = new Date().toISOString();
+            setData((prev) => {
+                const deleted = (prev.deleted ?? []).filter(
+                    (d) => d.id !== restored.record.id,
+                );
+                switch (restored.kind) {
+                    case "income":
+                        return {
+                            ...prev,
+                            incomes: [
+                                ...prev.incomes.filter((i) => i.id !== restored.record.id),
+                                { ...restored.record, updatedAt: now },
+                            ],
+                            deleted,
+                        };
+                    case "expense":
+                        return {
+                            ...prev,
+                            expenses: [
+                                ...prev.expenses.filter((e) => e.id !== restored.record.id),
+                                { ...restored.record, updatedAt: now },
+                            ],
+                            deleted,
+                        };
+                    case "transfer":
+                        return {
+                            ...prev,
+                            transfers: [
+                                ...prev.transfers.filter((t) => t.id !== restored.record.id),
+                                { ...restored.record, updatedAt: now },
+                            ],
+                            deleted,
+                        };
+                }
+            });
         },
         [setData],
     );
@@ -779,13 +274,28 @@ export const useFinance = () => {
     );
 
     const deleteExpense = useCallback(
-        (id: string) => {
+        (id: string): { success: boolean; error?: string } => {
+            const expense = data.expenses.find((e) => e.id === id);
+            const paymentStillExists =
+                !!expense?.linkedPaymentId &&
+                data.installments.some((inst) =>
+                    inst.payments.some((p) => p.id === expense.linkedPaymentId),
+                );
+            if (paymentStillExists) {
+                return {
+                    success: false,
+                    error: "Delete this payment from the installment",
+                };
+            }
+
             setData((prev) => ({
                 ...prev,
                 expenses: prev.expenses.filter((expense) => expense.id !== id),
+                deleted: addTombstones(prev.deleted, [id]),
             }));
+            return { success: true };
         },
-        [setData],
+        [data.expenses, data.installments, setData],
     );
 
     const getExpenseById = useCallback(
@@ -921,6 +431,7 @@ export const useFinance = () => {
                     installments: updatedInstallments,
                     budgets: updatedBudgets,
                     categories: prev.categories.filter((cat) => cat.id !== id),
+                    deleted: addTombstones(prev.deleted, [id]),
                 };
             });
 
@@ -1006,6 +517,7 @@ export const useFinance = () => {
                 incomeCategories: (prev.incomeCategories || []).filter(
                     (cat) => cat.id !== id,
                 ),
+                deleted: addTombstones(prev.deleted, [id]),
             }));
 
             return true;
@@ -1032,7 +544,6 @@ export const useFinance = () => {
             const newAccount: Account = {
                 ...accountData,
                 id: generateId(),
-                balance: accountData.initialBalance, // Start with initial balance
                 createdAt: now,
                 updatedAt: now,
             };
@@ -1069,7 +580,10 @@ export const useFinance = () => {
             const hasTransactions =
                 data.expenses.some((e) => e.accountId === id) ||
                 data.incomes.some((i) => i.accountId === id) ||
-                data.installments.some((inst) => inst.linkedAccountId === id);
+                data.installments.some((inst) => inst.linkedAccountId === id) ||
+                data.transfers.some(
+                    (t) => t.fromAccountId === id || t.toAccountId === id,
+                );
 
             if (hasTransactions) {
                 return {
@@ -1093,6 +607,7 @@ export const useFinance = () => {
             setData((prev) => ({
                 ...prev,
                 accounts: prev.accounts.filter((a) => a.id !== id),
+                deleted: addTombstones(prev.deleted, [id]),
             }));
 
             return { success: true };
@@ -1102,6 +617,7 @@ export const useFinance = () => {
             data.expenses,
             data.incomes,
             data.installments,
+            data.transfers,
             setData,
         ],
     );
@@ -1112,60 +628,15 @@ export const useFinance = () => {
     );
 
     // Calculate real-time balance for an account
+    const accountBalances = useMemo(() => computeAccountBalances(data), [data]);
+
     const calculateAccountBalance = useCallback(
-        (accountId: string): number => {
-            const account = data.accounts.find((a) => a.id === accountId);
-            if (!account) return 0;
-
-            // Start with initial balance
-            let balance = account.initialBalance;
-
-            // Add all incomes to this account
-            const accountIncomes = data.incomes.filter(
-                (inc) =>
-                    inc.accountId === accountId && inc.status === "received",
-            );
-            balance += accountIncomes.reduce((sum, inc) => sum + inc.amount, 0);
-
-            // Subtract all expenses from this account
-            const accountExpenses = data.expenses.filter(
-                (exp) => exp.accountId === accountId,
-            );
-            balance -= accountExpenses.reduce(
-                (sum, exp) => sum + exp.amount,
-                0,
-            );
-
-            // Subtract installment payments
-            const accountInstallments = data.installments.filter(
-                (inst) => inst.linkedAccountId === accountId,
-            );
-            balance -= accountInstallments.reduce(
-                (sum, inst) => sum + inst.paidAmount,
-                0,
-            );
-
-            // Account for transfers
-            const transfersFrom = (data.transfers || []).filter(
-                (t) => t.fromAccountId === accountId,
-            );
-            const transfersTo = (data.transfers || []).filter(
-                (t) => t.toAccountId === accountId,
-            );
-
-            balance -= transfersFrom.reduce((sum, t) => sum + t.amount, 0);
-            balance += transfersTo.reduce((sum, t) => sum + t.amount, 0);
-
-            return balance;
-        },
-        [
-            data.accounts,
-            data.incomes,
-            data.expenses,
-            data.installments,
-            data.transfers,
-        ],
+        (accountId: string): number => accountBalances.get(accountId) ?? 0,
+        [accountBalances],
     );
+
+    // Net worth across active accounts (archived accounts excluded)
+    const totalBalance = useMemo(() => computeTotalBalance(data), [data]);
 
     // Transfer money between accounts
     const transferBetweenAccounts = useCallback(
@@ -1174,6 +645,7 @@ export const useFinance = () => {
             toAccountId: string,
             amount: number,
             notes?: string,
+            date?: string,
         ) => {
             const fromAccount = data.accounts.find(
                 (a) => a.id === fromAccountId,
@@ -1194,36 +666,49 @@ export const useFinance = () => {
                 fromAccountId,
                 toAccountId,
                 amount,
-                date: now.split("T")[0],
+                date: date || now.split("T")[0],
                 notes,
                 createdAt: now,
+                updatedAt: now,
             };
 
             setData((prev) => ({
                 ...prev,
                 transfers: [...(prev.transfers || []), transfer],
-                accounts: prev.accounts.map((account) => {
-                    if (account.id === fromAccountId) {
-                        return {
-                            ...account,
-                            balance: account.balance - amount,
-                            updatedAt: now,
-                        };
-                    }
-                    if (account.id === toAccountId) {
-                        return {
-                            ...account,
-                            balance: account.balance + amount,
-                            updatedAt: now,
-                        };
-                    }
-                    return account;
-                }),
             }));
 
             return transfer;
         },
         [data.accounts, setData],
+    );
+
+    const updateTransfer = useCallback(
+        (id: string, updates: Partial<AccountTransfer>) => {
+            setData((prev) => ({
+                ...prev,
+                transfers: prev.transfers.map((transfer) =>
+                    transfer.id === id
+                        ? {
+                              ...transfer,
+                              ...updates,
+                              updatedAt: new Date().toISOString(),
+                          }
+                        : transfer,
+                ),
+            }));
+        },
+        [setData],
+    );
+
+    const deleteTransfer = useCallback(
+        (id: string) => {
+            setData((prev) => ({
+                ...prev,
+                transfers: prev.transfers.filter((t) => t.id !== id),
+                deleted: addTombstones(prev.deleted, [id]),
+            }));
+        },
+        [setData],
     );
 
     // ==================== Installment Operations ====================
@@ -1354,6 +839,7 @@ export const useFinance = () => {
                     installments: nextInstallments.filter(
                         (inst) => inst.id !== id,
                     ),
+                    deleted: addTombstones(prev.deleted, [id]),
                 };
             });
 
@@ -1437,6 +923,7 @@ export const useFinance = () => {
                         tags: ["installment"],
                         notes: payment.notes,
                         linkedInstallmentId: installmentId,
+                        linkedPaymentId: paymentId,
                         createdAt: now,
                         updatedAt: now,
                     };
@@ -1467,6 +954,51 @@ export const useFinance = () => {
             });
 
             return newPayment;
+        },
+        [setData],
+    );
+
+    // Removes a payment and the expense it created, then re-derives paid totals
+    const deleteInstallmentPayment = useCallback(
+        (installmentId: string, paymentId: string) => {
+            setData((prev) => {
+                const installment = prev.installments.find(
+                    (i) => i.id === installmentId,
+                );
+                if (!installment) return prev;
+
+                const payments = installment.payments.filter(
+                    (p) => p.id !== paymentId,
+                );
+                const linkedExpenseIds = prev.expenses
+                    .filter((e) => e.linkedPaymentId === paymentId)
+                    .map((e) => e.id);
+                const now = new Date().toISOString();
+
+                return {
+                    ...prev,
+                    expenses: prev.expenses.filter(
+                        (e) => e.linkedPaymentId !== paymentId,
+                    ),
+                    installments: prev.installments.map((inst) =>
+                        inst.id === installmentId
+                            ? {
+                                  ...inst,
+                                  payments,
+                                  ...summarizeInstallmentPayments(
+                                      inst,
+                                      payments,
+                                  ),
+                                  updatedAt: now,
+                              }
+                            : inst,
+                    ),
+                    deleted: addTombstones(prev.deleted, [
+                        paymentId,
+                        ...linkedExpenseIds,
+                    ]),
+                };
+            });
         },
         [setData],
     );
@@ -1705,6 +1237,7 @@ export const useFinance = () => {
                 return {
                     ...prev,
                     goals: nextGoals.filter((goal) => goal.id !== id),
+                    deleted: addTombstones(prev.deleted, [id]),
                 };
             });
 
@@ -2270,24 +1803,17 @@ export const useFinance = () => {
 
     // ==================== Export/Import Functions ====================
 
-    const exportData = useCallback((): FinanceData => {
-        return {
-            accounts: data.accounts || [],
-            transfers: data.transfers || [],
-            incomes: data.incomes,
-            expenses: data.expenses,
-            categories: data.categories,
-            incomeCategories: data.incomeCategories || [],
-            installments: data.installments,
-            budgets: data.budgets,
-            goals: data.goals,
-            alerts: data.alerts,
-            settings: data.settings,
+    const exportData = useCallback(
+        (): FinanceData => ({
+            ...data,
             exportedAt: new Date().toISOString(),
             version: "2.0.0",
-        };
-    }, [data]);
+        }),
+        [data],
+    );
 
+    // Import and reset replace the whole module (no merge with current data);
+    // `replacedAt` makes the next cloud merge take this copy as a whole.
     const importData = useCallback(
         (importedData: FinanceData) => {
             if (
@@ -2298,31 +1824,24 @@ export const useFinance = () => {
                 throw new Error("Invalid data structure");
             }
 
-            // Run migration if imported data doesn't have accounts
-            const migratedData = runMigrationIfNeeded(importedData);
-
+            const migratedData = runMigrationIfNeeded(
+                normalizeFinanceData(importedData),
+            );
             setData({
-                accounts: migratedData.accounts || [],
-                transfers: migratedData.transfers || [],
-                incomes: migratedData.incomes || [],
-                expenses: migratedData.expenses || [],
-                categories: migratedData.categories || data.categories,
-                incomeCategories: migratedData.incomeCategories || [],
-                installments: migratedData.installments || [],
-                budgets: migratedData.budgets || [],
-                goals: migratedData.goals || [],
-                alerts: migratedData.alerts || [],
-                settings: migratedData.settings || data.settings,
-                exportedAt: new Date().toISOString(),
+                ...migratedData,
+                deleted: [],
+                replacedAt: new Date().toISOString(),
                 version: migratedData.version || "2.0.0",
             });
         },
-        [data.categories, data.settings, setData],
+        [setData],
     );
 
     const resetData = useCallback(() => {
-        const defaultData = getDefaultFinanceData();
-        setData(defaultData);
+        setData({
+            ...getDefaultFinanceData(),
+            replacedAt: new Date().toISOString(),
+        });
     }, [setData]);
 
     // Return all operations and data
@@ -2345,6 +1864,7 @@ export const useFinance = () => {
         updateIncome,
         deleteIncome,
         getIncomeById,
+        restoreRecord,
 
         // Expense operations
         addExpense,
@@ -2371,13 +1891,17 @@ export const useFinance = () => {
         deleteAccount,
         getAccountById,
         calculateAccountBalance,
+        totalBalance,
         transferBetweenAccounts,
+        updateTransfer,
+        deleteTransfer,
 
         // Installment operations
         addInstallment,
         updateInstallment,
         deleteInstallment,
         addInstallmentPayment,
+        deleteInstallmentPayment,
         addInstallmentRefund,
 
         // Goal operations

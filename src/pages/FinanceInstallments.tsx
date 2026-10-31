@@ -17,6 +17,10 @@ import { PaymentModal } from "@/components/finance/v2/modals/PaymentModal";
 import { SkeletonCard } from "@/components/finance/v2/effects/SkeletonCard";
 
 import type { Installment } from "@/types/modules/finance";
+import {
+    installmentFormToNew,
+    installmentFormToUpdates,
+} from "@/utils/finance/installments";
 
 export default function FinanceInstallments() {
     const {
@@ -27,6 +31,7 @@ export default function FinanceInstallments() {
         formatCurrency,
         addInstallment,
         updateInstallment,
+        deleteInstallmentPayment,
         deleteInstallment,
         addInstallmentPayment,
         addInstallmentRefund,
@@ -282,34 +287,18 @@ export default function FinanceInstallments() {
                     setEditingInstallment(null);
                 }}
                 onSubmit={(data) => {
-                    const installmentData = {
-                        title: data.title,
-                        totalAmount: data.totalAmount,
-                        paidAmount: data.paidAmount,
-                        installmentAmount: data.installmentAmount,
-                        totalInstallments: data.totalInstallments,
-                        paidInstallments: data.paidInstallments,
-                        frequency: data.frequency,
-                        linkedAccountId:
-                            data.linkedAccountId || accounts[0]?.id || "",
-                        startDate: data.startDate,
-                        nextPaymentDate: data.nextDueDate,
-                        description: data.notes,
-                        categoryId: categories[0]?.id || "",
-                        endDate: data.startDate,
-                        status: "active" as const,
-                        autoPayment: false,
-                        remindDaysBefore: 3,
-                        payments: [],
-                    };
-
                     if (editingInstallment) {
                         updateInstallment(
                             editingInstallment.id,
-                            installmentData,
+                            installmentFormToUpdates(data),
                         );
                     } else {
-                        addInstallment(installmentData);
+                        addInstallment(
+                            installmentFormToNew(data, {
+                                accountId: accounts[0]?.id || "",
+                                categoryId: categories[0]?.id || "",
+                            }),
+                        );
                     }
                     setShowInstallmentModal(false);
                     setEditingInstallment(null);
@@ -359,8 +348,17 @@ export default function FinanceInstallments() {
                     setShowInstallmentDetailsModal(false);
                     setViewingInstallment(null);
                 }}
-                installment={viewingInstallment}
+                // Read the live record so the open modal reflects payment changes
+                installment={
+                    installments.find((i) => i.id === viewingInstallment?.id) ??
+                    viewingInstallment
+                }
                 formatCurrency={formatCurrency}
+                onDeletePayment={(paymentId) => {
+                    if (viewingInstallment) {
+                        deleteInstallmentPayment(viewingInstallment.id, paymentId);
+                    }
+                }}
                 onEdit={() => {
                     if (viewingInstallment) {
                         setEditingInstallment(viewingInstallment);

@@ -18,6 +18,7 @@ import { DRIVE_FILE } from "../config/google";
 import { V2_STORAGE_KEY } from "../utils/storageV2";
 import type { AppData } from "../types";
 import type { StorageV2 } from "../utils/storageV2";
+import { mergeFinanceData } from "@/utils/finance/merge";
 
 // V2 Storage uses a single key
 export const STORAGE_KEYS = {
@@ -622,40 +623,10 @@ class StorageServiceClass {
                     cloud.programming?.projects ?? []
                 ),
             },
-            finance: {
-                incomes: mergeArraysById(
-                    local.finance?.incomes ?? [],
-                    cloud.finance?.incomes ?? []
-                ),
-                expenses: mergeArraysById(
-                    local.finance?.expenses ?? [],
-                    cloud.finance?.expenses ?? []
-                ),
-                categories: mergeArraysById(
-                    local.finance?.categories ?? [],
-                    cloud.finance?.categories ?? []
-                ),
-                installments: mergeArraysById(
-                    local.finance?.installments ?? [],
-                    cloud.finance?.installments ?? []
-                ),
-                budgets: mergeArraysById(
-                    local.finance?.budgets ?? [],
-                    cloud.finance?.budgets ?? []
-                ),
-                goals: mergeArraysById(
-                    local.finance?.goals ?? [],
-                    cloud.finance?.goals ?? []
-                ),
-                alerts: mergeArraysById(
-                    local.finance?.alerts ?? [],
-                    cloud.finance?.alerts ?? []
-                ),
-                settings: {
-                    ...(cloud.finance?.settings ?? {}),
-                    ...(local.finance?.settings ?? {}),
-                },
-            },
+            finance: mergeFinanceData(
+                local.finance ?? {},
+                cloud.finance ?? {}
+            ),
             home: {
                 tasks: mergeArraysById(
                     local.home?.tasks ?? [],

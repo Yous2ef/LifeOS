@@ -40,6 +40,8 @@ interface IncomeModalProps {
     accounts: Account[];
     incomeCategories: IncomeCategory[];
     defaultCurrency: Currency;
+    /** When set, the modal edits an existing income with these values */
+    initialData?: Partial<IncomeFormData>;
 }
 
 export interface IncomeFormData {
@@ -90,7 +92,9 @@ export const IncomeModal = ({
     accounts,
     incomeCategories,
     defaultCurrency,
+    initialData,
 }: IncomeModalProps) => {
+    const isEditing = !!initialData;
     const [formData, setFormData] = useState<IncomeFormData>({
         title: "",
         amount: 0,
@@ -133,10 +137,11 @@ export const IncomeModal = ({
                 isRecurring: false,
                 tags: [],
                 notes: "",
+                ...initialData,
             });
             setStep("amount");
         }
-    }, [isOpen, defaultCurrency, accounts, incomeCategories]);
+    }, [isOpen, defaultCurrency, accounts, incomeCategories, initialData]);
 
     const handleCategoryScroll = () => {
         const element = categoryScrollRef.current;
@@ -233,7 +238,7 @@ export const IncomeModal = ({
                                     </div>
                                     <div>
                                         <h2 className="text-lg font-semibold">
-                                            Add Income
+                                            {isEditing ? "Edit income" : "Add Income"}
                                         </h2>
                                         <p className="text-xs text-muted-foreground">
                                             {step === "amount"
@@ -673,7 +678,7 @@ export const IncomeModal = ({
                                         <Button
                                             onClick={handleSubmit}
                                             className="flex-1 rounded-xl bg-emerald-500 hover:bg-emerald-600">
-                                            Add Income
+                                            {isEditing ? "Save changes" : "Add Income"}
                                         </Button>
                                     </>
                                 )}

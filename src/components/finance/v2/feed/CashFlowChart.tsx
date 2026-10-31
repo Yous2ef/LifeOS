@@ -16,6 +16,11 @@ import type {
     AccountTransfer,
 } from "@/types/modules/finance";
 import type { DateRange } from "../controls/SmartDatePicker";
+import {
+    countedIncomesInRange,
+    expensesInRange,
+    sumAmounts,
+} from "@/utils/finance/aggregations";
 
 interface CashFlowChartProps {
     incomes: Income[];
@@ -42,15 +47,8 @@ export const CashFlowChart = ({
 }: CashFlowChartProps) => {
     const data = useMemo(() => {
         // Filter by date range
-        let filteredIncomes = incomes.filter((i) => {
-            const date = new Date(i.actualDate || i.createdAt);
-            return date >= dateRange.start && date <= dateRange.end;
-        });
-
-        let filteredExpenses = expenses.filter((e) => {
-            const date = new Date(e.date);
-            return date >= dateRange.start && date <= dateRange.end;
-        });
+        let filteredIncomes = countedIncomesInRange(incomes, dateRange);
+        let filteredExpenses = expensesInRange(expenses, dateRange);
 
         let filteredTransfers = transfers.filter((t) => {
             const date = new Date(t.date);
@@ -73,18 +71,9 @@ export const CashFlowChart = ({
             );
         }
 
-        const totalIncome = filteredIncomes.reduce(
-            (sum, i) => sum + i.amount,
-            0
-        );
-        const totalExpense = filteredExpenses.reduce(
-            (sum, e) => sum + e.amount,
-            0
-        );
-        const totalTransfer = filteredTransfers.reduce(
-            (sum, t) => sum + t.amount,
-            0
-        );
+        const totalIncome = sumAmounts(filteredIncomes);
+        const totalExpense = sumAmounts(filteredExpenses);
+        const totalTransfer = sumAmounts(filteredTransfers);
         const netFlow = totalIncome - totalExpense;
         const maxValue = Math.max(totalIncome, totalExpense, totalTransfer, 1);
 

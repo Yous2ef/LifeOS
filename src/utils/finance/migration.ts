@@ -7,116 +7,15 @@ import type {
     IncomeCategory,
     TransactionNature,
 } from "@/types/modules/finance";
+import {
+    DEFAULT_ACCOUNT_ID,
+    getDefaultExpenseCategories,
+    getDefaultFinanceSettings,
+    getDefaultIncomeCategories,
+} from "./defaults";
 
 const generateId = (): string => {
     return `${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-};
-
-// Default income categories for migration
-const getDefaultIncomeCategories = (): IncomeCategory[] => {
-    const now = new Date().toISOString();
-    return [
-        {
-            id: generateId(),
-            name: "Salary",
-            nameAr: "راتب",
-            icon: "💼",
-            color: "#3b82f6",
-            isDefault: true,
-            order: 1,
-            createdAt: now,
-        },
-        {
-            id: generateId(),
-            name: "Freelance",
-            nameAr: "عمل حر",
-            icon: "💻",
-            color: "#8b5cf6",
-            isDefault: true,
-            order: 2,
-            createdAt: now,
-        },
-        {
-            id: generateId(),
-            name: "Business",
-            nameAr: "أعمال",
-            icon: "🏢",
-            color: "#14b8a6",
-            isDefault: true,
-            order: 3,
-            createdAt: now,
-        },
-        {
-            id: generateId(),
-            name: "Investment",
-            nameAr: "استثمار",
-            icon: "📈",
-            color: "#22c55e",
-            isDefault: true,
-            order: 4,
-            createdAt: now,
-        },
-        {
-            id: generateId(),
-            name: "Bonus",
-            nameAr: "مكافأة",
-            icon: "🎉",
-            color: "#f59e0b",
-            isDefault: true,
-            order: 5,
-            createdAt: now,
-        },
-        {
-            id: generateId(),
-            name: "Commission",
-            nameAr: "عمولة",
-            icon: "💰",
-            color: "#10b981",
-            isDefault: true,
-            order: 6,
-            createdAt: now,
-        },
-        {
-            id: generateId(),
-            name: "Gift",
-            nameAr: "هدية",
-            icon: "🎁",
-            color: "#ec4899",
-            isDefault: true,
-            order: 7,
-            createdAt: now,
-        },
-        {
-            id: generateId(),
-            name: "Refund",
-            nameAr: "استرداد",
-            icon: "🔄",
-            color: "#06b6d4",
-            isDefault: true,
-            order: 8,
-            createdAt: now,
-        },
-        {
-            id: generateId(),
-            name: "Rental Income",
-            nameAr: "دخل إيجار",
-            icon: "🏠",
-            color: "#6366f1",
-            isDefault: true,
-            order: 9,
-            createdAt: now,
-        },
-        {
-            id: generateId(),
-            name: "Other",
-            nameAr: "أخرى",
-            icon: "📦",
-            color: "#64748b",
-            isDefault: true,
-            order: 10,
-            createdAt: now,
-        },
-    ];
 };
 
 // Map old income type strings to category names
@@ -148,11 +47,10 @@ export const migrateToV2 = (oldData: Partial<FinanceData>): FinanceData => {
 
     // Create default account
     const defaultAccount: Account = {
-        id: generateId(),
+        id: DEFAULT_ACCOUNT_ID,
         name: "Main Cash",
         type: "cash",
-        balance: 0, // Will be calculated from historical data
-        initialBalance: 0,
+        initialBalance: 0, // Balance is derived from transactions
         color: "#10b981",
         icon: "💵",
         currency: oldData.settings?.defaultCurrency || "EGP",
@@ -203,43 +101,23 @@ export const migrateToV2 = (oldData: Partial<FinanceData>): FinanceData => {
         contributions: goal.contributions || [],
     }));
 
-    // Calculate initial balance from historical data
-    const totalIncome = migratedIncomes
-        .filter((inc) => inc.status === "received" && inc.actualDate)
-        .reduce((sum, inc) => sum + inc.amount, 0);
-
-    const totalExpense = migratedExpenses.reduce(
-        (sum, exp) => sum + exp.amount,
-        0
-    );
-
-    defaultAccount.initialBalance = 0; // Starting from 0
-    defaultAccount.balance = totalIncome - totalExpense;
-
-    // Return migrated data structure
+    // Keep every field we don't migrate (transfers, newer arrays, settings)
     return {
+        ...(oldData as FinanceData),
         accounts: [defaultAccount],
-        transfers: [], // No transfers in old data
+        transfers: oldData.transfers ?? [],
         incomes: migratedIncomes,
         expenses: migratedExpenses,
-        categories: oldData.categories || [],
-        incomeCategories: [],
+        categories:
+            oldData.categories && oldData.categories.length > 0
+                ? oldData.categories
+                : getDefaultExpenseCategories(),
+        incomeCategories: oldData.incomeCategories ?? [],
         installments: migratedInstallments,
-        budgets: oldData.budgets || [],
+        budgets: oldData.budgets ?? [],
         goals: migratedGoals,
-        alerts: oldData.alerts || [],
-        settings: oldData.settings || {
-            defaultCurrency: "EGP",
-            monthStartDay: 1,
-            showCents: false,
-            enableBudgetAlerts: true,
-            budgetWarningThreshold: 80,
-            enableInstallmentReminders: true,
-            installmentReminderDays: 3,
-            enableInsights: true,
-            weeklyReportEnabled: true,
-            monthlyReportEnabled: true,
-        },
+        alerts: oldData.alerts ?? [],
+        settings: { ...getDefaultFinanceSettings(), ...oldData.settings },
         version: "2.0.0",
     };
 };
@@ -331,26 +209,13 @@ export const migrateIncomeCategories = (data: FinanceData): FinanceData => {
             ? inc.type
             : "variable";
 
+        // Spread first so fields added later aren't stripped
         return {
-            id: inc.id,
-            title: inc.title,
-            amount: inc.amount,
-            currency: inc.currency,
+            ...inc,
             categoryId,
             type: newType, // Now TransactionNature
-            status: inc.status,
-            frequency: inc.frequency,
-            accountId: inc.accountId,
-            expectedDate: inc.expectedDate,
-            actualDate: inc.actualDate,
             isRecurring: inc.isRecurring ?? false,
-            recurringEndDate: inc.recurringEndDate,
-            nextOccurrence: inc.nextOccurrence,
-            notes: inc.notes,
             tags: inc.tags || [],
-            linkedInstallmentId: inc.linkedInstallmentId,
-            createdAt: inc.createdAt,
-            updatedAt: inc.updatedAt,
         } as Income;
     });
 
@@ -370,6 +235,10 @@ export const migrateIncomeCategories = (data: FinanceData): FinanceData => {
         expenses: migratedExpenses,
     };
 };
+
+/** True when runMigrationIfNeeded would change the data */
+export const financeNeedsMigration = (data: Partial<FinanceData>): boolean =>
+    needsMigration(data) || needsIncomeCategoryMigration(data);
 
 /**
  * Main migration function to be called when loading finance data

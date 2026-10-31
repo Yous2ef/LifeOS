@@ -336,6 +336,8 @@ export const InstallmentModal = ({
                                                     }
                                                     placeholder="0.00"
                                                     className="rounded-xl pl-14"
+                                                    // Paid totals come from recorded payments once the installment exists
+                                                    disabled={isEditing}
                                                 />
                                             </div>
                                         </div>
@@ -479,6 +481,7 @@ export const InstallmentModal = ({
                                                 className="rounded-xl"
                                                 min={0}
                                                 max={formData.totalInstallments}
+                                                disabled={isEditing}
                                             />
                                         </div>
 

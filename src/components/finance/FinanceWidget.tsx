@@ -22,10 +22,10 @@ import { useFinance } from "@/hooks/useFinance";
 import { GlassCard } from "./v2/layout/GlassCard";
 
 export const FinanceWidget = () => {
-    const { accounts, goals, formatCurrency, getMonthlyStats } = useFinance();
+    const { totalBalance: netWorth, goals, formatCurrency, getMonthlyStats } =
+        useFinance();
 
     // Calculate totals
-    const netWorth = accounts.reduce((sum, acc) => sum + acc.balance, 0);
     const stats = getMonthlyStats();
     const monthlyExpenses = stats.totalExpensesThisMonth;
     const monthlyIncome = stats.totalIncomeThisMonth;

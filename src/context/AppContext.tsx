@@ -15,6 +15,11 @@ import { useStorageContext, STORAGE_KEYS } from "./StorageContext";
 interface AppContextType {
     data: AppData;
     updateData: (newData: Partial<AppData>) => void;
+    /** Replaces one module with `updater(latest module)` — safe for several writes in one tick. */
+    updateModule: <K extends keyof AppData>(
+        key: K,
+        updater: (prev: AppData[K]) => AppData[K],
+    ) => void;
     refreshData: () => void;
     showToast: (message: string, type?: Toast["type"]) => void;
     toasts: Toast[];
@@ -148,6 +153,19 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         });
     };
 
+    const updateModule = useCallback(
+        <K extends keyof AppData>(
+            key: K,
+            updater: (prev: AppData[K]) => AppData[K],
+        ) => {
+            setData((prev) => {
+                const next = updater(prev[key]);
+                return next === prev[key] ? prev : { ...prev, [key]: next };
+            });
+        },
+        [],
+    );
+
     const refreshData = () => {
         // Reload from V2 unified storage
         setData(loadStorageData());
@@ -262,6 +280,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
             value={{
                 data,
                 updateData,
+                updateModule,
                 refreshData,
                 showToast,
                 toasts,

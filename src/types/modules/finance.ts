@@ -14,7 +14,7 @@ export interface Account {
     id: string;
     name: string; // "Vodafone Cash", "CIB Bank", "Cash in Hand"
     type: AccountType;
-    balance: number; // Real-time calculated balance
+    balance?: number; // @deprecated - never read; balances are derived (utils/finance/balances)
     initialBalance: number; // Starting balance
     color: string; // Hex color for UI representation
     icon: string; // Emoji or icon name
@@ -39,6 +39,7 @@ export interface AccountTransfer {
     date: string;
     notes?: string;
     createdAt: string;
+    updatedAt?: string;
 }
 
 // ==================== Enums & Constants ====================
@@ -188,6 +189,7 @@ export interface Expense {
     receipt?: string; // URL or base64
     notes?: string;
     linkedInstallmentId?: string; // If this expense is an installment payment
+    linkedPaymentId?: string; // The InstallmentPayment this expense pays
     createdAt: string;
     updatedAt: string;
 }
@@ -722,6 +724,12 @@ export type TimePeriod =
     | "this-year"
     | "custom";
 
+// Tombstone left by a delete so cloud merge (union by id) can't bring it back
+export interface DeletedRecord {
+    id: string;
+    deletedAt: string;
+}
+
 // Complete Finance Data for export/import
 export interface FinanceData {
     accounts: Account[]; // NEW: Multi-account support
@@ -735,6 +743,8 @@ export interface FinanceData {
     goals: FinancialGoal[];
     alerts: FinancialAlert[];
     settings: FinanceSettings;
+    deleted?: DeletedRecord[];
+    replacedAt?: string; // Set by import/reset; cloud merge takes the newer side wholesale
     exportedAt?: string;
     version?: string;
 }

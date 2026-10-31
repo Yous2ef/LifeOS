@@ -16,8 +16,8 @@ interface TransactionFeedProps {
     formatCurrency: (amount: number) => string;
     dateRange: DateRange;
     onTransactionClick?: (transaction: Transaction) => void;
-    onDeleteIncome?: (id: string) => void;
-    onDeleteExpense?: (id: string) => void;
+    onEdit?: (transaction: Transaction) => void;
+    onDelete?: (transaction: Transaction) => void;
     selectedAccount?: Account | null;
     onClearAccountFilter?: () => void;
     className?: string;
@@ -28,8 +28,8 @@ export const TransactionFeed = ({
     formatCurrency,
     dateRange,
     onTransactionClick,
-    onDeleteIncome,
-    onDeleteExpense,
+    onEdit,
+    onDelete,
     selectedAccount,
     onClearAccountFilter,
     className,
@@ -325,20 +325,17 @@ export const TransactionFeed = ({
                                                     transaction
                                                 )
                                             }
-                                            onDelete={() => {
-                                                if (
-                                                    transaction.type ===
-                                                    "income"
-                                                ) {
-                                                    onDeleteIncome?.(
-                                                        transaction.id
-                                                    );
-                                                } else {
-                                                    onDeleteExpense?.(
-                                                        transaction.id
-                                                    );
-                                                }
-                                            }}
+                                            onEdit={
+                                                onEdit &&
+                                                transaction.type !== "transfer"
+                                                    ? () => onEdit(transaction)
+                                                    : undefined
+                                            }
+                                            onDelete={
+                                                onDelete
+                                                    ? () => onDelete(transaction)
+                                                    : undefined
+                                            }
                                             index={index}
                                         />
                                     )
