@@ -57,6 +57,7 @@ const DEBOUNCE_MS = 1000; // 1 second debounce for cloud saves
 class StorageServiceClass {
     private mode: StorageMode = "local";
     private listeners: Set<SyncEventListener> = new Set();
+    private createdAt: string | null = null;
     private pendingData: StorageV2 | null = null;
 
     /**
@@ -141,8 +142,15 @@ class StorageServiceClass {
      * Get the created timestamp from existing data or use now
      */
     private getCreatedTimestamp(): string {
-        const existing = this.loadFromLocal<StorageV2>(STORAGE_KEYS.MAIN_DATA);
-        return existing?.created ?? new Date().toISOString();
+        // Read once: parsing the whole store on every save just for this
+        // field made each write noticeably slow with a large data set
+        if (!this.createdAt) {
+            const existing = this.loadFromLocal<StorageV2>(
+                STORAGE_KEYS.MAIN_DATA
+            );
+            this.createdAt = existing?.created ?? new Date().toISOString();
+        }
+        return this.createdAt;
     }
 
     /**
@@ -151,6 +159,11 @@ class StorageServiceClass {
     private saveToLocal<T>(key: StorageKey, data: T): void {
         try {
             localStorage.setItem(key, JSON.stringify(data));
+            // Keep the cached creation time in step when cloud data replaces local
+            const created = (data as Partial<StorageV2>)?.created;
+            if (key === STORAGE_KEYS.MAIN_DATA && created) {
+                this.createdAt = created;
+            }
         } catch (error) {
             console.error(`❌ Error saving to localStorage:`, error);
         }

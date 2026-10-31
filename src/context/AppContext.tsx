@@ -36,6 +36,9 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
+// Long enough for a modal's close animation to finish before the store is serialised
+const SAVE_DELAY_MS = 400;
+
 export const useApp = () => {
     const context = useContext(AppContext);
     if (!context) {
@@ -55,6 +58,14 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     const isExternalUpdate = useRef(false);
     // Track if this is the initial mount to skip saving on first render
     const isInitialMount = useRef(true);
+    // The data this provider last saved. Storage notifies subscribers of every
+    // save, including our own; re-reading and re-applying that echo parsed the
+    // whole store and re-rendered the app a second time on every write.
+    const lastSaved = useRef<AppData | null>(null);
+    // Data waiting to be written. Writes are delayed a moment so serialising the
+    // whole store doesn't block the frame that starts a modal's close animation,
+    // and quick edits (e.g. reordering) collapse into one write.
+    const pendingSave = useRef<{ data: AppData; timer: number } | null>(null);
 
     const [data, setData] = useState<AppData>(() => {
         // Load data from unified V2 storage (handles V1→V2 migration automatically)
@@ -72,7 +83,12 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         const unsubscribe = subscribeToKey(
             STORAGE_KEYS.MAIN_DATA,
             (newData) => {
-                if (newData) {
+                if (newData && newData !== lastSaved.current) {
+                    // External data wins over a local write still waiting
+                    if (pendingSave.current) {
+                        clearTimeout(pendingSave.current.timer);
+                        pendingSave.current = null;
+                    }
                     const stored = newData as AppData;
                     const defaultData = loadStorageData();
                     isExternalUpdate.current = true;
@@ -107,6 +123,24 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     // Get saveData from StorageContext for cloud sync support
     const { saveData: saveToStorage } = useStorageContext();
 
+    // Read through a ref so the flush stays stable (its cleanup flushes)
+    const saveToStorageRef = useRef(saveToStorage);
+    saveToStorageRef.current = saveToStorage;
+
+    const flushPendingSave = useCallback(() => {
+        const pending = pendingSave.current;
+        if (!pending) return;
+        clearTimeout(pending.timer);
+        pendingSave.current = null;
+        try {
+            // Save to storage (local + cloud via StorageService)
+            lastSaved.current = pending.data;
+            saveToStorageRef.current(pending.data);
+        } catch (error) {
+            console.error("Failed to save app data:", error);
+        }
+    }, []);
+
     // Persist to V2 unified storage with cloud sync
     useEffect(() => {
         // Skip save on initial mount - we just loaded the data, no need to save it back
@@ -121,13 +155,26 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
             return;
         }
 
-        try {
-            // Save to storage (local + cloud via StorageService)
-            saveToStorage(data);
-        } catch (error) {
-            console.error("Failed to save app data:", error);
-        }
-    }, [data, saveToStorage]);
+        if (pendingSave.current) clearTimeout(pendingSave.current.timer);
+        pendingSave.current = {
+            data,
+            timer: window.setTimeout(flushPendingSave, SAVE_DELAY_MS),
+        };
+    }, [data, flushPendingSave]);
+
+    // Never lose a waiting write when the tab is hidden or closed
+    useEffect(() => {
+        const flushIfHidden = () => {
+            if (document.visibilityState === "hidden") flushPendingSave();
+        };
+        window.addEventListener("pagehide", flushPendingSave);
+        document.addEventListener("visibilitychange", flushIfHidden);
+        return () => {
+            flushPendingSave();
+            window.removeEventListener("pagehide", flushPendingSave);
+            document.removeEventListener("visibilitychange", flushIfHidden);
+        };
+    }, [flushPendingSave]);
 
     const updateData = (newData: Partial<AppData>) => {
         setData((prev) => {
